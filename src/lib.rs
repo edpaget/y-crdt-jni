@@ -2,8 +2,10 @@ use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
 
 mod ydoc;
+mod ytext;
 
 pub use ydoc::*;
+pub use ytext::*;
 
 /// Helper function to convert a Rust string to a Java string
 pub fn to_jstring(env: &mut JNIEnv, s: &str) -> jstring {

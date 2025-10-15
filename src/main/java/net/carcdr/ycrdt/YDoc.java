@@ -156,6 +156,39 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Gets or creates a YText instance with the specified name.
+     *
+     * <p>This method returns a collaborative text type that can be shared between
+     * multiple clients. If a text with this name already exists in the document,
+     * it will be returned; otherwise, a new one will be created.</p>
+     *
+     * <p>The returned YText instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YText text = doc.getText("mytext")) {
+     *     text.insert(0, "Hello World");
+     *     System.out.println(text.toString());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the text object
+     * @return a YText instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if text creation fails
+     */
+    public YText getText(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YText(this, name);
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
@@ -196,6 +229,15 @@ public class YDoc implements Closeable {
         if (closed) {
             throw new IllegalStateException("YDoc has been closed");
         }
+    }
+
+    /**
+     * Gets the native pointer for internal use.
+     *
+     * @return the native pointer value
+     */
+    long getNativePtr() {
+        return nativePtr;
     }
 
     /**

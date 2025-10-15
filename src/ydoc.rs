@@ -129,8 +129,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateAsUpdate(
     unsafe {
         let doc = from_java_ptr::<Doc>(ptr);
         let txn = doc.transact();
-        let state_vector = txn.state_vector();
-        let update = txn.encode_state_as_update_v1(&state_vector);
+        // Encode against an empty state vector to get the full document state
+        let empty_sv = yrs::StateVector::default();
+        let update = txn.encode_state_as_update_v1(&empty_sv);
 
         match env.byte_array_from_slice(&update) {
             Ok(arr) => arr.into_raw(),
@@ -224,8 +225,8 @@ mod tests {
         }
 
         let txn = doc.transact();
-        let state_vector = txn.state_vector();
-        let update = txn.encode_state_as_update_v1(&state_vector);
+        let empty_sv = yrs::StateVector::default();
+        let update = txn.encode_state_as_update_v1(&empty_sv);
         assert!(!update.is_empty());
     }
 }
