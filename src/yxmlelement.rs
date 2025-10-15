@@ -431,11 +431,9 @@ mod tests {
 
         let mut txn = doc.transact_mut();
         let element = fragment.insert(&mut txn, 0, XmlElementPrelim::empty("test"));
-        drop(txn);
-
-        let txn = doc.transact();
         let tag = element.tag();
         assert_eq!(tag.as_ref(), "test");
+        drop(txn);
     }
 
     #[test]

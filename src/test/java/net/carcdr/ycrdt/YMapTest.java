@@ -2,7 +2,6 @@ package net.carcdr.ycrdt;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -115,9 +114,15 @@ public class YMapTest {
             boolean hasKey3 = false;
 
             for (String key : keys) {
-                if ("key1".equals(key)) hasKey1 = true;
-                if ("key2".equals(key)) hasKey2 = true;
-                if ("key3".equals(key)) hasKey3 = true;
+                if ("key1".equals(key)) {
+                    hasKey1 = true;
+                }
+                if ("key2".equals(key)) {
+                    hasKey2 = true;
+                }
+                if ("key3".equals(key)) {
+                    hasKey3 = true;
+                }
             }
 
             assertTrue(hasKey1);

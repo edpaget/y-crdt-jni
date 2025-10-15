@@ -98,9 +98,15 @@ public class YXmlElementTest {
             boolean hasStyle = false;
 
             for (String name : names) {
-                if ("class".equals(name)) hasClass = true;
-                if ("id".equals(name)) hasId = true;
-                if ("style".equals(name)) hasStyle = true;
+                if ("class".equals(name)) {
+                    hasClass = true;
+                }
+                if ("id".equals(name)) {
+                    hasId = true;
+                }
+                if ("style".equals(name)) {
+                    hasStyle = true;
+                }
             }
 
             assertTrue(hasClass);
