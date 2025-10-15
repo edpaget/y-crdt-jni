@@ -3,16 +3,24 @@
 ## Overview
 This document outlines the plan for creating JNI bindings to expose the y-crdt (yrs) Rust library for use from the JVM (Java/Kotlin).
 
-**Status:** Phase 2 In Progress (YText Complete) ✅ | Last Updated: 2025-10-15
+**Status:** Phase 2 In Progress (YText ✅, YArray ✅) | Last Updated: 2025-10-15
 
 ## Progress Summary
 
 - ✅ **Phase 1: Foundation** - COMPLETE
-- 🚧 **Phase 2: Core Types** - IN PROGRESS (YText ✅, YArray 🔜, YMap 🔜)
+- 🚧 **Phase 2: Core Types** - IN PROGRESS (YText ✅, YArray ✅, YMap 🔜)
 - 🔜 **Phase 3: Advanced Features** - Not Started
 - 🔜 **Phase 4: Production Ready** - Not Started
 
 ## Recent Updates (2025-10-15)
+
+### YArray Implementation ✅ COMPLETE
+- Implemented full collaborative array support
+- 11 native JNI methods (get, destroy, length, getString, getDouble, insertString, insertDouble, pushString, pushDouble, remove, toJson)
+- Comprehensive Java API with Closeable pattern
+- 27 comprehensive tests covering all operations, edge cases, and synchronization
+- Support for mixed types (strings and doubles)
+- Examples added to Example.java (Examples 6-7)
 
 ### YText Implementation ✅ COMPLETE
 - Implemented full collaborative text editing support
@@ -20,12 +28,12 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - Comprehensive Java API with Closeable pattern
 - 23 comprehensive tests covering all operations, edge cases, and synchronization
 - Unicode/emoji support with Modified UTF-8 handling
-- Examples added to Example.java
+- Examples added to Example.java (Examples 4-5)
 
 ### Critical Bug Fix 🐛 FIXED
 - **Issue:** `encodeStateAsUpdate()` was encoding against the document's own state vector, resulting in empty updates
 - **Fix:** Changed to encode against an empty state vector to get the full document state
-- **Impact:** Document synchronization now works correctly across all types (YDoc, YText)
+- **Impact:** Document synchronization now works correctly across all types (YDoc, YText, YArray)
 
 ## 1. Project Structure Setup ✅ COMPLETE
 - ✅ Convert the Rust project from a binary to a `cdylib` library in `Cargo.toml`
@@ -39,7 +47,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - Implement core CRDT types:
   - ✅ `YDoc` - the main document (COMPLETE)
   - ✅ `YText` - collaborative text (COMPLETE)
-  - 🔜 `YArray` - collaborative array (TODO)
+  - ✅ `YArray` - collaborative array (COMPLETE)
   - 🔜 `YMap` - collaborative map (TODO)
   - 🔜 `YXmlText`, `YXmlElement` - collaborative XML structures (TODO)
 - ✅ Handle memory management carefully (Rust ownership + JVM GC)
@@ -55,7 +63,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ `nativeEncodeStateAsUpdate(long)` - Serialize state (fixed critical bug - now encodes against empty state vector)
 - ✅ `nativeApplyUpdate(long, byte[])` - Apply binary updates
 
-### YText Implementation Details (src/ytext.rs) ✅ NEW
+### YText Implementation Details (src/ytext.rs) ✅ COMPLETE
 - ✅ `nativeGetText(long, String)` - Get or create YText instance
 - ✅ `nativeDestroy(long)` - Free YText memory
 - ✅ `nativeLength(long, long)` - Get text length
@@ -66,11 +74,25 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Fixed Java Modified UTF-8 string handling for Unicode support
 - ✅ 4 Rust unit tests (all passing)
 
+### YArray Implementation Details (src/yarray.rs) ✅ COMPLETE
+- ✅ `nativeGetArray(long, String)` - Get or create YArray instance
+- ✅ `nativeDestroy(long)` - Free YArray memory
+- ✅ `nativeLength(long, long)` - Get array length
+- ✅ `nativeGetString(long, long, int)` - Get string value at index
+- ✅ `nativeGetDouble(long, long, int)` - Get double value at index
+- ✅ `nativeInsertString(long, long, int, String)` - Insert string at index
+- ✅ `nativeInsertDouble(long, long, int, double)` - Insert double at index
+- ✅ `nativePushString(long, long, String)` - Append string to end
+- ✅ `nativePushDouble(long, long, double)` - Append double to end
+- ✅ `nativeRemove(long, long, int, int)` - Remove range of elements
+- ✅ `nativeToJson(long, long)` - Serialize array to JSON
+- ✅ 4 Rust unit tests (all passing)
+
 ## 3. Java/Kotlin API Layer (In Progress 🚧)
 - ✅ Create Java classes that mirror the Rust types
   - ✅ `YDoc.java` - Main document class (COMPLETE)
   - ✅ `YText.java` - Text type (COMPLETE)
-  - 🔜 `YArray.java` - Array type (TODO)
+  - ✅ `YArray.java` - Array type (COMPLETE)
   - 🔜 `YMap.java` - Map type (TODO)
 - ✅ Design idiomatic Java API that wraps native calls
 - ✅ Implement builder patterns where appropriate
@@ -86,8 +108,9 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Proper exception handling
 - ✅ Finalizer as safety net
 - ✅ `getText(String name)` method to create/get YText instances
+- ✅ `getArray(String name)` method to create/get YArray instances
 
-### YText.java Features ✅ NEW
+### YText.java Features ✅ COMPLETE
 - ✅ Implements `Closeable` for proper resource management
 - ✅ Full API: `length()`, `toString()`, `insert()`, `push()`, `delete()`, `close()`, `isClosed()`
 - ✅ Input validation with meaningful exceptions
@@ -96,6 +119,16 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Package-private constructor (created via YDoc.getText())
 - ✅ Unicode support (emoji, international characters)
 - ✅ 23 comprehensive tests (all passing)
+
+### YArray.java Features ✅ COMPLETE
+- ✅ Implements `Closeable` for proper resource management
+- ✅ Full API: `length()`, `getString()`, `getDouble()`, `insertString()`, `insertDouble()`, `pushString()`, `pushDouble()`, `remove()`, `toJson()`, `close()`, `isClosed()`
+- ✅ Input validation with meaningful exceptions (null checks, bounds checking)
+- ✅ Thread-safe close() operation
+- ✅ Comprehensive JavaDoc with examples
+- ✅ Package-private constructor (created via YDoc.getArray())
+- ✅ Support for mixed types (strings and doubles)
+- ✅ 27 comprehensive tests (all passing)
 
 ## 4. Build System Integration (Partial ✅)
 - ✅ Set up `cargo` build to produce platform-specific shared libraries (.so, .dylib, .dll)
@@ -129,25 +162,30 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## 6. Testing Infrastructure (In Progress 🚧)
 - ✅ Write Rust unit tests for JNI functions
-  - ✅ 8 tests total (all passing)
-  - ✅ 4 tests in lib.rs and ydoc.rs
-  - ✅ 4 tests in ytext.rs (NEW)
+  - ✅ 12 tests total (all passing)
+  - ✅ 3 tests in lib.rs and ydoc.rs
+  - ✅ 4 tests in ytext.rs
+  - ✅ 4 tests in yarray.rs
   - ✅ Tests for pointer conversion, doc creation, client ID, state encoding
-  - ✅ Tests for text creation, insert/read, push, delete (NEW)
+  - ✅ Tests for text creation, insert/read, push, delete
+  - ✅ Tests for array creation, push/read, insert, remove
 - ✅ Create Java integration tests
-  - ✅ 36 tests total (all passing - 100% success rate)
+  - ✅ 63 tests total (all passing - 100% success rate)
   - ✅ `YDocTest.java` with 13 comprehensive tests
-  - ✅ `YTextTest.java` with 23 comprehensive tests (NEW)
+  - ✅ `YTextTest.java` with 23 comprehensive tests
+  - ✅ `YArrayTest.java` with 27 comprehensive tests
   - ✅ Tests cover creation, lifecycle, synchronization, error handling
-  - ✅ Unicode/emoji support tests (NEW)
-  - ✅ Complex editing sequence tests (NEW)
-  - ✅ Bidirectional sync tests (NEW)
+  - ✅ Unicode/emoji support tests (YText)
+  - ✅ Mixed type support tests (YArray)
+  - ✅ Complex editing sequence tests
+  - ✅ Bidirectional sync tests
 - 🔜 Test memory leak scenarios with stress tests (TODO)
 - 🔜 Test concurrent access patterns (y-crdt's strength) (TODO)
 - 🔜 Add benchmarks to track performance (TODO)
 - ✅ Test error handling and exception propagation
   - ✅ Tests for closed documents, null updates, negative IDs
-  - ✅ Tests for null chunks, index out of bounds (NEW)
+  - ✅ Tests for null chunks, index out of bounds (YText)
+  - ✅ Tests for null values, index out of bounds (YArray)
 
 ## 7. Build Artifacts & Distribution (In Progress 🚧)
 - 🚧 Create multi-platform JAR with native libraries embedded (partial - gradle task ready)
@@ -173,8 +211,10 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Create example projects showing common use cases:
   - ✅ Basic document creation and manipulation (`Example.java`)
   - ✅ Real-time synchronization between clients (examples in README and Example.java)
-  - ✅ YText collaborative editing examples (Example.java Examples 4-5) (NEW)
-  - ✅ YText synchronization between documents (NEW)
+  - ✅ YText collaborative editing examples (Example.java Examples 4-5)
+  - ✅ YText synchronization between documents
+  - ✅ YArray collaborative array examples (Example.java Examples 6-7)
+  - ✅ YArray synchronization between documents
   - 🔜 Persistence and loading (TODO - not yet implemented)
   - 🔜 Integration with popular frameworks (TODO)
 - ✅ Document thread safety guarantees
@@ -186,7 +226,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 ### Additional Documentation
 - ✅ `PLAN.md` - This document with full roadmap (updated)
 - ✅ `IMPLEMENTATION.md` - Technical implementation details
-- ✅ Comprehensive JavaDoc in all classes (YDoc, YText)
+- ✅ Comprehensive JavaDoc in all classes (YDoc, YText, YArray)
 - ✅ Javadoc published to GitHub Pages (https://carcdr.net/y-crdt-jni/)
 - ✅ Code quality setup documented (Checkstyle, Clippy)
 - ✅ Development guidelines in `.claude/Claude.md`
@@ -246,10 +286,10 @@ Map Rust panics and Results to appropriate Java exceptions:
    - Full documentation
 
 **Completed:** 2025-10-15
-**Build Status:** ✅ All tests passing (8 Rust tests, 36 Java tests)
+**Build Status:** ✅ All tests passing (12 Rust tests, 63 Java tests)
 **Artifacts:** libycrdt_jni.dylib (macOS), ready for other platforms
 
-### Phase 2: Core Types 🚧 IN PROGRESS (YText Complete)
+### Phase 2: Core Types 🚧 IN PROGRESS (YText ✅, YArray ✅)
 1. ✅ Implement YText bindings **COMPLETE**
    - ✅ Created `src/ytext.rs` with JNI methods
    - ✅ Implemented insert, delete, push operations
@@ -258,11 +298,14 @@ Map Rust panics and Results to appropriate Java exceptions:
    - ✅ Fixed Unicode/Modified UTF-8 string handling
    - ✅ Added examples in `Example.java`
    - ✅ Full JavaDoc documentation
-2. 🔜 Implement YArray bindings **TODO**
-   - Create `src/yarray.rs` with JNI methods
-   - Implement push, insert, delete, get operations
-   - Add `YArray.java` wrapper class
-   - Write tests for array operations
+2. ✅ Implement YArray bindings **COMPLETE**
+   - ✅ Created `src/yarray.rs` with JNI methods
+   - ✅ Implemented push, insert, delete, get operations for strings and doubles
+   - ✅ Added `YArray.java` wrapper class with Closeable pattern
+   - ✅ Wrote 27 comprehensive tests (all passing)
+   - ✅ Added toJson() for serialization
+   - ✅ Added examples in `Example.java`
+   - ✅ Full JavaDoc documentation
 3. 🔜 Implement YMap bindings **TODO**
    - Create `src/ymap.rs` with JNI methods
    - Implement set, get, delete, keys, values operations
@@ -271,12 +314,12 @@ Map Rust panics and Results to appropriate Java exceptions:
 4. ✅ Add basic Java wrapper classes **PARTIAL**
    - ✅ Consistent Closeable pattern across types
    - ✅ Shared error handling approach
-   - ✅ Consistent API patterns (YDoc, YText)
+   - ✅ Consistent API patterns (YDoc, YText, YArray)
 
-**Status:** YText Complete (1 of 3 types)
+**Status:** YText & YArray Complete (2 of 3 types)
 **Completed:** 2025-10-15
-**Build Status:** ✅ All 36 Java tests passing, ✅ All 8 Rust tests passing
-**Next Step:** Begin with YArray or YMap implementation
+**Build Status:** ✅ All 63 Java tests passing, ✅ All 12 Rust tests passing
+**Next Step:** Begin YMap implementation
 
 ### Phase 3: Advanced Features 🔜 TODO
 1. 🔜 Add XML types support
@@ -327,21 +370,22 @@ Map Rust panics and Results to appropriate Java exceptions:
 - ✅ YDoc accessible from Java with full API
 - ✅ Basic memory management working (no leaks detected in basic tests)
 - ✅ Build system functioning for host platform
-- ✅ Tests passing (8 Rust, 36 Java tests)
+- ✅ Tests passing (12 Rust, 63 Java tests)
 - ✅ Documentation complete for Phase 1 scope
 
 ### Phase 2 Criteria (In Progress)
 - ✅ YText accessible from Java with full API (COMPLETE)
-- 🔜 YArray accessible from Java (TODO)
+- ✅ YArray accessible from Java with full API (COMPLETE)
 - 🔜 YMap accessible from Java (TODO)
 - ✅ Synchronization working between documents (COMPLETE)
 - ✅ Unicode support working (COMPLETE)
 - ✅ Comprehensive test coverage for YText (23 tests, 100% passing)
+- ✅ Comprehensive test coverage for YArray (27 tests, 100% passing)
 
 ### Overall Success Criteria (Target)
-- 🚧 All core y-crdt types accessible from Java (YDoc ✅, YText ✅, YArray 🔜, YMap 🔜)
+- 🚧 All core y-crdt types accessible from Java (YDoc ✅, YText ✅, YArray ✅, YMap 🔜)
 - 🔜 No memory leaks in stress tests (basic tests passing, stress tests TODO)
 - 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Support for all major platforms (architecture ready, cross-compilation TODO)
-- 🚧 Comprehensive test coverage (>80%) (currently good coverage for YDoc and YText)
+- 🚧 Comprehensive test coverage (>80%) (currently excellent coverage for YDoc, YText, and YArray)
 - ✅ Production-ready documentation (for implemented features)

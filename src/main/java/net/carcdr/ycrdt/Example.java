@@ -12,22 +12,36 @@ public final class Example {
     public static void main(String[] args) {
         System.out.println("=== Y-CRDT JNI Example ===\n");
 
-        // Example 1: Creating a document
+        example1CreateDoc();
+        example2CreateDocWithClientId();
+        example3SyncDocs();
+        example4WorkWithYText();
+        example5SyncYText();
+        example6WorkWithYArray();
+        example7SyncYArray();
+        example8ProperCleanup();
+
+        System.out.println("=== All examples completed successfully! ===");
+    }
+
+    private static void example1CreateDoc() {
         System.out.println("Example 1: Creating a YDoc");
         try (YDoc doc = new YDoc()) {
             System.out.println("  Client ID: " + doc.getClientId());
             System.out.println("  GUID: " + doc.getGuid());
             System.out.println();
         }
+    }
 
-        // Example 2: Creating a document with a specific client ID
+    private static void example2CreateDocWithClientId() {
         System.out.println("Example 2: Creating a YDoc with specific client ID");
         try (YDoc doc = new YDoc(12345)) {
             System.out.println("  Client ID: " + doc.getClientId());
             System.out.println();
         }
+    }
 
-        // Example 3: Synchronizing two documents
+    private static void example3SyncDocs() {
         System.out.println("Example 3: Synchronizing two documents");
         try (YDoc doc1 = new YDoc();
              YDoc doc2 = new YDoc()) {
@@ -54,8 +68,9 @@ public final class Example {
             System.out.println("  Documents are now synchronized!");
             System.out.println();
         }
+    }
 
-        // Example 4: Working with YText
+    private static void example4WorkWithYText() {
         System.out.println("Example 4: Working with YText");
         try (YDoc doc = new YDoc();
              YText text = doc.getText("mytext")) {
@@ -78,8 +93,9 @@ public final class Example {
             System.out.println("  Final length: " + text.length());
             System.out.println();
         }
+    }
 
-        // Example 5: Synchronizing YText between documents
+    private static void example5SyncYText() {
         System.out.println("Example 5: Synchronizing YText between documents");
         try (YDoc doc1 = new YDoc();
              YDoc doc2 = new YDoc();
@@ -110,9 +126,62 @@ public final class Example {
             System.out.println("  Documents are now synchronized!");
             System.out.println();
         }
+    }
 
-        // Example 6: Demonstrating proper cleanup
-        System.out.println("Example 6: Demonstrating proper cleanup");
+    private static void example6WorkWithYArray() {
+        System.out.println("Example 6: Working with YArray");
+        try (YDoc doc = new YDoc();
+             YArray array = doc.getArray("myarray")) {
+
+            System.out.println("  Initial array: " + array.toJson());
+            System.out.println("  Initial length: " + array.length());
+
+            array.pushString("Hello");
+            System.out.println("  After pushString('Hello'): " + array.toJson());
+
+            array.pushDouble(42.0);
+            System.out.println("  After pushDouble(42.0): " + array.toJson());
+
+            array.insertString(1, "World");
+            System.out.println("  After insertString(1, 'World'): " + array.toJson());
+
+            array.remove(0, 1);
+            System.out.println("  After remove(0, 1): " + array.toJson());
+
+            System.out.println("  Final length: " + array.length());
+            System.out.println("  Element 0 (string): " + array.getString(0));
+            System.out.println("  Element 1 (double): " + array.getDouble(1));
+            System.out.println();
+        }
+    }
+
+    private static void example7SyncYArray() {
+        System.out.println("Example 7: Synchronizing YArray between documents");
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Build array in doc1
+            try (YArray array1 = doc1.getArray("shared")) {
+                array1.pushString("Item 1");
+                array1.pushDouble(100.0);
+            }
+
+            System.out.println("  Doc1 array: " + doc1.getArray("shared").toJson());
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            try (YArray array2 = doc2.getArray("shared")) {
+                System.out.println("  Doc2 array after sync: " + array2.toJson());
+                System.out.println("  Arrays are synchronized!");
+            }
+            System.out.println();
+        }
+    }
+
+    private static void example8ProperCleanup() {
+        System.out.println("Example 8: Demonstrating proper cleanup");
         YDoc doc = new YDoc();
         System.out.println("  Created doc with client ID: " + doc.getClientId());
         System.out.println("  Is closed? " + doc.isClosed());
@@ -121,7 +190,5 @@ public final class Example {
         System.out.println("  Closed doc");
         System.out.println("  Is closed? " + doc.isClosed());
         System.out.println();
-
-        System.out.println("=== All examples completed successfully! ===");
     }
 }

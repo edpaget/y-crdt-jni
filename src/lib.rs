@@ -1,9 +1,11 @@
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
 
+mod yarray;
 mod ydoc;
 mod ytext;
 
+pub use yarray::*;
 pub use ydoc::*;
 pub use ytext::*;
 

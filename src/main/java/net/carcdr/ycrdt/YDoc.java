@@ -189,6 +189,40 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Gets or creates a YArray instance with the specified name.
+     *
+     * <p>This method returns a collaborative array type that can be shared between
+     * multiple clients. If an array with this name already exists in the document,
+     * it will be returned; otherwise, a new one will be created.</p>
+     *
+     * <p>The returned YArray instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YArray array = doc.getArray("myarray")) {
+     *     array.pushString("Hello");
+     *     array.pushDouble(42.0);
+     *     System.out.println(array.toJson());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the array object
+     * @return a YArray instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if array creation fails
+     */
+    public YArray getArray(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YArray(this, name);
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
