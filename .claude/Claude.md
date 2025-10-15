@@ -122,6 +122,9 @@ cargo build --release
 
 # Run example
 ./gradlew run
+
+# Generate Javadoc
+./gradlew javadoc
 ```
 
 ### Combined

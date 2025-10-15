@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Javadoc](https://img.shields.io/badge/javadoc-latest-blue.svg)](https://carcdr.net/y-crdt-jni/)
 
 Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust library, providing high-performance Conflict-free Replicated Data Types (CRDTs) for the JVM.
 
@@ -112,6 +113,8 @@ try (YDoc doc = new YDoc(12345L)) {
 
 ## API Documentation
 
+Full API documentation is available at [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
+
 ### YDoc
 
 The main document class that represents a Y-CRDT document.
@@ -129,6 +132,8 @@ The main document class that represents a Y-CRDT document.
 - `void applyUpdate(byte[] update)` - Applies a binary update to this document
 - `void close()` - Releases native resources (called automatically with try-with-resources)
 - `boolean isClosed()` - Checks if the document has been closed
+
+For detailed API documentation, see the [Javadoc](https://carcdr.net/y-crdt-jni/).
 
 ## Project Structure
 
@@ -211,6 +216,7 @@ This project uses GitHub Actions for continuous integration and deployment:
   - Creates multi-platform JARs
   - Runs comprehensive tests
 - **Release** - Automated release creation and artifact publishing
+- **Javadoc** - Generates and publishes API documentation to GitHub Pages
 
 ### Downloading Pre-built Binaries
 

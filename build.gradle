@@ -9,6 +9,21 @@ version = project.hasProperty('version') ? project.getProperty('version') : '0.1
 java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+    withJavadocJar()
+    withSourcesJar()
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.author = true
+    options.version = true
+    options.links = [
+        'https://docs.oracle.com/en/java/javase/11/docs/api/'
+    ]
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
 }
 
 repositories {
