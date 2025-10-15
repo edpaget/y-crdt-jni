@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'checkstyle'
 }
 
 group = 'net.carcdr'
@@ -16,6 +17,27 @@ repositories {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+}
+
+// Checkstyle configuration
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+checkstyleMain {
+    source = 'src/main/java'
+}
+
+checkstyleTest {
+    source = 'src/test/java'
+}
+
+// Make build depend on checkstyle
+tasks.named('check') {
+    dependsOn 'checkstyleMain', 'checkstyleTest'
 }
 
 // Task to build the Rust library

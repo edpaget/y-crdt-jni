@@ -1,7 +1,10 @@
 package net.carcdr.ycrdt;
 
-import java.io.*;
-import java.nio.file.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Utility class for loading the native y-crdt JNI library.
@@ -12,7 +15,11 @@ import java.nio.file.*;
  *   <li>From the JAR resources (extracting to a temporary directory)</li>
  * </ol>
  */
-class NativeLoader {
+final class NativeLoader {
+
+    private NativeLoader() {
+        throw new UnsupportedOperationException("Utility class");
+    }
 
     private static final String LIBRARY_NAME = "ycrdt_jni";
     private static volatile boolean loaded = false;

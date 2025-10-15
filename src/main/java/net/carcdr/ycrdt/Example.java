@@ -3,7 +3,11 @@ package net.carcdr.ycrdt;
 /**
  * Simple example demonstrating the usage of Y-CRDT JNI bindings.
  */
-public class Example {
+public final class Example {
+
+    private Example() {
+        throw new UnsupportedOperationException("Utility class");
+    }
 
     public static void main(String[] args) {
         System.out.println("=== Y-CRDT JNI Example ===\n");

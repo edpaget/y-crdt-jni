@@ -75,3 +75,11 @@ test-results/
 /CI_CD_SETUP.md
 /BUILD_TEST_RESULTS.md
 /GRADLE_BUILD_SUCCESS.md
+/CHECKSTYLE_SETUP.md
+/GITIGNORE_SUMMARY.md
+/GRADLE_SETUP.md
+
+# Claude Code temporary files
+.claude/*
+!.claude/Claude.md
+!.claude/commands/

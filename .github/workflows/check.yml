@@ -70,9 +70,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Check Java formatting (if checkstyle configured)
-        run: ./gradlew checkstyleMain checkstyleTest || echo "Checkstyle not configured"
-        continue-on-error: true
+      - name: Run Checkstyle
+        run: ./gradlew checkstyleMain checkstyleTest
 
       - name: Compile Java
         run: ./gradlew compileJava compileTestJava
