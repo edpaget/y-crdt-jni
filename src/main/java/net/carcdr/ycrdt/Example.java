@@ -21,7 +21,11 @@ public final class Example {
         example7SyncYArray();
         example8WorkWithYMap();
         example9SyncYMap();
-        example10ProperCleanup();
+        example10WorkWithYXmlText();
+        example11SyncYXmlText();
+        example12WorkWithYXmlElement();
+        example13SyncYXmlElement();
+        example14ProperCleanup();
 
         System.out.println("=== All examples completed successfully! ===");
     }
@@ -236,8 +240,113 @@ public final class Example {
         }
     }
 
-    private static void example10ProperCleanup() {
-        System.out.println("Example 10: Demonstrating proper cleanup");
+    private static void example10WorkWithYXmlText() {
+        System.out.println("Example 10: Working with YXmlText");
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("myxmltext")) {
+
+            System.out.println("  Initial text: '" + xmlText.toString() + "'");
+            System.out.println("  Initial length: " + xmlText.length());
+
+            xmlText.push("Hello");
+            System.out.println("  After push('Hello'): '" + xmlText.toString() + "'");
+
+            xmlText.push(" XML");
+            System.out.println("  After push(' XML'): '" + xmlText.toString() + "'");
+
+            xmlText.insert(6, "World ");
+            System.out.println("  After insert(6, 'World '): '" + xmlText.toString() + "'");
+
+            xmlText.delete(6, 6); // Remove "World "
+            System.out.println("  After delete(6, 6): '" + xmlText.toString() + "'");
+
+            System.out.println("  Final length: " + xmlText.length());
+            System.out.println();
+        }
+    }
+
+    private static void example11SyncYXmlText() {
+        System.out.println("Example 11: Synchronizing YXmlText between documents");
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Build XML text in doc1
+            try (YXmlText xmlText1 = doc1.getXmlText("shared")) {
+                xmlText1.push("Shared XML content");
+            }
+
+            System.out.println("  Doc1 XML text: " + doc1.getXmlText("shared").toString());
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            try (YXmlText xmlText2 = doc2.getXmlText("shared")) {
+                System.out.println("  Doc2 XML text after sync: " + xmlText2.toString());
+                System.out.println("  XML texts are synchronized!");
+            }
+            System.out.println();
+        }
+    }
+
+    private static void example12WorkWithYXmlElement() {
+        System.out.println("Example 12: Working with YXmlElement");
+        try (YDoc doc = new YDoc();
+             YXmlElement element = doc.getXmlElement("div")) {
+
+            System.out.println("  Tag: " + element.getTag());
+
+            element.setAttribute("class", "container");
+            System.out.println("  After setAttribute('class', 'container')");
+            System.out.println("    class=" + element.getAttribute("class"));
+
+            element.setAttribute("id", "main");
+            System.out.println("  After setAttribute('id', 'main')");
+            System.out.println("    id=" + element.getAttribute("id"));
+
+            element.setAttribute("style", "color: blue");
+            System.out.println("  After setAttribute('style', 'color: blue')");
+
+            String[] names = element.getAttributeNames();
+            System.out.println("  Attribute count: " + names.length);
+
+            element.removeAttribute("style");
+            System.out.println("  After removeAttribute('style')");
+            System.out.println("  Remaining attributes: " + element.getAttributeNames().length);
+
+            System.out.println();
+        }
+    }
+
+    private static void example13SyncYXmlElement() {
+        System.out.println("Example 13: Synchronizing YXmlElement between documents");
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Build element in doc1
+            try (YXmlElement element1 = doc1.getXmlElement("section")) {
+                element1.setAttribute("title", "Introduction");
+                element1.setAttribute("level", "1");
+            }
+
+            System.out.println("  Doc1 element tag: " + doc1.getXmlElement("section").getTag());
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            try (YXmlElement element2 = doc2.getXmlElement("section")) {
+                System.out.println("  Doc2 element tag: " + element2.getTag());
+                System.out.println("  Doc2 title attribute: " + element2.getAttribute("title"));
+                System.out.println("  Doc2 level attribute: " + element2.getAttribute("level"));
+                System.out.println("  XML elements are synchronized!");
+            }
+            System.out.println();
+        }
+    }
+
+    private static void example14ProperCleanup() {
+        System.out.println("Example 14: Demonstrating proper cleanup");
         YDoc doc = new YDoc();
         System.out.println("  Created doc with client ID: " + doc.getClientId());
         System.out.println("  Is closed? " + doc.isClosed());

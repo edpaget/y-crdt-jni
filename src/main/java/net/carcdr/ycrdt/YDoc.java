@@ -257,6 +257,72 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Gets or creates a YXmlText instance with the specified name.
+     *
+     * <p>This method returns a collaborative XML text type that can be shared between
+     * multiple clients. If an XML text with this name already exists in the document,
+     * it will be returned; otherwise, a new one will be created.</p>
+     *
+     * <p>The returned YXmlText instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlText xmlText = doc.getXmlText("myxmltext")) {
+     *     xmlText.push("Hello");
+     *     System.out.println(xmlText.toString());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the XML text object
+     * @return a YXmlText instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if XML text creation fails
+     */
+    public YXmlText getXmlText(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YXmlText(this, name);
+    }
+
+    /**
+     * Gets or creates a YXmlElement instance with the specified name.
+     *
+     * <p>This method returns a collaborative XML element type that can be shared between
+     * multiple clients. If an XML element with this name already exists in the document,
+     * it will be returned; otherwise, a new one will be created.</p>
+     *
+     * <p>The returned YXmlElement instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlElement element = doc.getXmlElement("div")) {
+     *     element.setAttribute("class", "container");
+     *     System.out.println(element.getTag());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the XML element object
+     * @return a YXmlElement instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if XML element creation fails
+     */
+    public YXmlElement getXmlElement(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YXmlElement(this, name);
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document

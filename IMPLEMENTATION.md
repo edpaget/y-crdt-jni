@@ -146,6 +146,54 @@ Implements collaborative maps with 12 native methods:
 **Testing:**
 - 4 Rust unit tests covering creation, set/get, remove, and clear
 
+### YXmlText Bindings (`src/yxmltext.rs`)
+
+Implements collaborative XML text editing with 7 native methods:
+
+1. **`nativeGetXmlText(docPtr, name)`** - Gets or creates a YXmlText instance
+2. **`nativeDestroy(ptr)`** - Frees YXmlText memory
+3. **`nativeLength(docPtr, xmlTextPtr)`** - Returns XML text length
+4. **`nativeToString(docPtr, xmlTextPtr)`** - Returns XML text content as string
+5. **`nativeInsert(docPtr, xmlTextPtr, index, chunk)`** - Inserts text at index
+6. **`nativePush(docPtr, xmlTextPtr, chunk)`** - Appends text to end
+7. **`nativeDelete(docPtr, xmlTextPtr, index, length)`** - Deletes text range
+
+**Key Implementation Details:**
+- Uses `XmlFragmentRef` with lazy `XmlTextPrelim` child creation
+- XmlFragmentRef is the root type (implements `RootRef` in yrs)
+- XmlTextRef is accessed as child at index 0 within the fragment
+- All operations require both document and XML text pointers
+- Transactions created automatically for each operation
+- Unicode and emoji support verified
+
+**Testing:**
+- 4 Rust unit tests covering creation, insert/read, push, and delete
+
+### YXmlElement Bindings (`src/yxmlelement.rs`)
+
+Implements collaborative XML elements with 8 native methods:
+
+1. **`nativeGetXmlElement(docPtr, name)`** - Gets or creates a YXmlElement instance
+2. **`nativeDestroy(ptr)`** - Frees YXmlElement memory
+3. **`nativeGetTag(docPtr, xmlElementPtr)`** - Returns element tag name
+4. **`nativeGetAttribute(docPtr, xmlElementPtr, name)`** - Gets attribute value by name
+5. **`nativeSetAttribute(docPtr, xmlElementPtr, name, value)`** - Sets attribute value
+6. **`nativeRemoveAttribute(docPtr, xmlElementPtr, name)`** - Removes attribute by name
+7. **`nativeGetAttributeNames(docPtr, xmlElementPtr)`** - Returns all attribute names as String array
+8. **`nativeToString(docPtr, xmlElementPtr)`** - Returns XML string representation
+
+**Key Implementation Details:**
+- Uses `XmlFragmentRef` with lazy `XmlElementPrelim` child creation
+- XmlFragmentRef is the root type (implements `RootRef` in yrs)
+- XmlElementRef is accessed as child at index 0 within the fragment
+- Attribute operations use `insert_attribute()`, `get_attribute()`, `remove_attribute()`
+- Tag name retrieved without transaction parameter (immutable)
+- Returns JObject for String array in `getAttributeNames()`
+- Lifetime parameters required for JNI object returns
+
+**Testing:**
+- 4 Rust unit tests covering creation, tag retrieval, attributes, and attribute removal
+
 ## Java Implementation
 
 ### YDoc (`src/main/java/net/carcdr/ycrdt/YDoc.java`)
@@ -164,6 +212,8 @@ The main document class providing a Java-friendly API:
 - `YText getText(String name)` - Gets or creates a YText instance
 - `YArray getArray(String name)` - Gets or creates a YArray instance
 - `YMap getMap(String name)` - Gets or creates a YMap instance
+- `YXmlText getXmlText(String name)` - Gets or creates a YXmlText instance
+- `YXmlElement getXmlElement(String name)` - Gets or creates a YXmlElement instance
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if document is closed
 
@@ -264,6 +314,58 @@ Collaborative map class supporting mixed types:
 **Testing:**
 - 30 comprehensive tests covering all operations, mixed types, and synchronization
 
+### YXmlText (`src/main/java/net/carcdr/ycrdt/YXmlText.java`)
+
+Collaborative XML text editing class:
+
+**Public Methods:**
+- `int length()` - Returns XML text length
+- `String toString()` - Returns XML text content
+- `void insert(int index, String chunk)` - Inserts text at index
+- `void push(String chunk)` - Appends text to end
+- `void delete(int index, int length)` - Deletes text range
+- `void close()` - Frees native resources
+- `boolean isClosed()` - Checks if closed
+
+**Design Features:**
+- Implements `Closeable` for resource management
+- Package-private constructor (created via `YDoc.getXmlText()`)
+- Input validation with meaningful exceptions
+- Index bounds checking
+- Null checking for all string parameters
+- Thread-safe close operation
+- Comprehensive JavaDoc
+- Unicode and emoji support
+
+**Testing:**
+- 20 comprehensive tests including unicode, synchronization, and edge cases
+
+### YXmlElement (`src/main/java/net/carcdr/ycrdt/YXmlElement.java`)
+
+Collaborative XML element class with attribute management:
+
+**Public Methods:**
+- `String getTag()` - Returns element tag name
+- `String getAttribute(String name)` - Gets attribute value by name (returns null if not found)
+- `void setAttribute(String name, String value)` - Sets attribute value
+- `void removeAttribute(String name)` - Removes attribute by name
+- `String[] getAttributeNames()` - Returns all attribute names as array
+- `String toString()` - Returns XML string representation
+- `void close()` - Frees native resources
+- `boolean isClosed()` - Checks if closed
+
+**Design Features:**
+- Implements `Closeable` for resource management
+- Package-private constructor (created via `YDoc.getXmlElement()`)
+- Attribute key-value pair management
+- Comprehensive null checking for attribute names and values
+- Thread-safe close operation
+- XML string serialization for inspection
+- Comprehensive JavaDoc
+
+**Testing:**
+- 25 comprehensive tests covering attribute operations, tag retrieval, and synchronization
+
 ### NativeLoader (`src/main/java/net/carcdr/ycrdt/NativeLoader.java`)
 
 Utility class for loading platform-specific native libraries:
@@ -288,7 +390,7 @@ Utility class for loading platform-specific native libraries:
 
 ### Example Program (`src/main/java/net/carcdr/ycrdt/Example.java`)
 
-Comprehensive demonstration program with 10 examples:
+Comprehensive demonstration program with 14 examples:
 
 1. **Creating a YDoc** - Basic document creation
 2. **Creating YDoc with client ID** - Custom client ID
@@ -299,7 +401,11 @@ Comprehensive demonstration program with 10 examples:
 7. **Synchronizing YArray** - Collaborative array editing between documents
 8. **Working with YMap** - Map operations with mixed types
 9. **Synchronizing YMap** - Collaborative map editing between documents
-10. **Proper cleanup** - Resource management demonstration
+10. **Working with YXmlText** - XML text editing operations
+11. **Synchronizing YXmlText** - Collaborative XML text editing between documents
+12. **Working with YXmlElement** - XML element with attribute management
+13. **Synchronizing YXmlElement** - Collaborative XML element editing between documents
+14. **Proper cleanup** - Resource management demonstration
 
 **Code Organization:**
 - Main method delegates to helper methods
@@ -433,6 +539,8 @@ Create → Use → Close → Disposed
 | `TextRef` | Shared reference | `YText` |
 | `ArrayRef` | Shared reference | `YArray` |
 | `MapRef` | Shared reference | `YMap` |
+| `XmlFragmentRef` | Shared reference (with XmlTextPrelim child) | `YXmlText` |
+| `XmlFragmentRef` | Shared reference (with XmlElementPrelim child) | `YXmlElement` |
 
 ## Error Handling
 
@@ -478,7 +586,7 @@ let string = match env.get_string(&input) {
 
 ## Testing Strategy
 
-### Rust Tests (16 total)
+### Rust Tests (24 total)
 
 **Unit Tests:**
 - `lib.rs` - Pointer conversion (1 test)
@@ -486,6 +594,8 @@ let string = match env.get_string(&input) {
 - `ytext.rs` - Text operations (4 tests)
 - `yarray.rs` - Array operations (4 tests)
 - `ymap.rs` - Map operations (4 tests)
+- `yxmltext.rs` - XML text operations (4 tests)
+- `yxmlelement.rs` - XML element operations (4 tests)
 
 **Coverage:**
 - Creation and destruction
@@ -493,7 +603,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (93 total)
+### Java Tests (126 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -524,6 +634,23 @@ let string = match env.get_string(&input) {
 - Error handling (null keys, null values)
 - Complex operation sequences
 - Multiple maps in same document
+
+**YXmlTextTest (20 tests):**
+- XML text operations (insert, push, delete)
+- Unicode and emoji support
+- Synchronization
+- Complex editing sequences
+- Error handling and edge cases
+- Bidirectional synchronization
+
+**YXmlElementTest (25 tests):**
+- Element creation and tag retrieval
+- Attribute operations (get, set, remove)
+- Attribute name enumeration
+- Synchronization (unidirectional and bidirectional)
+- Error handling (null names, null values)
+- Multiple attributes and complex sequences
+- Multiple elements in same document
 
 **Test Quality:**
 - 100% pass rate
@@ -578,18 +705,24 @@ y-crdt-jni/
 │   ├── ytext.rs                              # YText JNI bindings
 │   ├── yarray.rs                             # YArray JNI bindings
 │   ├── ymap.rs                               # YMap JNI bindings
+│   ├── yxmltext.rs                           # YXmlText JNI bindings
+│   ├── yxmlelement.rs                        # YXmlElement JNI bindings
 │   ├── main/java/net/carcdr/ycrdt/
 │   │   ├── YDoc.java                         # YDoc Java wrapper
 │   │   ├── YText.java                        # YText Java wrapper
 │   │   ├── YArray.java                       # YArray Java wrapper
 │   │   ├── YMap.java                         # YMap Java wrapper
+│   │   ├── YXmlText.java                     # YXmlText Java wrapper
+│   │   ├── YXmlElement.java                  # YXmlElement Java wrapper
 │   │   ├── NativeLoader.java                # Native library loader
 │   │   └── Example.java                     # Example usage program
 │   └── test/java/net/carcdr/ycrdt/
 │       ├── YDocTest.java                     # YDoc test suite
 │       ├── YTextTest.java                    # YText test suite
 │       ├── YArrayTest.java                   # YArray test suite
-│       └── YMapTest.java                     # YMap test suite
+│       ├── YMapTest.java                     # YMap test suite
+│       ├── YXmlTextTest.java                 # YXmlText test suite
+│       └── YXmlElementTest.java              # YXmlElement test suite
 ├── .github/
 │   └── workflows/
 │       ├── quickcheck.yml                    # Quick check workflow
@@ -732,5 +865,5 @@ To add a new Y-CRDT type (e.g., YXmlText):
 4. **No Transaction API:** Direct manipulation only
 5. **Platform Builds:** Cross-compilation scripts not yet automated
 6. **No Maven Publishing:** Library not in public repositories
-7. **No XML Types:** YXmlText and YXmlElement not yet implemented
+7. **No Nested XML:** Cannot nest XML elements within XML elements yet
 8. **No Nested Types:** Cannot store arrays/maps inside arrays/maps

@@ -27,11 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Set, get, remove, containsKey, keys, clear operations
   - JSON serialization support
   - 30 comprehensive tests
+- YXmlText implementation with JNI bindings
+  - Collaborative XML text editing with insert, push, delete operations
+  - Unicode and emoji support
+  - XmlFragmentRef-based implementation for proper CRDT synchronization
+  - 20 comprehensive tests
+- YXmlElement implementation with JNI bindings
+  - Collaborative XML elements with attribute management
+  - Get tag, get/set/remove attributes, get all attribute names
+  - XML string representation support
+  - XmlFragmentRef-based implementation for proper CRDT synchronization
+  - 25 comprehensive tests
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (16 Rust tests, 93 Java tests - 100% passing)
-- Example program with 10 examples demonstrating all features
+- Comprehensive test suite (24 Rust tests, 126 Java tests - 100% passing)
+- Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)
 - Javadoc published to GitHub Pages
@@ -47,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YText support for collaborative text editing
 - YArray support for collaborative arrays
 - YMap support for collaborative maps
+- YXmlText support for collaborative XML text
+- YXmlElement support for collaborative XML elements with attributes
 - Multi-platform native libraries (Linux, macOS, Windows)
 - JAR distribution with embedded native libraries
 - Comprehensive documentation and examples
@@ -61,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [0.3.0] - Planned
 - Observer/callback support
 - Transaction support
-- XML types (YXmlText, YXmlElement)
+- Additional XML features (nested elements, complex types)
 
 ### [1.0.0] - Planned
 - Complete CRDT type coverage
