@@ -323,6 +323,41 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Gets or creates a YXmlFragment instance with the specified name.
+     *
+     * <p>This method returns a collaborative XML fragment that can contain multiple
+     * XML nodes (elements and text) in a hierarchical structure. Fragments are the
+     * foundation for building XML trees and support full parent-child relationships.</p>
+     *
+     * <p>The returned YXmlFragment instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlFragment fragment = doc.getXmlFragment("document")) {
+     *     fragment.insertElement(0, "div");
+     *     fragment.insertText(1, "Hello World");
+     *     System.out.println(fragment.toXmlString());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the XML fragment
+     * @return a YXmlFragment instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if XML fragment creation fails
+     * @since 0.2.0
+     */
+    public YXmlFragment getXmlFragment(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YXmlFragment(this, name);
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
@@ -371,6 +406,16 @@ public class YDoc implements Closeable {
      * @return the native pointer value
      */
     long getNativePtr() {
+        return nativePtr;
+    }
+
+    /**
+     * Gets the native handle for internal use.
+     * Alias for getNativePtr() for consistency.
+     *
+     * @return the native pointer value
+     */
+    long getNativeHandle() {
         return nativePtr;
     }
 

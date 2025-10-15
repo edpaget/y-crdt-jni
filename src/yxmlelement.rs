@@ -456,10 +456,7 @@ mod tests {
             element.get_attribute(&txn, "class"),
             Some("container".to_string())
         );
-        assert_eq!(
-            element.get_attribute(&txn, "id"),
-            Some("main".to_string())
-        );
+        assert_eq!(element.get_attribute(&txn, "id"), Some("main".to_string()));
     }
 
     #[test]
@@ -483,9 +480,6 @@ mod tests {
         let txn = doc.transact();
         let element = fragment.get(&txn, 0).unwrap().into_xml_element().unwrap();
         assert_eq!(element.get_attribute(&txn, "class"), None);
-        assert_eq!(
-            element.get_attribute(&txn, "id"),
-            Some("main".to_string())
-        );
+        assert_eq!(element.get_attribute(&txn, "id"), Some("main".to_string()));
     }
 }

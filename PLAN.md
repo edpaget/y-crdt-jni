@@ -626,7 +626,7 @@ To maintain backward compatibility:
 - Change internal implementation to use proper hierarchy
 - May break some edge cases but maintain API compatibility
 
-**Recommended: Option A** - Clean break, clearer semantics
+**Recommended: Option B** - Code is unreleased.
 
 #### Implementation Steps
 

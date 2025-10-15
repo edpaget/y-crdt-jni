@@ -83,3 +83,4 @@ test-results/
 .claude/*
 !.claude/Claude.md
 !.claude/commands/
+/XML_IMPLEMENTATION_STATUS.md

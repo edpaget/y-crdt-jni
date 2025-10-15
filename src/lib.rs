@@ -6,6 +6,7 @@ mod ydoc;
 mod ymap;
 mod ytext;
 mod yxmlelement;
+mod yxmlfragment;
 mod yxmltext;
 
 pub use yarray::*;
@@ -13,6 +14,7 @@ pub use ydoc::*;
 pub use ymap::*;
 pub use ytext::*;
 pub use yxmlelement::*;
+pub use yxmlfragment::*;
 pub use yxmltext::*;
 
 /// Helper function to convert a Rust string to a Java string
