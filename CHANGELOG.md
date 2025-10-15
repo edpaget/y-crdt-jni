@@ -22,11 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Push, insert, delete, and get operations
   - JSON serialization support
   - 27 comprehensive tests
+- YMap implementation with JNI bindings
+  - Collaborative map with support for strings and doubles
+  - Set, get, remove, containsKey, keys, clear operations
+  - JSON serialization support
+  - 30 comprehensive tests
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (12 Rust tests, 63 Java tests - 100% passing)
-- Example program with 8 examples demonstrating all features
+- Comprehensive test suite (16 Rust tests, 93 Java tests - 100% passing)
+- Example program with 10 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)
 - Javadoc published to GitHub Pages
@@ -41,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YDoc support with full CRDT operations
 - YText support for collaborative text editing
 - YArray support for collaborative arrays
+- YMap support for collaborative maps
 - Multi-platform native libraries (Linux, macOS, Windows)
 - JAR distribution with embedded native libraries
 - Comprehensive documentation and examples
@@ -48,9 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Future Releases
 
 ### [0.2.0] - Planned
-- YMap implementation
-- Additional type support (boolean, integer types)
+- Additional type support (boolean, integer, nested types)
 - Enhanced error reporting
+- Performance optimizations
 
 ### [0.3.0] - Planned
 - Observer/callback support

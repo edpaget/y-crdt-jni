@@ -117,6 +117,35 @@ Implements collaborative arrays with 11 native methods:
 **Testing:**
 - 4 Rust unit tests covering creation, push/read, insert, and remove
 
+### YMap Bindings (`src/ymap.rs`)
+
+Implements collaborative maps with 12 native methods:
+
+1. **`nativeGetMap(docPtr, name)`** - Gets or creates a YMap instance
+2. **`nativeDestroy(ptr)`** - Frees YMap memory
+3. **`nativeSize(docPtr, mapPtr)`** - Returns map size
+4. **`nativeGetString(docPtr, mapPtr, key)`** - Gets string value by key
+5. **`nativeGetDouble(docPtr, mapPtr, key)`** - Gets double value by key
+6. **`nativeSetString(docPtr, mapPtr, key, value)`** - Sets string value
+7. **`nativeSetDouble(docPtr, mapPtr, key, value)`** - Sets double value
+8. **`nativeRemove(docPtr, mapPtr, key)`** - Removes key from map
+9. **`nativeContainsKey(docPtr, mapPtr, key)`** - Checks if key exists
+10. **`nativeKeys(docPtr, mapPtr)`** - Returns all keys as String array
+11. **`nativeClear(docPtr, mapPtr)`** - Clears all entries
+12. **`nativeToJson(docPtr, mapPtr)`** - Serializes map to JSON string
+
+**Key Implementation Details:**
+- Uses `MapRef` for reference-counted access to shared map
+- Supports mixed types (strings and doubles)
+- Key-based access pattern typical of maps
+- Type-specific getters return appropriate defaults on type mismatch or missing keys
+- Keys returned as Java String array with proper JNI object creation
+- JSON serialization uses `ToJson` trait from yrs
+- Lifetime parameters required for JObject return types in JNI
+
+**Testing:**
+- 4 Rust unit tests covering creation, set/get, remove, and clear
+
 ## Java Implementation
 
 ### YDoc (`src/main/java/net/carcdr/ycrdt/YDoc.java`)
@@ -134,6 +163,7 @@ The main document class providing a Java-friendly API:
 - `void applyUpdate(byte[] update)` - Imports state from another document
 - `YText getText(String name)` - Gets or creates a YText instance
 - `YArray getArray(String name)` - Gets or creates a YArray instance
+- `YMap getMap(String name)` - Gets or creates a YMap instance
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if document is closed
 
@@ -203,6 +233,37 @@ Collaborative array class supporting mixed types:
 **Testing:**
 - 27 comprehensive tests covering all operations, mixed types, and synchronization
 
+### YMap (`src/main/java/net/carcdr/ycrdt/YMap.java`)
+
+Collaborative map class supporting mixed types:
+
+**Public Methods:**
+- `int size()` - Returns number of entries in map
+- `boolean isEmpty()` - Checks if map is empty
+- `String getString(String key)` - Gets string value by key (returns null if not found)
+- `double getDouble(String key)` - Gets double value by key (returns 0.0 if not found)
+- `void setString(String key, String value)` - Sets string value
+- `void setDouble(String key, double value)` - Sets double value
+- `void remove(String key)` - Removes key from map
+- `boolean containsKey(String key)` - Checks if key exists
+- `String[] keys()` - Returns all keys as array
+- `void clear()` - Removes all entries
+- `String toJson()` - Serializes map to JSON
+- `void close()` - Frees native resources
+- `boolean isClosed()` - Checks if closed
+
+**Design Features:**
+- Implements `Closeable` for resource management
+- Package-private constructor (created via `YDoc.getMap()`)
+- Type-specific methods for strings and doubles
+- Comprehensive null checking for keys and values
+- Thread-safe close operation
+- JSON serialization for inspection/debugging
+- Comprehensive JavaDoc
+
+**Testing:**
+- 30 comprehensive tests covering all operations, mixed types, and synchronization
+
 ### NativeLoader (`src/main/java/net/carcdr/ycrdt/NativeLoader.java`)
 
 Utility class for loading platform-specific native libraries:
@@ -227,7 +288,7 @@ Utility class for loading platform-specific native libraries:
 
 ### Example Program (`src/main/java/net/carcdr/ycrdt/Example.java`)
 
-Comprehensive demonstration program with 8 examples:
+Comprehensive demonstration program with 10 examples:
 
 1. **Creating a YDoc** - Basic document creation
 2. **Creating YDoc with client ID** - Custom client ID
@@ -236,7 +297,9 @@ Comprehensive demonstration program with 8 examples:
 5. **Synchronizing YText** - Collaborative text editing between documents
 6. **Working with YArray** - Array operations with mixed types
 7. **Synchronizing YArray** - Collaborative array editing between documents
-8. **Proper cleanup** - Resource management demonstration
+8. **Working with YMap** - Map operations with mixed types
+9. **Synchronizing YMap** - Collaborative map editing between documents
+10. **Proper cleanup** - Resource management demonstration
 
 **Code Organization:**
 - Main method delegates to helper methods
@@ -369,6 +432,7 @@ Create → Use → Close → Disposed
 | `Doc` | Boxed ownership | `YDoc` |
 | `TextRef` | Shared reference | `YText` |
 | `ArrayRef` | Shared reference | `YArray` |
+| `MapRef` | Shared reference | `YMap` |
 
 ## Error Handling
 
@@ -414,13 +478,14 @@ let string = match env.get_string(&input) {
 
 ## Testing Strategy
 
-### Rust Tests (12 total)
+### Rust Tests (16 total)
 
 **Unit Tests:**
 - `lib.rs` - Pointer conversion (1 test)
 - `ydoc.rs` - Document operations (3 tests)
 - `ytext.rs` - Text operations (4 tests)
 - `yarray.rs` - Array operations (4 tests)
+- `ymap.rs` - Map operations (4 tests)
 
 **Coverage:**
 - Creation and destruction
@@ -428,7 +493,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (63 total)
+### Java Tests (93 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -450,6 +515,15 @@ let string = match env.get_string(&input) {
 - JSON serialization
 - Synchronization (unidirectional and bidirectional)
 - Error handling and boundary conditions
+
+**YMapTest (30 tests):**
+- Map operations (set, get, remove, containsKey, keys, clear)
+- Mixed type handling
+- JSON serialization
+- Synchronization (unidirectional and bidirectional)
+- Error handling (null keys, null values)
+- Complex operation sequences
+- Multiple maps in same document
 
 **Test Quality:**
 - 100% pass rate
@@ -503,16 +577,19 @@ y-crdt-jni/
 │   ├── ydoc.rs                               # YDoc JNI bindings
 │   ├── ytext.rs                              # YText JNI bindings
 │   ├── yarray.rs                             # YArray JNI bindings
+│   ├── ymap.rs                               # YMap JNI bindings
 │   ├── main/java/net/carcdr/ycrdt/
 │   │   ├── YDoc.java                         # YDoc Java wrapper
 │   │   ├── YText.java                        # YText Java wrapper
 │   │   ├── YArray.java                       # YArray Java wrapper
+│   │   ├── YMap.java                         # YMap Java wrapper
 │   │   ├── NativeLoader.java                # Native library loader
 │   │   └── Example.java                     # Example usage program
 │   └── test/java/net/carcdr/ycrdt/
 │       ├── YDocTest.java                     # YDoc test suite
 │       ├── YTextTest.java                    # YText test suite
-│       └── YArrayTest.java                   # YArray test suite
+│       ├── YArrayTest.java                   # YArray test suite
+│       └── YMapTest.java                     # YMap test suite
 ├── .github/
 │   └── workflows/
 │       ├── quickcheck.yml                    # Quick check workflow
@@ -621,13 +698,13 @@ y-crdt-jni/
 
 ### Adding New Types
 
-To add a new Y-CRDT type (e.g., YMap):
+To add a new Y-CRDT type (e.g., YXmlText):
 
-1. Create `src/ymap.rs` with native methods
-2. Add `mod ymap;` and `pub use ymap::*;` to `lib.rs`
-3. Create `YMap.java` with Closeable pattern
-4. Add `getMap(String)` method to `YDoc.java`
-5. Create `YMapTest.java` with comprehensive tests
+1. Create `src/yxmltext.rs` with native methods
+2. Add `mod yxmltext;` and `pub use yxmltext::*;` to `lib.rs`
+3. Create `YXmlText.java` with Closeable pattern
+4. Add `getXmlText(String)` method to `YDoc.java`
+5. Create `YXmlTextTest.java` with comprehensive tests
 6. Add examples to `Example.java`
 
 ### Adding Features
@@ -651,7 +728,9 @@ To add a new Y-CRDT type (e.g., YMap):
 
 1. **Single-threaded Access:** Documents not thread-safe; external synchronization required
 2. **No Observer Support:** Cannot subscribe to document changes yet
-3. **Limited Array Types:** Only strings and doubles supported
+3. **Limited Type Support:** Only strings and doubles supported (arrays and maps)
 4. **No Transaction API:** Direct manipulation only
 5. **Platform Builds:** Cross-compilation scripts not yet automated
 6. **No Maven Publishing:** Library not in public repositories
+7. **No XML Types:** YXmlText and YXmlElement not yet implemented
+8. **No Nested Types:** Cannot store arrays/maps inside arrays/maps

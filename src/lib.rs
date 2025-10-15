@@ -3,10 +3,12 @@ use jni::JNIEnv;
 
 mod yarray;
 mod ydoc;
+mod ymap;
 mod ytext;
 
 pub use yarray::*;
 pub use ydoc::*;
+pub use ymap::*;
 pub use ytext::*;
 
 /// Helper function to convert a Rust string to a Java string

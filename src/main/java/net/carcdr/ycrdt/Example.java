@@ -19,7 +19,9 @@ public final class Example {
         example5SyncYText();
         example6WorkWithYArray();
         example7SyncYArray();
-        example8ProperCleanup();
+        example8WorkWithYMap();
+        example9SyncYMap();
+        example10ProperCleanup();
 
         System.out.println("=== All examples completed successfully! ===");
     }
@@ -180,8 +182,62 @@ public final class Example {
         }
     }
 
-    private static void example8ProperCleanup() {
-        System.out.println("Example 8: Demonstrating proper cleanup");
+    private static void example8WorkWithYMap() {
+        System.out.println("Example 8: Working with YMap");
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("mymap")) {
+
+            System.out.println("  Initial map: " + map.toJson());
+            System.out.println("  Initial size: " + map.size());
+
+            map.setString("name", "Alice");
+            System.out.println("  After setString('name', 'Alice'): " + map.toJson());
+
+            map.setDouble("age", 30.0);
+            System.out.println("  After setDouble('age', 30.0): " + map.toJson());
+
+            map.setString("city", "NYC");
+            System.out.println("  After setString('city', 'NYC'): " + map.toJson());
+
+            map.remove("city");
+            System.out.println("  After remove('city'): " + map.toJson());
+
+            System.out.println("  Final size: " + map.size());
+            System.out.println("  Name: " + map.getString("name"));
+            System.out.println("  Age: " + map.getDouble("age"));
+            System.out.println("  Contains 'name': " + map.containsKey("name"));
+            System.out.println("  Contains 'city': " + map.containsKey("city"));
+            System.out.println();
+        }
+    }
+
+    private static void example9SyncYMap() {
+        System.out.println("Example 9: Synchronizing YMap between documents");
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Build map in doc1
+            try (YMap map1 = doc1.getMap("shared")) {
+                map1.setString("user", "Alice");
+                map1.setDouble("score", 95.5);
+            }
+
+            System.out.println("  Doc1 map: " + doc1.getMap("shared").toJson());
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            try (YMap map2 = doc2.getMap("shared")) {
+                System.out.println("  Doc2 map after sync: " + map2.toJson());
+                System.out.println("  Maps are synchronized!");
+            }
+            System.out.println();
+        }
+    }
+
+    private static void example10ProperCleanup() {
+        System.out.println("Example 10: Demonstrating proper cleanup");
         YDoc doc = new YDoc();
         System.out.println("  Created doc with client ID: " + doc.getClientId());
         System.out.println("  Is closed? " + doc.isClosed());

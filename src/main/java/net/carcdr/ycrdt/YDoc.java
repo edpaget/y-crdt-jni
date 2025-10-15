@@ -223,6 +223,40 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Gets or creates a YMap instance with the specified name.
+     *
+     * <p>This method returns a collaborative map type that can be shared between
+     * multiple clients. If a map with this name already exists in the document,
+     * it will be returned; otherwise, a new one will be created.</p>
+     *
+     * <p>The returned YMap instance must be closed when no longer needed to free
+     * native resources. Use try-with-resources for automatic cleanup.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YMap map = doc.getMap("mymap")) {
+     *     map.setString("name", "Alice");
+     *     map.setDouble("age", 30.0);
+     *     System.out.println(map.toJson());
+     * }
+     * }</pre>
+     *
+     * @param name the name of the map object
+     * @return a YMap instance
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if name is null
+     * @throws RuntimeException if map creation fails
+     */
+    public YMap getMap(String name) {
+        ensureNotClosed();
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return new YMap(this, name);
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
