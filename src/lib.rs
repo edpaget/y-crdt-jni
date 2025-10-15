@@ -1,5 +1,5 @@
-use jni::JNIEnv;
 use jni::sys::{jlong, jstring};
+use jni::JNIEnv;
 
 mod ydoc;
 

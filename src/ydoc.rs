@@ -1,9 +1,9 @@
+use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr};
+use jni::objects::{JByteArray, JClass};
+use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
-use jni::objects::{JClass, JByteArray};
-use jni::sys::{jlong, jstring, jbyteArray};
-use yrs::{Doc, ReadTxn, Transact};
 use yrs::updates::decoder::Decode;
-use crate::{to_java_ptr, from_java_ptr, free_java_ptr, throw_exception};
+use yrs::{Doc, ReadTxn, Transact};
 
 /// Creates a new YDoc instance
 ///
