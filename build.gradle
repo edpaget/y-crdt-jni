@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'net.carcdr'
-version = '0.1.0'
+version = project.hasProperty('version') ? project.getProperty('version') : '0.1.0-SNAPSHOT'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11

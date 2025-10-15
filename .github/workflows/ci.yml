@@ -1,0 +1,279 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-rust:
+    name: Test Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run Rust tests
+        run: cargo test --verbose
+
+      - name: Build Rust library (debug)
+        run: cargo build --verbose
+
+      - name: Build Rust library (release)
+        run: cargo build --release --verbose
+
+  test-java:
+    name: Test Java (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: test-rust
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission for gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew
+
+      - name: Build and test with Gradle
+        run: ./gradlew build --info
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            build/reports/tests/
+            build/test-results/
+
+  build-native-libraries:
+    name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    needs: [test-rust, test-java]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            lib_name: libycrdt_jni.so
+            resource_path: native/linux/x86_64
+
+          # macOS builds
+          - os: macos-latest
+            arch: x86_64
+            target: x86_64-apple-darwin
+            lib_name: libycrdt_jni.dylib
+            resource_path: native/macos/x86_64
+
+          - os: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+            lib_name: libycrdt_jni.dylib
+            resource_path: native/macos/aarch64
+
+          # Windows builds
+          - os: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+            lib_name: ycrdt_jni.dll
+            resource_path: native/windows/x86_64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build release library
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create resource directory
+        run: mkdir -p build/resources/${{ matrix.resource_path }}
+
+      - name: Copy native library (Unix)
+        if: runner.os != 'Windows'
+        run: cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+
+      - name: Copy native library (Windows)
+        if: runner.os == 'Windows'
+        run: Copy-Item target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lib-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          retention-days: 30
+
+  build-jar:
+    name: Build JAR with Native Libraries
+    runs-on: ubuntu-latest
+    needs: build-native-libraries
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Organize native libraries
+        run: |
+          mkdir -p src/main/resources/native/linux/x86_64
+          mkdir -p src/main/resources/native/macos/x86_64
+          mkdir -p src/main/resources/native/macos/aarch64
+          mkdir -p src/main/resources/native/windows/x86_64
+
+          # Copy each platform's library to the correct location
+          find downloaded-artifacts -name "*.so" -exec cp {} src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -name "*.dylib" | while read file; do
+            if [[ "$file" == *"aarch64"* ]]; then
+              cp "$file" src/main/resources/native/macos/aarch64/
+            else
+              cp "$file" src/main/resources/native/macos/x86_64/
+            fi
+          done
+          find downloaded-artifacts -name "*.dll" -exec cp {} src/main/resources/native/windows/x86_64/ \;
+
+      - name: Build JAR with Gradle
+        run: ./gradlew jar --info
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: y-crdt-jni-jar
+          path: build/libs/*.jar
+          retention-days: 90
+
+      - name: List JAR contents
+        run: |
+          echo "JAR contents:"
+          jar tf build/libs/*.jar | grep -E "\.so|\.dylib|\.dll" || echo "No native libraries found in JAR"
+
+  check-jar:
+    name: Verify JAR Package
+    runs-on: ubuntu-latest
+    needs: build-jar
+
+    steps:
+      - name: Download JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: y-crdt-jni-jar
+
+      - name: Verify JAR structure
+        run: |
+          echo "=== JAR Structure ==="
+          jar tf *.jar
+
+          echo ""
+          echo "=== Native Libraries ==="
+          jar tf *.jar | grep -E "native.*\.(so|dylib|dll)" || (echo "ERROR: No native libraries found!" && exit 1)
+
+          echo ""
+          echo "=== Java Classes ==="
+          jar tf *.jar | grep -E "\.class$" || (echo "ERROR: No Java classes found!" && exit 1)
+
+          echo ""
+          echo "✅ JAR verification passed!"

@@ -1,5 +1,8 @@
 # Y-CRDT JNI
 
+[![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+
 Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust library, providing high-performance Conflict-free Replicated Data Types (CRDTs) for the JVM.
 
 ## Overview
@@ -22,6 +25,12 @@ Y-CRDT is a CRDT implementation that enables real-time collaborative editing wit
 - Gradle 7.0+ (for building)
 
 ## Building
+
+### Prerequisites
+
+- Java 11 or higher
+- Rust 1.70 or higher
+- Gradle 7.0+ (or use the included wrapper)
 
 ### Build the native library and Java classes
 
@@ -46,6 +55,12 @@ This will:
 ```bash
 ./gradlew clean
 ```
+
+### Build for specific platform
+
+The build automatically detects your platform and builds the appropriate native library. The JAR will include libraries for the host platform only.
+
+For multi-platform JARs, see the [CI/CD section](#cicd) below.
 
 ## Usage
 
@@ -183,6 +198,29 @@ Based on [PLAN.md](PLAN.md):
 ### Cross-compilation
 
 For cross-compilation to different platforms, see the [cross-compilation guide](docs/cross-compilation.md) (coming soon).
+
+## CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+### Workflows
+
+- **Quick Check** - Fast linting and formatting checks on every PR
+- **CI** - Full test suite on Linux, macOS, and Windows
+  - Builds native libraries for all platforms
+  - Creates multi-platform JARs
+  - Runs comprehensive tests
+- **Release** - Automated release creation and artifact publishing
+
+### Downloading Pre-built Binaries
+
+Pre-built multi-platform JARs are available from:
+- [GitHub Actions artifacts](https://github.com/edpaget/y-crdt-jni/actions) (CI builds)
+- [GitHub Releases](https://github.com/edpaget/y-crdt-jni/releases) (tagged releases)
+
+### Building Multi-Platform JARs Locally
+
+To build for all platforms, you'll need to set up cross-compilation toolchains. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full build matrix.
 
 ## Contributing
 
