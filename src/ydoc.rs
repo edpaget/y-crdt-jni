@@ -31,8 +31,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeCreateWithClientId(
     _class: JClass,
     client_id: jlong,
 ) -> jlong {
-    let mut options = yrs::Options::default();
-    options.client_id = client_id as u64;
+    let options = yrs::Options {
+        client_id: client_id as u64,
+        ..Default::default()
+    };
     let doc = Doc::with_options(options);
     to_java_ptr(doc)
 }
@@ -145,8 +147,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateAsUpdate(
 /// # Parameters
 /// - `ptr`: Pointer to the YDoc instance
 /// - `update`: Java byte array containing the update
+///
+/// # Safety
+/// The `update` parameter is a raw JNI pointer that must be valid
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdate(
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdate(
     mut env: JNIEnv,
     _class: JClass,
     ptr: jlong,
@@ -158,7 +163,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdate(
     }
 
     // Convert Java byte array to Rust Vec<u8>
-    let update_array = unsafe { JByteArray::from_raw(update) };
+    let update_array = JByteArray::from_raw(update);
     let update_bytes = match env.convert_byte_array(update_array) {
         Ok(bytes) => bytes,
         Err(_) => {
