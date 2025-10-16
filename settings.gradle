@@ -2,3 +2,4 @@ rootProject.name = 'y-crdt-jni'
 
 include 'ycrdt'
 include 'yprosemirror'
+include 'yhocuspocus'
