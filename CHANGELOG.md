@@ -105,11 +105,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Thread-safe observer registration and callbacks
   - 51 comprehensive observer integration tests
   - Full Rust JNI implementation with proper JVM thread attachment
-- Comprehensive test suite (36 Rust tests, 290 Java tests - 100% passing)
-  - 198 functional/integration tests
+- Advanced Update Encoding/Decoding for efficient synchronization
+  - State vector encoding: `encodeStateVector()` - compact representation of observed changes
+  - Differential updates: `encodeDiff(byte[] stateVector)` - generate updates with only unseen changes
+  - Update merging: `mergeUpdates(byte[][] updates)` - combine multiple updates into single compact update
+  - State vector extraction: `encodeStateVectorFromUpdate(byte[] update)` - inspect update contents without applying
+  - 4 new public methods in YDoc with full JavaDoc documentation
+  - 4 new native JNI methods in Rust (encodeStateVector, encodeDiff, mergeUpdates, encodeStateVectorFromUpdate)
+  - Uses yrs v1 encoding format for maximum compatibility
+  - Enables efficient peer-to-peer synchronization, client-server differential updates, offline-first applications
+  - 16 comprehensive tests covering state vectors, differential sync, update merging, error handling
+- Comprehensive test suite (36 Rust tests, 306 Java tests - 100% passing)
+  - 214 functional/integration tests
   - 25 memory stress tests
   - 16 subdocument tests
   - 51 observer integration tests
+  - 16 advanced update encoding/decoding tests
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)

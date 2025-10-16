@@ -170,6 +170,147 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Encodes the current state vector of this document.
+     *
+     * <p>A state vector is a compact representation of all known blocks inserted and
+     * integrated into this document. It serves as a logical timestamp describing which
+     * updates this document has observed.</p>
+     *
+     * <p>State vectors are used to generate differential updates - by sending a state
+     * vector to a remote peer, they can determine which changes this document has not
+     * yet seen and send only those changes.</p>
+     *
+     * @return a byte array containing the encoded state vector
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if encoding fails
+     */
+    public byte[] encodeStateVector() {
+        ensureNotClosed();
+        byte[] result = nativeEncodeStateVector(nativePtr);
+        if (result == null) {
+            throw new RuntimeException("Failed to encode state vector");
+        }
+        return result;
+    }
+
+    /**
+     * Encodes a differential update containing only changes not yet observed by the
+     * remote peer.
+     *
+     * <p>This method generates an update that includes only the changes that are present
+     * in this document but not reflected in the provided state vector. This is more
+     * efficient than sending the entire document state when synchronizing with a peer
+     * that already has some of the data.</p>
+     *
+     * <p>Typical usage:</p>
+     * <pre>{@code
+     * // Remote peer sends their state vector
+     * byte[] remoteStateVector = ...;
+     *
+     * // Generate differential update
+     * byte[] diff = doc.encodeDiff(remoteStateVector);
+     *
+     * // Send diff to remote peer
+     * // Remote peer applies it with applyUpdate(diff)
+     * }</pre>
+     *
+     * @param stateVector the state vector from the remote peer
+     * @return a byte array containing the differential update
+     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalArgumentException if stateVector is null
+     * @throws RuntimeException if encoding fails
+     */
+    public byte[] encodeDiff(byte[] stateVector) {
+        ensureNotClosed();
+        if (stateVector == null) {
+            throw new IllegalArgumentException("State vector cannot be null");
+        }
+        byte[] result = nativeEncodeDiff(nativePtr, stateVector);
+        if (result == null) {
+            throw new RuntimeException("Failed to encode differential update");
+        }
+        return result;
+    }
+
+    /**
+     * Merges multiple updates into a single compact update.
+     *
+     * <p>This static method takes an array of updates and combines them into a single
+     * update that has the same effect as applying all the individual updates in sequence.
+     * This is useful for reducing network overhead and storage requirements.</p>
+     *
+     * <p>The merged update is often smaller than the sum of the individual updates
+     * because redundant operations are eliminated during the merge process.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * byte[] update1 = doc1.encodeStateAsUpdate();
+     * byte[] update2 = doc2.encodeStateAsUpdate();
+     * byte[] update3 = doc3.encodeStateAsUpdate();
+     *
+     * // Merge into single update
+     * byte[] merged = YDoc.mergeUpdates(new byte[][]{update1, update2, update3});
+     *
+     * // Apply merged update to target document
+     * targetDoc.applyUpdate(merged);
+     * }</pre>
+     *
+     * @param updates array of updates to merge
+     * @return a byte array containing the merged update
+     * @throws IllegalArgumentException if updates is null or empty, or contains null elements
+     * @throws RuntimeException if merging fails
+     */
+    public static byte[] mergeUpdates(byte[][] updates) {
+        if (updates == null || updates.length == 0) {
+            throw new IllegalArgumentException("Updates array cannot be null or empty");
+        }
+        for (int i = 0; i < updates.length; i++) {
+            if (updates[i] == null) {
+                throw new IllegalArgumentException("Update at index " + i + " cannot be null");
+            }
+        }
+        byte[] result = nativeMergeUpdates(updates);
+        if (result == null) {
+            throw new RuntimeException("Failed to merge updates");
+        }
+        return result;
+    }
+
+    /**
+     * Extracts the state vector from an encoded update without applying it.
+     *
+     * <p>This method decodes an update and returns its state vector, which represents
+     * the logical timestamp of the document state after applying the update. This is
+     * useful for understanding what changes an update contains without actually applying
+     * it to a document.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * byte[] update = remoteDoc.encodeStateAsUpdate();
+     *
+     * // Check what state this update represents
+     * byte[] stateVector = YDoc.encodeStateVectorFromUpdate(update);
+     *
+     * // Can be used to determine if we need this update
+     * }</pre>
+     *
+     * @param update the update to extract the state vector from
+     * @return a byte array containing the encoded state vector
+     * @throws IllegalArgumentException if update is null
+     * @throws RuntimeException if extraction fails or update is invalid
+     */
+    public static byte[] encodeStateVectorFromUpdate(byte[] update) {
+        if (update == null) {
+            throw new IllegalArgumentException("Update cannot be null");
+        }
+        byte[] result = nativeEncodeStateVectorFromUpdate(update);
+        if (result == null) {
+            throw new RuntimeException("Failed to extract state vector from update");
+        }
+        return result;
+    }
+
+    /**
      * Gets or creates a YText instance with the specified name.
      *
      * <p>This method returns a collaborative text type that can be shared between
@@ -463,4 +604,12 @@ public class YDoc implements Closeable {
     private static native byte[] nativeEncodeStateAsUpdate(long ptr);
 
     private static native void nativeApplyUpdate(long ptr, byte[] update);
+
+    private static native byte[] nativeEncodeStateVector(long ptr);
+
+    private static native byte[] nativeEncodeDiff(long ptr, byte[] stateVector);
+
+    private static native byte[] nativeMergeUpdates(byte[][] updates);
+
+    private static native byte[] nativeEncodeStateVectorFromUpdate(byte[] update);
 }

@@ -24,11 +24,12 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
   - YSubscription handles with AutoCloseable support
   - Thread-safe callbacks with proper JVM attachment
   - 51 comprehensive observer integration tests
-- **Testing:** 326 total tests (36 Rust + 290 Java), 100% passing
-  - 198 functional/integration tests
+- **Testing:** 342 total tests (36 Rust + 306 Java), 100% passing
+  - 214 functional/integration tests
   - 25 memory stress tests (no leaks detected)
   - 16 subdocument tests
   - 51 observer integration tests
+  - 16 advanced update encoding/decoding tests
 - **Documentation:** Comprehensive JavaDoc, IMPLEMENTATION.md, published to GitHub Pages
 - **Build System:** Gradle + Cargo integration, GitHub Actions CI/CD, test output configuration
 - **Memory Management:** Closeable pattern, proper native resource cleanup, stress tested
@@ -220,19 +221,75 @@ Implemented complete observer/event system for real-time change notifications:
 
 ---
 
-### Phase 3: Advanced Features 🚧 IN PROGRESS
+### Phase 3.8: Advanced Update Encoding/Decoding ✅ COMPLETE
+**Completed:** 2025-10-16
+
+Implemented complete update encoding/decoding system for efficient synchronization:
+
+#### State Vector Support
+- **`encodeStateVector()`** - Encode current document state as compact vector
+- Logical timestamp representation of observed changes
+- Used for differential synchronization between peers
+- 2 comprehensive tests (empty document and with content)
+
+#### Differential Updates
+- **`encodeDiff(byte[] stateVector)`** - Generate updates containing only unseen changes
+- More efficient than full document synchronization
+- Reduces network bandwidth and storage requirements
+- 4 comprehensive tests (basic, partial sync, error handling)
+
+#### Update Merging
+- **`mergeUpdates(byte[][] updates)`** - Combine multiple updates into single compact update
+- Static utility method for batch processing
+- Eliminates redundant operations during merge
+- 5 comprehensive tests (basic, single update, null handling)
+
+#### State Vector Extraction
+- **`encodeStateVectorFromUpdate(byte[] update)`** - Extract state vector from encoded update
+- Inspect update contents without applying to document
+- Useful for synchronization protocols
+- 3 comprehensive tests (basic, equivalence checking, null handling)
+
+**API Components:**
+- 4 new public methods in YDoc
+- 4 new native JNI methods in Rust
+- Full JavaDoc documentation with usage examples
+- Comprehensive error handling and validation
+
+**Implementation Details:**
+- Uses yrs v1 encoding format (default and most compatible)
+- Proper JNI array handling for byte[] parameters
+- Thread-safe operations
+- Memory-efficient byte array processing
+
+**Test Coverage:**
+- **16 new Java tests** covering:
+  - State vector encoding (empty and with content)
+  - Differential synchronization workflows
+  - Partial synchronization scenarios
+  - Update merging (single, multiple, error cases)
+  - State vector extraction and equivalence
+  - Real-world client-server sync workflow
+  - Error handling (null inputs, closed documents)
+
+**Use Cases Enabled:**
+- Efficient peer-to-peer synchronization
+- Client-server differential updates
+- Offline-first applications with sync
+- Update batching and compression
+- Synchronization protocol implementation
+
+---
+
+### Phase 3: Advanced Features ✅ COMPLETE
 
 #### ✅ Completed
 1. **Hierarchical XML Types** - Full support (see Phase 3.5 above)
 2. **Subdocuments** - Full support (see Phase 3.6 above)
 3. **Observer/Callback Support** - Full support (see Phase 3.7 above)
+4. **Advanced Update Encoding/Decoding** - Full support (see Phase 3.8 below)
 
-#### 🔜 TODO
-4. **Advanced Update Encoding/Decoding**
-   - State vectors
-   - Differential updates
-   - Update merging
-
+#### 🔜 TODO (Deferred to Future)
 5. **Transaction Support**
    - Transaction begin/commit/rollback
    - Batch operations
@@ -280,8 +337,8 @@ Implemented complete observer/event system for real-time change notifications:
 - yxmlelement.rs: 4 tests
 - yxmlfragment.rs: 7 tests (including child retrieval)
 
-### Java Tests: 290 total (100% passing)
-- YDocTest: 13 tests
+### Java Tests: 306 total (100% passing)
+- YDocTest: 29 tests (13 original + 16 advanced update encoding/decoding)
 - YTextTest: 23 tests
 - YArrayTest: 27 tests
 - YMapTest: 30 tests

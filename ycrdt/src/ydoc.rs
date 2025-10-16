@@ -3,6 +3,7 @@ use jni::objects::{JByteArray, JClass};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use yrs::updates::decoder::Decode;
+use yrs::updates::encoder::Encode;
 use yrs::{Doc, ReadTxn, Transact};
 
 /// Creates a new YDoc instance
@@ -187,6 +188,211 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdate(
             Err(e) => {
                 throw_exception(&mut env, &format!("Failed to decode update: {:?}", e));
             }
+        }
+    }
+}
+
+/// Encodes the current state vector of the document
+///
+/// # Parameters
+/// - `ptr`: Pointer to the YDoc instance
+///
+/// # Returns
+/// A Java byte array containing the encoded state vector
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVector(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: jlong,
+) -> jbyteArray {
+    if ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return std::ptr::null_mut();
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(ptr);
+        let txn = doc.transact();
+        let state_vector = txn.state_vector();
+        let encoded = state_vector.encode_v1();
+
+        match env.byte_array_from_slice(&encoded) {
+            Ok(arr) => arr.into_raw(),
+            Err(_) => {
+                throw_exception(&mut env, "Failed to create byte array");
+                std::ptr::null_mut()
+            }
+        }
+    }
+}
+
+/// Encodes a differential update containing only changes not yet observed by the remote peer
+///
+/// # Parameters
+/// - `ptr`: Pointer to the YDoc instance
+/// - `state_vector`: Java byte array containing the remote peer's state vector
+///
+/// # Returns
+/// A Java byte array containing the differential update
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiff(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: jlong,
+    state_vector: jbyteArray,
+) -> jbyteArray {
+    if ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return std::ptr::null_mut();
+    }
+
+    // Convert Java byte array to Rust Vec<u8>
+    let sv_array = JByteArray::from_raw(state_vector);
+    let sv_bytes = match env.convert_byte_array(sv_array) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to convert state vector byte array");
+            return std::ptr::null_mut();
+        }
+    };
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(ptr);
+
+        // Decode the state vector
+        let sv = match yrs::StateVector::decode_v1(&sv_bytes) {
+            Ok(sv) => sv,
+            Err(e) => {
+                throw_exception(&mut env, &format!("Failed to decode state vector: {:?}", e));
+                return std::ptr::null_mut();
+            }
+        };
+
+        // Encode the differential update
+        let txn = doc.transact();
+        let diff = txn.encode_diff_v1(&sv);
+
+        match env.byte_array_from_slice(&diff) {
+            Ok(arr) => arr.into_raw(),
+            Err(_) => {
+                throw_exception(&mut env, "Failed to create byte array");
+                std::ptr::null_mut()
+            }
+        }
+    }
+}
+
+/// Merges multiple updates into a single compact update
+///
+/// # Parameters
+/// - `updates`: Java 2D byte array containing the updates to merge
+///
+/// # Returns
+/// A Java byte array containing the merged update
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeMergeUpdates(
+    mut env: JNIEnv,
+    _class: JClass,
+    updates: jni::sys::jobjectArray,
+) -> jbyteArray {
+    use jni::objects::JObjectArray as JObjArray;
+
+    // Convert Java 2D byte array to Vec<Vec<u8>>
+    let updates_array = unsafe { JObjArray::from_raw(updates) };
+    let len = match env.get_array_length(&updates_array) {
+        Ok(l) => l,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to get updates array length");
+            return std::ptr::null_mut();
+        }
+    };
+
+    let mut rust_updates: Vec<Vec<u8>> = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let update_obj = match env.get_object_array_element(&updates_array, i) {
+            Ok(obj) => obj,
+            Err(_) => {
+                throw_exception(&mut env, &format!("Failed to get update at index {}", i));
+                return std::ptr::null_mut();
+            }
+        };
+
+        let update_array = JByteArray::from(update_obj);
+        let update_bytes = match env.convert_byte_array(update_array) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                throw_exception(
+                    &mut env,
+                    &format!("Failed to convert update at index {}", i),
+                );
+                return std::ptr::null_mut();
+            }
+        };
+
+        rust_updates.push(update_bytes);
+    }
+
+    // Convert Vec<Vec<u8>> to Vec<&[u8]> for merge_updates_v1
+    let update_refs: Vec<&[u8]> = rust_updates.iter().map(|v| v.as_slice()).collect();
+
+    // Merge the updates
+    let merged = match yrs::merge_updates_v1(&update_refs) {
+        Ok(m) => m,
+        Err(e) => {
+            throw_exception(&mut env, &format!("Failed to merge updates: {:?}", e));
+            return std::ptr::null_mut();
+        }
+    };
+
+    match env.byte_array_from_slice(&merged) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create byte array");
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Extracts the state vector from an encoded update
+///
+/// # Parameters
+/// - `update`: Java byte array containing the update
+///
+/// # Returns
+/// A Java byte array containing the encoded state vector
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVectorFromUpdate(
+    mut env: JNIEnv,
+    _class: JClass,
+    update: jbyteArray,
+) -> jbyteArray {
+    // Convert Java byte array to Rust Vec<u8>
+    let update_array = JByteArray::from_raw(update);
+    let update_bytes = match env.convert_byte_array(update_array) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to convert update byte array");
+            return std::ptr::null_mut();
+        }
+    };
+
+    // Extract state vector from update
+    let state_vector = match yrs::encode_state_vector_from_update_v1(&update_bytes) {
+        Ok(sv) => sv,
+        Err(e) => {
+            throw_exception(
+                &mut env,
+                &format!("Failed to extract state vector from update: {:?}", e),
+            );
+            return std::ptr::null_mut();
+        }
+    };
+
+    match env.byte_array_from_slice(&state_vector) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create byte array");
+            std::ptr::null_mut()
         }
     }
 }
