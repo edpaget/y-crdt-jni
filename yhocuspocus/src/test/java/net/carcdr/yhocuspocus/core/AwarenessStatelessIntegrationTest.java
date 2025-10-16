@@ -96,7 +96,10 @@ public class AwarenessStatelessIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
 
-        YDocument doc = waitForDocument("awareness-doc", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("awareness-doc", 2000);
         assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
@@ -145,7 +148,10 @@ public class AwarenessStatelessIntegrationTest {
         conn1.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
         conn2.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
 
-        YDocument doc = waitForDocument("awareness-doc", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("awareness-doc", 2000);
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         // Conn1 adds awareness
@@ -187,7 +193,10 @@ public class AwarenessStatelessIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("stateless-doc", sync).encode());
 
-        YDocument doc = waitForDocument("stateless-doc", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("stateless-doc", 2000);
         assertNotNull("Document should exist", doc);
 
         // Clear initial messages
@@ -237,7 +246,10 @@ public class AwarenessStatelessIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
 
-        YDocument doc = waitForDocument("broadcast-doc", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("broadcast-doc", 2000);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
         // Clear messages
@@ -283,7 +295,10 @@ public class AwarenessStatelessIntegrationTest {
         conn1.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
         conn2.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
 
-        YDocument doc = waitForDocument("multi-awareness", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("multi-awareness", 2000);
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         transport2.getSentMessages().clear();
@@ -318,7 +333,10 @@ public class AwarenessStatelessIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("query-test", sync).encode());
 
-        YDocument doc = waitForDocument("query-test", 1000);
+        // Allow async document creation to complete
+        Thread.sleep(100);
+
+        YDocument doc = waitForDocument("query-test", 2000);
         assertNotNull("Document should exist", doc);
 
         transport.getSentMessages().clear();

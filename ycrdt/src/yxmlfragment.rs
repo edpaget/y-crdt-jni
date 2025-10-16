@@ -148,12 +148,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElement(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        let mut txn = doc.transact_mut();
-        fragment.insert(
-            &mut txn,
-            index as u32,
-            XmlElementPrelim::empty(tag_str.as_str()),
-        );
+        {
+            let mut txn = doc.transact_mut();
+            fragment.insert(
+                &mut txn,
+                index as u32,
+                XmlElementPrelim::empty(tag_str.as_str()),
+            );
+            // Transaction drops here, observers are triggered
+        }
+        // Observers have completed by this point, safe to return
     }
 }
 
@@ -194,12 +198,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertText(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        let mut txn = doc.transact_mut();
-        fragment.insert(
-            &mut txn,
-            index as u32,
-            XmlTextPrelim::new(content_str.as_str()),
-        );
+        {
+            let mut txn = doc.transact_mut();
+            fragment.insert(
+                &mut txn,
+                index as u32,
+                XmlTextPrelim::new(content_str.as_str()),
+            );
+            // Transaction drops here, observers are triggered
+        }
+        // Observers have completed by this point, safe to return
     }
 }
 
@@ -231,8 +239,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeRemove(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        let mut txn = doc.transact_mut();
-        fragment.remove_range(&mut txn, index as u32, length as u32);
+        {
+            let mut txn = doc.transact_mut();
+            fragment.remove_range(&mut txn, index as u32, length as u32);
+            // Transaction drops here, observers are triggered
+        }
+        // Observers have completed by this point, safe to return
     }
 }
 
