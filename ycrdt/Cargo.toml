@@ -10,6 +10,7 @@ name = "ycrdt_jni"
 [dependencies]
 jni = "0.21.1"
 yrs = "0.21.3"
+lazy_static = "1.4.0"
 
 [profile.release]
 lto = true

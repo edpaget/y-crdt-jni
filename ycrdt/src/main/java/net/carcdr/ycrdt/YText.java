@@ -1,6 +1,8 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * YText represents a collaborative text type in a Y-CRDT document.
@@ -24,11 +26,13 @@ import java.io.Closeable;
  *
  * @see YDoc
  */
-public class YText implements Closeable {
+public class YText implements Closeable, YObservable {
 
     private final YDoc doc;
     private long nativePtr;
     private volatile boolean closed = false;
+    private final ConcurrentHashMap<Long, YObserver> observers = new ConcurrentHashMap<>();
+    private final AtomicLong nextSubscriptionId = new AtomicLong(0);
 
     /**
      * Package-private constructor. Use {@link YDoc#getText(String)} to create instances.
@@ -142,6 +146,73 @@ public class YText implements Closeable {
     }
 
     /**
+     * Registers an observer to be notified of changes to this text.
+     *
+     * <p>The observer will be called whenever this text is modified.
+     * Multiple observers can be registered on the same text.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YSubscription sub = text.observe(event -> {
+     *     System.out.println("Text changed!");
+     *     for (YChange change : event.getChanges()) {
+     *         System.out.println("  " + change);
+     *     }
+     * })) {
+     *     text.insert(0, "Hello"); // Triggers observer
+     * }
+     * }</pre>
+     *
+     * @param observer the observer to register
+     * @return a subscription handle that can be used to unobserve
+     * @throws IllegalArgumentException if observer is null
+     * @throws IllegalStateException if this text has been closed
+     */
+    public YSubscription observe(YObserver observer) {
+        checkClosed();
+        if (observer == null) {
+            throw new IllegalArgumentException("Observer cannot be null");
+        }
+        long id = nextSubscriptionId.incrementAndGet();
+        observers.put(id, observer);
+        nativeObserve(doc.getNativePtr(), nativePtr, id, this);
+        return new YSubscription(id, observer, this);
+    }
+
+    /**
+     * Package-private method to unobserve by subscription ID.
+     * Called by YSubscription.close().
+     *
+     * @param subscriptionId the subscription ID to remove
+     */
+    @Override
+    public void unobserveById(long subscriptionId) {
+        if (observers.remove(subscriptionId) != null) {
+            if (!closed && nativePtr != 0) {
+                nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+            }
+        }
+    }
+
+    /**
+     * Package-private method called by JNI to dispatch events.
+     *
+     * @param subscriptionId the subscription ID
+     * @param event the event to dispatch
+     */
+    void dispatchEvent(long subscriptionId, YEvent event) {
+        YObserver observer = observers.get(subscriptionId);
+        if (observer != null) {
+            try {
+                observer.onChange(event);
+            } catch (Exception e) {
+                System.err.println("Observer threw exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Closes this YText and releases native resources.
      *
      * <p>After calling this method, any operations on this YText will throw
@@ -155,6 +226,8 @@ public class YText implements Closeable {
         if (!closed) {
             synchronized (this) {
                 if (!closed) {
+                    // Clear all observers
+                    observers.clear();
                     if (nativePtr != 0) {
                         nativeDestroy(nativePtr);
                         nativePtr = 0;
@@ -193,4 +266,6 @@ public class YText implements Closeable {
     private static native void nativeInsert(long docPtr, long textPtr, int index, String chunk);
     private static native void nativePush(long docPtr, long textPtr, String chunk);
     private static native void nativeDelete(long docPtr, long textPtr, int index, int length);
+    private static native void nativeObserve(long docPtr, long textPtr, long subscriptionId, YText ytextObj);
+    private static native void nativeUnobserve(long docPtr, long textPtr, long subscriptionId);
 }
