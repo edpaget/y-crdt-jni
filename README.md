@@ -18,9 +18,11 @@ This is a multi-module Gradle project:
   - Provides: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
   - Artifact: `net.carcdr:ycrdt`
 
-- **yprosemirror** - ProseMirror integration (coming soon)
+- **yprosemirror** - ProseMirror integration (Phase 2 complete)
+  - Provides bidirectional sync between ProseMirror and Y-CRDT
   - Depends on: ycrdt module
   - Artifact: `net.carcdr:yprosemirror`
+  - See [yprosemirror/README.md](yprosemirror/README.md) for details
 
 ## Features
 
