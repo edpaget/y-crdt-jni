@@ -32,12 +32,6 @@ public class YXmlElementObserverIntegrationTest {
                 // Trigger an attribute change
                 element.setAttribute("class", "container");
 
-                // Give a moment for async processing (if any)
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Verify observer was called
                 assertTrue("Observer should be called at least once", callCount.get() >= 1);
@@ -85,12 +79,6 @@ public class YXmlElementObserverIntegrationTest {
                 element.setAttribute("id", "main");
                 element.setAttribute("data-value", "test");
 
-                // Give a moment for processing
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Should be called for each transaction
                 assertTrue("Observer should be called multiple times",
@@ -113,11 +101,6 @@ public class YXmlElementObserverIntegrationTest {
                 // Insert child element
                 element.insertElement(0, "span");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
@@ -146,11 +129,6 @@ public class YXmlElementObserverIntegrationTest {
             element.insertElement(0, "span");
             element.insertElement(1, "p");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -160,11 +138,6 @@ public class YXmlElementObserverIntegrationTest {
 
                 element.removeChild(0);
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
@@ -192,11 +165,6 @@ public class YXmlElementObserverIntegrationTest {
             // Set initial attribute
             element.setAttribute("class", "initial");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -207,11 +175,6 @@ public class YXmlElementObserverIntegrationTest {
                 // Update attribute
                 element.setAttribute("class", "updated");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
@@ -241,11 +204,6 @@ public class YXmlElementObserverIntegrationTest {
             // Set initial attribute
             element.setAttribute("class", "remove-me");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -256,11 +214,6 @@ public class YXmlElementObserverIntegrationTest {
                 // Remove attribute
                 element.removeAttribute("class");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
@@ -295,11 +248,6 @@ public class YXmlElementObserverIntegrationTest {
 
                 element.setAttribute("test", "value");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both observers should be called
                 assertTrue("First observer should be called", count1.get() >= 1);
@@ -319,11 +267,6 @@ public class YXmlElementObserverIntegrationTest {
 
             element.setAttribute("before", "value");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             int countBeforeUnobserve = callCount.get();
             assertTrue("Should be called before unobserve", countBeforeUnobserve > 0);
@@ -334,11 +277,6 @@ public class YXmlElementObserverIntegrationTest {
             // This should NOT trigger the observer
             element.setAttribute("after", "value");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             // Count should not have increased
             assertEquals("Observer should not be called after unobserve",

@@ -32,12 +32,6 @@ public class YXmlFragmentObserverIntegrationTest {
                 // Trigger a change
                 fragment.insertElement(0, "div");
 
-                // Give a moment for async processing (if any)
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Verify observer was called
                 assertEquals("Observer should be called once", 1, callCount.get());
@@ -84,12 +78,6 @@ public class YXmlFragmentObserverIntegrationTest {
                 fragment.insertText(1, "Hello");
                 fragment.insertElement(2, "span");
 
-                // Give a moment for processing
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Should be called for each transaction
                 assertTrue("Observer should be called multiple times",
@@ -111,11 +99,6 @@ public class YXmlFragmentObserverIntegrationTest {
 
                 fragment.insertElement(0, "div");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both observers should be called
                 assertEquals("First observer should be called", 1, count1.get());
@@ -135,11 +118,6 @@ public class YXmlFragmentObserverIntegrationTest {
 
             fragment.insertElement(0, "div");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             int countBeforeUnobserve = callCount.get();
             assertTrue("Should be called before unobserve", countBeforeUnobserve > 0);
@@ -150,11 +128,6 @@ public class YXmlFragmentObserverIntegrationTest {
             // This should NOT trigger the observer
             fragment.insertText(1, "After");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             // Count should not have increased
             assertEquals("Observer should not be called after unobserve",
@@ -179,11 +152,6 @@ public class YXmlFragmentObserverIntegrationTest {
 
                 fragment.insertElement(0, "div");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both should be called, exception should not break second observer
                 assertEquals("First observer should be called", 1, count1.get());
@@ -206,11 +174,6 @@ public class YXmlFragmentObserverIntegrationTest {
                 fragment.insertElement(0, "div");
                 fragment.insertElement(1, "span");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have events", capturedEvents.size() >= 2);
 
@@ -240,11 +203,6 @@ public class YXmlFragmentObserverIntegrationTest {
             fragment.insertText(1, "Hello");
             fragment.insertElement(2, "span");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -254,11 +212,6 @@ public class YXmlFragmentObserverIntegrationTest {
 
                 fragment.remove(0, 1);
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 

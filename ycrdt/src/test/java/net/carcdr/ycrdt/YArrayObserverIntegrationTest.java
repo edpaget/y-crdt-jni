@@ -32,12 +32,6 @@ public class YArrayObserverIntegrationTest {
                 // Trigger a change
                 array.pushString("Hello");
 
-                // Give a moment for async processing (if any)
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Verify observer was called
                 assertEquals("Observer should be called once", 1, callCount.get());
@@ -84,12 +78,6 @@ public class YArrayObserverIntegrationTest {
                 array.pushString("World");
                 array.pushDouble(42.0);
 
-                // Give a moment for processing
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Should be called for each transaction
                 assertTrue("Observer should be called multiple times",
@@ -111,11 +99,6 @@ public class YArrayObserverIntegrationTest {
 
                 array.pushString("Test");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both observers should be called
                 assertEquals("First observer should be called", 1, count1.get());
@@ -135,11 +118,6 @@ public class YArrayObserverIntegrationTest {
 
             array.pushString("Before");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             int countBeforeUnobserve = callCount.get();
             assertTrue("Should be called before unobserve", countBeforeUnobserve > 0);
@@ -150,11 +128,6 @@ public class YArrayObserverIntegrationTest {
             // This should NOT trigger the observer
             array.pushString("After");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             // Count should not have increased
             assertEquals("Observer should not be called after unobserve",
@@ -179,11 +152,6 @@ public class YArrayObserverIntegrationTest {
 
                 array.pushString("Test");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both should be called, exception should not break second observer
                 assertEquals("First observer should be called", 1, count1.get());
@@ -206,11 +174,6 @@ public class YArrayObserverIntegrationTest {
                 array.insertString(0, "item1");
                 array.insertDouble(1, 42.0);
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have events", capturedEvents.size() >= 2);
 
@@ -240,11 +203,6 @@ public class YArrayObserverIntegrationTest {
             array.pushString("item2");
             array.pushString("item3");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -254,11 +212,6 @@ public class YArrayObserverIntegrationTest {
 
                 array.remove(0, 1);
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 

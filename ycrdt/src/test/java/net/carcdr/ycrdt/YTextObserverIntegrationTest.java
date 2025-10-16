@@ -32,12 +32,6 @@ public class YTextObserverIntegrationTest {
                 // Trigger a change
                 text.insert(0, "Hello");
 
-                // Give a moment for async processing (if any)
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Verify observer was called
                 assertEquals("Observer should be called once", 1, callCount.get());
@@ -84,12 +78,6 @@ public class YTextObserverIntegrationTest {
                 text.insert(5, " World");
                 text.delete(0, 5);
 
-                // Give a moment for processing
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Should be called for each transaction
                 assertTrue("Observer should be called multiple times",
@@ -111,11 +99,6 @@ public class YTextObserverIntegrationTest {
 
                 text.insert(0, "Test");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both observers should be called
                 assertEquals("First observer should be called", 1, count1.get());
@@ -135,11 +118,6 @@ public class YTextObserverIntegrationTest {
 
             text.insert(0, "Before");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             int countBeforeUnobserve = callCount.get();
             assertTrue("Should be called before unobserve", countBeforeUnobserve > 0);
@@ -150,11 +128,6 @@ public class YTextObserverIntegrationTest {
             // This should NOT trigger the observer
             text.insert(6, " After");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             // Count should not have increased
             assertEquals("Observer should not be called after unobserve",
@@ -179,11 +152,6 @@ public class YTextObserverIntegrationTest {
 
                 text.insert(0, "Test");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both should be called, exception should not break second observer
                 assertEquals("First observer should be called", 1, count1.get());

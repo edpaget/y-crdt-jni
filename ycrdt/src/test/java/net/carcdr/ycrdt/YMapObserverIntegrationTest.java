@@ -32,12 +32,6 @@ public class YMapObserverIntegrationTest {
                 // Trigger a change
                 map.setString("key1", "value1");
 
-                // Give a moment for async processing (if any)
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Verify observer was called
                 assertEquals("Observer should be called once", 1, callCount.get());
@@ -85,12 +79,6 @@ public class YMapObserverIntegrationTest {
                 map.setDouble("age", 30.0);
                 map.setString("city", "NYC");
 
-                // Give a moment for processing
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Should be called for each transaction
                 assertTrue("Observer should be called multiple times",
@@ -112,11 +100,6 @@ public class YMapObserverIntegrationTest {
 
                 map.setString("test", "value");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both observers should be called
                 assertEquals("First observer should be called", 1, count1.get());
@@ -136,11 +119,6 @@ public class YMapObserverIntegrationTest {
 
             map.setString("before", "value");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             int countBeforeUnobserve = callCount.get();
             assertTrue("Should be called before unobserve", countBeforeUnobserve > 0);
@@ -151,11 +129,6 @@ public class YMapObserverIntegrationTest {
             // This should NOT trigger the observer
             map.setString("after", "value");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             // Count should not have increased
             assertEquals("Observer should not be called after unobserve",
@@ -180,11 +153,6 @@ public class YMapObserverIntegrationTest {
 
                 map.setString("test", "value");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 // Both should be called, exception should not break second observer
                 assertEquals("First observer should be called", 1, count1.get());
@@ -207,11 +175,6 @@ public class YMapObserverIntegrationTest {
                 map.setString("key1", "value1");
                 map.setDouble("key2", 42.0);
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have events", capturedEvents.size() >= 2);
 
@@ -240,11 +203,6 @@ public class YMapObserverIntegrationTest {
             // Pre-populate map
             map.setString("key1", "initial");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -255,11 +213,6 @@ public class YMapObserverIntegrationTest {
                 // Update existing key
                 map.setString("key1", "updated");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
@@ -291,11 +244,6 @@ public class YMapObserverIntegrationTest {
             map.setString("key1", "value1");
             map.setString("key2", "value2");
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
 
             List<YEvent> capturedEvents = new ArrayList<>();
 
@@ -305,11 +253,6 @@ public class YMapObserverIntegrationTest {
 
                 map.remove("key1");
 
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
 
                 assertTrue("Should have event", capturedEvents.size() >= 1);
 
