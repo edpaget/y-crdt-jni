@@ -1,6 +1,8 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * YMap represents a collaborative map type in a Y-CRDT document.
@@ -24,11 +26,13 @@ import java.io.Closeable;
  *
  * @see YDoc
  */
-public class YMap implements Closeable {
+public class YMap implements Closeable, YObservable {
 
     private final YDoc doc;
     private long nativePtr;
     private volatile boolean closed = false;
+    private final ConcurrentHashMap<Long, YObserver> observers = new ConcurrentHashMap<>();
+    private final AtomicLong nextSubscriptionId = new AtomicLong(0);
 
     /**
      * Package-private constructor. Use {@link YDoc#getMap(String)} to create instances.
@@ -270,6 +274,82 @@ public class YMap implements Closeable {
     }
 
     /**
+     * Registers an observer to be notified when this map changes.
+     *
+     * <p>The observer will be called whenever entries are added, removed, or modified
+     * in this map. The observer receives a {@link YEvent} containing details about
+     * the changes.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YMap map = doc.getMap("mymap");
+     *      YSubscription sub = map.observe(event -> {
+     *          System.out.println("Map changed!");
+     *          for (YChange change : event.getChanges()) {
+     *              // Handle change
+     *          }
+     *      })) {
+     *     map.setString("key", "value"); // Observer is called
+     * }
+     * }</pre>
+     *
+     * @param observer The observer to register (must not be null)
+     * @return A subscription handle that can be used to unregister the observer
+     * @throws IllegalArgumentException if observer is null
+     * @throws IllegalStateException if this map has been closed
+     */
+    public YSubscription observe(YObserver observer) {
+        checkClosed();
+        if (observer == null) {
+            throw new IllegalArgumentException("Observer cannot be null");
+        }
+        long id = nextSubscriptionId.incrementAndGet();
+        observers.put(id, observer);
+        nativeObserve(doc.getNativePtr(), nativePtr, id, this);
+        return new YSubscription(id, observer, this);
+    }
+
+    /**
+     * Unregisters an observer by its subscription ID.
+     *
+     * <p>This method is typically called automatically when a {@link YSubscription}
+     * is closed. Users should prefer using try-with-resources with YSubscription
+     * rather than calling this method directly.</p>
+     *
+     * @param subscriptionId The ID of the subscription to remove
+     */
+    @Override
+    public void unobserveById(long subscriptionId) {
+        if (observers.remove(subscriptionId) != null) {
+            if (!closed && nativePtr != 0) {
+                nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+            }
+        }
+    }
+
+    /**
+     * Dispatches an event to the observer registered with the given subscription ID.
+     *
+     * <p>This method is called from native code when map changes occur.
+     * It should not be called directly by user code.</p>
+     *
+     * @param subscriptionId The subscription ID
+     * @param event The event to dispatch
+     */
+    void dispatchEvent(long subscriptionId, YEvent event) {
+        YObserver observer = observers.get(subscriptionId);
+        if (observer != null) {
+            try {
+                observer.onChange(event);
+            } catch (Exception e) {
+                System.err.println("Observer threw exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Checks if this YMap has been closed.
      *
      * @return true if this YMap has been closed, false otherwise
@@ -292,6 +372,14 @@ public class YMap implements Closeable {
         if (!closed) {
             synchronized (this) {
                 if (!closed) {
+                    // Unregister all observers
+                    for (Long subscriptionId : observers.keySet()) {
+                        if (nativePtr != 0) {
+                            nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+                        }
+                    }
+                    observers.clear();
+
                     if (nativePtr != 0) {
                         nativeDestroy(nativePtr);
                         nativePtr = 0;
@@ -337,4 +425,7 @@ public class YMap implements Closeable {
     private static native String nativeToJson(long docPtr, long mapPtr);
     private static native void nativeSetDoc(long docPtr, long mapPtr, String key, long subdocPtr);
     private static native long nativeGetDoc(long docPtr, long mapPtr, String key);
+    private static native void nativeObserve(long docPtr, long mapPtr, long subscriptionId,
+                                              YMap ymapObj);
+    private static native void nativeUnobserve(long docPtr, long mapPtr, long subscriptionId);
 }

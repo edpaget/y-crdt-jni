@@ -2,6 +2,8 @@ package net.carcdr.ycrdt;
 
 import java.io.Closeable;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * YXmlText represents a collaborative XML text type in a Y-CRDT document.
@@ -25,11 +27,13 @@ import java.util.Map;
  *
  * @see YDoc
  */
-public class YXmlText implements Closeable {
+public class YXmlText implements Closeable, YObservable {
 
     private final YDoc doc;
     private long nativePtr;
     private volatile boolean closed = false;
+    private final ConcurrentHashMap<Long, YObserver> observers = new ConcurrentHashMap<>();
+    private final AtomicLong nextSubscriptionId = new AtomicLong(0);
 
     /**
      * Package-private constructor. Use {@link YDoc#getXmlText(String)} to create instances.
@@ -281,6 +285,73 @@ public class YXmlText implements Closeable {
     }
 
     /**
+     * Registers an observer to be notified of changes to this XML text.
+     *
+     * <p>The observer will be called whenever this XML text is modified.
+     * Multiple observers can be registered on the same XML text.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YSubscription sub = xmlText.observe(event -> {
+     *     System.out.println("XML text changed!");
+     *     for (YChange change : event.getChanges()) {
+     *         System.out.println("  " + change);
+     *     }
+     * })) {
+     *     xmlText.insert(0, "Hello"); // Triggers observer
+     * }
+     * }</pre>
+     *
+     * @param observer the observer to register
+     * @return a subscription handle that can be used to unobserve
+     * @throws IllegalArgumentException if observer is null
+     * @throws IllegalStateException if this XML text has been closed
+     */
+    public YSubscription observe(YObserver observer) {
+        checkClosed();
+        if (observer == null) {
+            throw new IllegalArgumentException("Observer cannot be null");
+        }
+        long id = nextSubscriptionId.incrementAndGet();
+        observers.put(id, observer);
+        nativeObserve(doc.getNativePtr(), nativePtr, id, this);
+        return new YSubscription(id, observer, this);
+    }
+
+    /**
+     * Package-private method to unobserve by subscription ID.
+     * Called by YSubscription.close().
+     *
+     * @param subscriptionId the subscription ID to remove
+     */
+    @Override
+    public void unobserveById(long subscriptionId) {
+        if (observers.remove(subscriptionId) != null) {
+            if (!closed && nativePtr != 0) {
+                nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+            }
+        }
+    }
+
+    /**
+     * Package-private method called by JNI to dispatch events.
+     *
+     * @param subscriptionId the subscription ID
+     * @param event the event to dispatch
+     */
+    void dispatchEvent(long subscriptionId, YEvent event) {
+        YObserver observer = observers.get(subscriptionId);
+        if (observer != null) {
+            try {
+                observer.onChange(event);
+            } catch (Exception e) {
+                System.err.println("Observer threw exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Closes this YXmlText and releases native resources.
      *
      * <p>After calling this method, any operations on this YXmlText will throw
@@ -294,6 +365,13 @@ public class YXmlText implements Closeable {
         if (!closed) {
             synchronized (this) {
                 if (!closed) {
+                    // Unregister all observers
+                    for (Long subscriptionId : observers.keySet()) {
+                        if (nativePtr != 0) {
+                            nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+                        }
+                    }
+                    observers.clear();
                     if (nativePtr != 0) {
                         nativeDestroy(nativePtr);
                         nativePtr = 0;
@@ -338,4 +416,6 @@ public class YXmlText implements Closeable {
             long docPtr, long xmlTextPtr, int index, int length, Map<String, Object> attributes);
     private static native Object nativeGetParent(long docPtr, long xmlTextPtr);
     private static native int nativeGetIndexInParent(long docPtr, long xmlTextPtr);
+    private static native void nativeObserve(long docPtr, long xmlTextPtr, long subscriptionId, YXmlText yxmlTextObj);
+    private static native void nativeUnobserve(long docPtr, long xmlTextPtr, long subscriptionId);
 }

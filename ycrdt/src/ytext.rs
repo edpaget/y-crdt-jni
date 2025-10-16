@@ -1,11 +1,11 @@
 use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
-use jni::{AttachGuard, JNIEnv, JavaVM};
+use jni::{AttachGuard, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::text::TextEvent;
-use yrs::{Doc, GetString, Observable, Subscription, Text, TextRef, Transact, TransactionMut};
+use yrs::{Doc, GetString, Observable, Text, TextRef, Transact, TransactionMut};
 
 // Global storage for Java YText objects (needed for callbacks)
 lazy_static::lazy_static! {
@@ -358,7 +358,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeUnobserve(
 /// Helper function to dispatch a text event to Java
 fn dispatch_text_event(
     env: &mut AttachGuard,
-    text_ptr: jlong,
+    _text_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
     event: &TextEvent,

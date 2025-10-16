@@ -32,6 +32,7 @@ This is a multi-module Gradle project:
 - ✅ **YXmlElement**: Collaborative XML elements with attributes and nesting
 - ✅ **YXmlFragment**: Hierarchical XML tree support with child node retrieval
 - ✅ **Subdocuments**: Embed YDocs within YMap and YArray for hierarchical structures
+- ✅ **Observer API**: Real-time change notification for all CRDT types
 - ✅ **Binary updates**: Efficient state synchronization
 - ✅ **Memory safe**: Proper resource management with AutoCloseable
 - ✅ **Multi-platform**: Linux, macOS, and Windows support
@@ -140,6 +141,66 @@ public class Example {
 ```
 
 For more examples, see the [Example.java](ycrdt/src/main/java/net/carcdr/ycrdt/Example.java) program with 14+ demonstrations.
+
+## Observer API
+
+Y-CRDT JNI provides full observer support for real-time change notifications across all 6 CRDT types. The Observer API enables applications to react to document changes as they occur, making it ideal for building reactive UIs and collaborative applications.
+
+### Features
+
+- **Full Coverage**: Observers for all 6 Y-CRDT types (YText, YArray, YMap, YXmlFragment, YXmlElement, YXmlText)
+- **Thread-Safe**: Callbacks can be triggered from any thread with proper JVM attachment
+- **AutoCloseable**: Subscription handles implement AutoCloseable for automatic cleanup
+- **Type-Safe**: Strongly typed change events for each CRDT type
+- **Production-Ready**: 51 integration tests, all passing
+
+### Example Usage
+
+```java
+import net.carcdr.ycrdt.*;
+
+public class ObserverExample {
+    public static void main(String[] args) {
+        try (YDoc doc = new YDoc()) {
+            try (YText text = doc.getText("myText")) {
+                // Subscribe to text changes
+                try (Subscription sub = text.observe(event -> {
+                    System.out.println("Text changed!");
+                    for (Object change : event.getChanges()) {
+                        YTextChange tc = (YTextChange) change;
+                        System.out.println("  Type: " + tc.getType());
+                        System.out.println("  Content: " + tc.getInsert());
+                    }
+                })) {
+                    // Make changes - observer will be notified
+                    text.push("Hello, ");
+                    text.push("World!");
+
+                    // Subscription automatically unsubscribed when closed
+                }
+            }
+        }
+    }
+}
+```
+
+### Available Observer Types
+
+Each CRDT type provides its own specialized change event structure:
+
+- **YText**: `YTextChange` - tracks insertions, deletions, and retains with formatting attributes
+- **YArray**: `YArrayChange` - tracks insertions, deletions, and retains for array items
+- **YMap**: `YMapChange` - tracks key insertions, updates, and deletions
+- **YXmlElement**: `YXmlElementChange` - tracks child and attribute changes
+- **YXmlFragment**: Uses `YArrayChange` for child changes
+- **YXmlText**: Uses `YTextChange` for text content changes
+
+All observer callbacks receive a `YEvent` object containing:
+- `target`: The CRDT object that changed
+- `changes`: List of typed change objects
+- `origin`: Optional origin string for tracking change sources
+
+For detailed examples, see the observer tests in the [test suite](ycrdt/src/test/java/net/carcdr/ycrdt/).
 
 ## API Documentation
 

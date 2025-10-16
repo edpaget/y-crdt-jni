@@ -1,5 +1,9 @@
 package net.carcdr.ycrdt;
 
+import java.io.Closeable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Represents a fragment of XML content in a Y-CRDT document.
  * A fragment is a container for XML nodes (elements and text) and serves as the root
@@ -33,11 +37,13 @@ package net.carcdr.ycrdt;
  *
  * @since 0.2.0
  */
-public class YXmlFragment implements AutoCloseable {
+public class YXmlFragment implements Closeable, YObservable {
 
     private final YDoc doc;
-    private final long nativeHandle;
-    private boolean closed = false;
+    private long nativeHandle;
+    private volatile boolean closed = false;
+    private final ConcurrentHashMap<Long, YObserver> observers = new ConcurrentHashMap<>();
+    private final AtomicLong nextSubscriptionId = new AtomicLong(0);
 
     /**
      * Package-private constructor. Use {@link YDoc#getXmlFragment(String)} to create instances.
@@ -271,14 +277,105 @@ public class YXmlFragment implements AutoCloseable {
     }
 
     /**
+     * Registers an observer to be notified when this XML fragment changes.
+     *
+     * <p>The observer will be called whenever child nodes are added, removed, or modified
+     * in this fragment. The observer receives a {@link YEvent} containing details about
+     * the changes.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlFragment fragment = doc.getXmlFragment("document");
+     *      YSubscription sub = fragment.observe(event -> {
+     *          System.out.println("Fragment changed!");
+     *          for (YChange change : event.getChanges()) {
+     *              // Handle change
+     *          }
+     *      })) {
+     *     fragment.insertElement(0, "div"); // Observer is called
+     * }
+     * }</pre>
+     *
+     * @param observer The observer to register (must not be null)
+     * @return A subscription handle that can be used to unregister the observer
+     * @throws IllegalArgumentException if observer is null
+     * @throws IllegalStateException if this fragment has been closed
+     */
+    public YSubscription observe(YObserver observer) {
+        checkClosed();
+        if (observer == null) {
+            throw new IllegalArgumentException("Observer cannot be null");
+        }
+        long id = nextSubscriptionId.incrementAndGet();
+        observers.put(id, observer);
+        nativeObserve(doc.getNativeHandle(), nativeHandle, id, this);
+        return new YSubscription(id, observer, this);
+    }
+
+    /**
+     * Unregisters an observer by its subscription ID.
+     *
+     * <p>This method is typically called automatically when a {@link YSubscription}
+     * is closed. Users should prefer using try-with-resources with YSubscription
+     * rather than calling this method directly.</p>
+     *
+     * @param subscriptionId The ID of the subscription to remove
+     */
+    @Override
+    public void unobserveById(long subscriptionId) {
+        if (observers.remove(subscriptionId) != null) {
+            if (!closed && nativeHandle != 0) {
+                nativeUnobserve(doc.getNativeHandle(), nativeHandle, subscriptionId);
+            }
+        }
+    }
+
+    /**
+     * Dispatches an event to the observer registered with the given subscription ID.
+     *
+     * <p>This method is called from native code when fragment changes occur.
+     * It should not be called directly by user code.</p>
+     *
+     * @param subscriptionId The subscription ID
+     * @param event The event to dispatch
+     */
+    void dispatchEvent(long subscriptionId, YEvent event) {
+        YObserver observer = observers.get(subscriptionId);
+        if (observer != null) {
+            try {
+                observer.onChange(event);
+            } catch (Exception e) {
+                System.err.println("Observer threw exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Closes this fragment and releases native resources.
      * After calling this method, the fragment cannot be used.
      */
     @Override
     public synchronized void close() {
         if (!closed) {
-            nativeDestroy(nativeHandle);
-            closed = true;
+            synchronized (this) {
+                if (!closed) {
+                    // Unregister all observers
+                    for (Long subscriptionId : observers.keySet()) {
+                        if (nativeHandle != 0) {
+                            nativeUnobserve(doc.getNativeHandle(), nativeHandle, subscriptionId);
+                        }
+                    }
+                    observers.clear();
+
+                    if (nativeHandle != 0) {
+                        nativeDestroy(nativeHandle);
+                        nativeHandle = 0;
+                    }
+                    closed = true;
+                }
+            }
         }
     }
 
@@ -324,4 +421,9 @@ public class YXmlFragment implements AutoCloseable {
     private static native long nativeGetText(long docPtr, long fragmentPtr, int index);
 
     private static native String nativeToXmlString(long docPtr, long fragmentPtr);
+
+    private static native void nativeObserve(long docPtr, long fragmentPtr, long subscriptionId,
+                                              YXmlFragment fragmentObj);
+
+    private static native void nativeUnobserve(long docPtr, long fragmentPtr, long subscriptionId);
 }

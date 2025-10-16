@@ -1,12 +1,36 @@
 # Development Guidelines for y-crdt-jni
 
+## Project Structure
+
+This is a **multi-module Gradle project**:
+
+```
+y-crdt-jni/
+├── ycrdt/              # Core Y-CRDT JNI bindings (Java + Rust)
+│   ├── build.gradle    # Gradle build for Java layer
+│   ├── Cargo.toml      # Rust build for native library
+│   └── src/
+│       ├── main/java/  # Java classes
+│       ├── main/rust/  # Rust JNI bindings
+│       └── test/java/  # Java tests
+├── yprosemirror/       # ProseMirror integration (Java only)
+│   ├── build.gradle
+│   └── src/
+│       ├── main/java/
+│       └── test/java/
+├── yhocuspocus/        # Hocuspocus server (planned, Java only)
+│   └── ...
+└── build.gradle        # Root project configuration
+```
+
 ## After Making Changes
 
-### Rust Files (`*.rs`)
+### Rust Files (`*.rs`) in ycrdt module
 
-When you modify any Rust source files, **always** run:
+When you modify any Rust source files in `ycrdt/src/`, **always** run:
 
 ```bash
+cd ycrdt
 cargo fmt
 ```
 
@@ -18,15 +42,29 @@ Then run tests to verify your changes:
 cargo test
 ```
 
+**Note:** Rust code only exists in the `ycrdt` module. Other modules (yprosemirror, yhocuspocus) are pure Java.
+
 ### Java Files (`*.java`)
 
-When you modify any Java source files, **always** run checkstyle and tests:
+When you modify any Java source files, **always** run checkstyle and tests.
+
+#### For specific module:
+
+```bash
+# For ycrdt module
+./gradlew :ycrdt:checkstyleMain :ycrdt:checkstyleTest :ycrdt:test
+
+# For yprosemirror module
+./gradlew :yprosemirror:checkstyleMain :yprosemirror:checkstyleTest :yprosemirror:test
+```
+
+#### For all modules:
 
 ```bash
 ./gradlew checkstyleMain checkstyleTest test
 ```
 
-Or simply run the full check:
+Or simply run the full check on all modules:
 
 ```bash
 ./gradlew check
@@ -46,7 +84,7 @@ After making changes to:
 ./gradlew test
 ```
 
-Or run the full build:
+Or run the full build (all modules):
 
 ```bash
 ./gradlew build
@@ -54,22 +92,26 @@ Or run the full build:
 
 ## Quick Reference
 
-| Change Type | Commands to Run |
-|-------------|-----------------|
-| Rust code (`src/*.rs`) | `cargo fmt` then `cargo test` |
-| Java code (`src/**/*.java`) | `./gradlew checkstyleMain checkstyleTest test` |
-| Build config | `./gradlew build` |
-| Documentation | `./gradlew test` (verify examples) |
+| Change Type | Location | Commands to Run |
+|-------------|----------|-----------------|
+| Rust code (`*.rs`) | `ycrdt/src/` | `cd ycrdt && cargo fmt && cargo test` |
+| Java code (ycrdt) | `ycrdt/src/main/java/` | `./gradlew :ycrdt:checkstyleMain :ycrdt:test` |
+| Java code (yprosemirror) | `yprosemirror/src/main/java/` | `./gradlew :yprosemirror:checkstyleMain :yprosemirror:test` |
+| Java code (all modules) | Any module | `./gradlew checkstyleMain checkstyleTest test` |
+| Build config | Any `build.gradle` or `Cargo.toml` | `./gradlew build` |
+| Documentation | Any `*.md` | `./gradlew test` (verify examples) |
 
 ## Pre-Commit Checklist
 
 Before committing changes:
 
-- [ ] Run `cargo fmt` if Rust files changed
-- [ ] Run `cargo test` - all tests passing
-- [ ] Run `./gradlew test` - all tests passing
+- [ ] Run `cd ycrdt && cargo fmt` if Rust files changed (ycrdt module only)
+- [ ] Run `cargo test` in ycrdt directory - all Rust tests passing
+- [ ] Run `./gradlew test` - all Java tests passing (all modules)
+- [ ] Run `./gradlew checkstyleMain checkstyleTest` - no style violations
 - [ ] Check `git status` - no unintended files staged
 - [ ] Review `git diff` - changes are intentional
+- [ ] Update relevant documentation (see "Update Project Documentation" section)
 
 ## CI/CD Validation
 
@@ -85,8 +127,11 @@ Make sure your changes pass locally before pushing!
 
 ## Common Commands
 
-### Rust
+### Rust (ycrdt module only)
 ```bash
+# Navigate to ycrdt module first
+cd ycrdt
+
 # Format code
 cargo fmt
 
@@ -101,37 +146,114 @@ cargo test
 
 # Build release
 cargo build --release
+
+# Return to root
+cd ..
 ```
 
-### Java/Gradle
+### Java/Gradle (all modules)
 ```bash
-# Run checkstyle
+# Run checkstyle on all modules
 ./gradlew checkstyleMain checkstyleTest
 
-# Run tests
+# Run checkstyle on specific module
+./gradlew :ycrdt:checkstyleMain :ycrdt:checkstyleTest
+./gradlew :yprosemirror:checkstyleMain :yprosemirror:checkstyleTest
+
+# Run tests on all modules
 ./gradlew test
 
-# Run checkstyle and tests
+# Run tests on specific module
+./gradlew :ycrdt:test
+./gradlew :yprosemirror:test
+
+# Run checkstyle and tests (all modules)
 ./gradlew check
 
-# Full build (includes checkstyle and tests)
+# Full build (includes checkstyle and tests, all modules)
 ./gradlew build
+
+# Build specific module
+./gradlew :ycrdt:build
+./gradlew :yprosemirror:build
 
 # Clean build
 ./gradlew clean build
 
-# Run example
-./gradlew run
+# Run example (ycrdt module)
+./gradlew :ycrdt:run
 
-# Generate Javadoc
+# Generate Javadoc (all modules)
 ./gradlew javadoc
+
+# Generate Javadoc for specific module
+./gradlew :ycrdt:javadoc
+./gradlew :yprosemirror:javadoc
+
+# List all modules
+./gradlew projects
 ```
 
-### Combined
+### Combined Workflows
 ```bash
-# Format Rust and run all tests
-cargo fmt && cargo test && ./gradlew test
+# Format Rust and run all tests (Rust + Java)
+cd ycrdt && cargo fmt && cargo test && cd .. && ./gradlew test
+
+# Full validation before committing
+cd ycrdt && cargo fmt && cargo clippy && cargo test && cd .. && ./gradlew check
+
+# Quick check (formatting + tests only)
+cd ycrdt && cargo fmt --check && cargo test && cd .. && ./gradlew test
 ```
+
+## Update Project Documentation
+
+After making significant changes to the codebase, **always** update the relevant documentation files:
+
+### When to Update Documentation
+
+1. **PLAN.md** - Update when:
+   - Completing a phase or milestone
+   - Changing implementation approach
+   - Adding/removing major features
+   - Updating project status or timelines
+
+2. **IMPLEMENTATION.md** - Update when:
+   - Adding new JNI bindings or native methods
+   - Changing build system or architecture
+   - Adding new classes or modules
+   - Modifying memory management patterns
+
+3. **CHANGELOG.md** - Update when:
+   - Adding new features
+   - Fixing bugs
+   - Changing APIs (breaking or non-breaking)
+   - Updating dependencies
+   - Releasing versions
+
+4. **README.md** - Update when:
+   - Adding new features that users should know about
+   - Changing installation or usage instructions
+   - Updating examples
+   - Modifying project structure
+
+5. **plans/*.md** - Update when:
+   - Completing planned features
+   - Changing implementation status
+   - Making design decisions
+   - Identifying new requirements
+
+### Documentation Update Checklist
+
+After implementing changes:
+
+- [ ] Update test counts in PLAN.md if tests were added
+- [ ] Update implementation status in PLAN.md if phases completed
+- [ ] Add entry to CHANGELOG.md describing changes
+- [ ] Update IMPLEMENTATION.md if architecture changed
+- [ ] Update README.md if user-facing features changed
+- [ ] Update relevant plans/*.md files if design evolved
+- [ ] Update JavaDoc/code comments for API changes
 
 ## Notes
 
@@ -139,3 +261,4 @@ cargo fmt && cargo test && ./gradlew test
 - Tests must pass before pushing to ensure CI/CD succeeds
 - The GitHub Actions "Quick Check" workflow will catch formatting issues
 - If tests fail, fix them before committing
+- **Keep documentation in sync** - outdated docs are worse than no docs

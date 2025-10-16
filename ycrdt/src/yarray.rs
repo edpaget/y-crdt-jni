@@ -626,7 +626,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeUnobserve(
 /// Helper function to dispatch an array event to Java
 fn dispatch_array_event(
     env: &mut AttachGuard,
-    array_ptr: jlong,
+    _array_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
     event: &ArrayEvent,

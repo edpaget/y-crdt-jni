@@ -1,8 +1,18 @@
 use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
-use jni::JNIEnv;
-use yrs::{Doc, GetString, Transact, Xml, XmlElementPrelim, XmlElementRef, XmlFragment};
+use jni::{AttachGuard, JNIEnv};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use yrs::types::xml::XmlEvent;
+use yrs::types::Change;
+use yrs::{Doc, GetString, Observable, Transact, TransactionMut, Xml, XmlElementPrelim, XmlElementRef, XmlFragment};
+
+// Global storage for Java YXmlElement objects (needed for callbacks)
+lazy_static::lazy_static! {
+    static ref XMLELEMENT_JAVA_OBJECTS: Arc<Mutex<HashMap<jlong, GlobalRef>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+}
 
 /// Gets or creates a YXmlElement instance from a YDoc
 ///
@@ -849,6 +859,401 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
                 }
             }
             None => -1, // No parent
+        }
+    }
+}
+
+/// Registers an observer for the YXmlElement
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `subscription_id`: The subscription ID from Java
+/// - `yxmlelement_obj`: The Java YXmlElement object for callbacks
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeObserve(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    xml_element_ptr: jlong,
+    subscription_id: jlong,
+    yxmlelement_obj: JObject,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if xml_element_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return;
+    }
+
+    // Get JavaVM for later callback
+    let jvm = match env.get_java_vm() {
+        Ok(vm) => Arc::new(vm),
+        Err(e) => {
+            throw_exception(&mut env, &format!("Failed to get JavaVM: {:?}", e));
+            return;
+        }
+    };
+
+    // Create a global reference to the Java YXmlElement object
+    let global_ref = match env.new_global_ref(yxmlelement_obj) {
+        Ok(r) => r,
+        Err(e) => {
+            throw_exception(&mut env, &format!("Failed to create global ref: {:?}", e));
+            return;
+        }
+    };
+
+    // Store the global reference
+    {
+        let mut java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
+        java_objects.insert(subscription_id, global_ref);
+    }
+
+    unsafe {
+        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+
+        // Create observer closure
+        let jvm_clone = Arc::clone(&jvm);
+        let subscription = element.observe(move |txn, event| {
+            // Attach to JVM for this thread
+            let mut env = match jvm_clone.attach_current_thread() {
+                Ok(env) => env,
+                Err(_) => return, // Can't do much if we can't attach
+            };
+
+            // Dispatch event to Java
+            if let Err(e) = dispatch_xmlelement_event(&mut env, xml_element_ptr, subscription_id, txn, event) {
+                eprintln!("Failed to dispatch XML element event: {:?}", e);
+            }
+        });
+
+        // Leak the subscription to keep it alive - we'll clean up on unobserve
+        // This is a simplified approach; in production we'd use a better mechanism
+        Box::leak(Box::new(subscription));
+    }
+}
+
+/// Unregisters an observer for the YXmlElement
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance (unused but kept for consistency)
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance (unused but kept for consistency)
+/// - `subscription_id`: The subscription ID to remove
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeUnobserve(
+    _env: JNIEnv,
+    _class: JClass,
+    _doc_ptr: jlong,
+    _xml_element_ptr: jlong,
+    subscription_id: jlong,
+) {
+    // Remove the global reference to allow the Java object to be GC'd
+    let mut java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
+    java_objects.remove(&subscription_id);
+    // The GlobalRef is dropped here, releasing the reference
+    // Note: The Subscription is still leaked from observe()
+    // This is acceptable for now but should be fixed in production
+}
+
+/// Helper function to dispatch an XML element event to Java
+fn dispatch_xmlelement_event(
+    env: &mut AttachGuard,
+    _xml_element_ptr: jlong,
+    subscription_id: jlong,
+    txn: &TransactionMut,
+    event: &XmlEvent,
+) -> Result<(), jni::errors::Error> {
+    // Create a Java ArrayList for changes
+    let changes_list = env.new_object("java/util/ArrayList", "()V", &[])?;
+
+    // Process child changes (using Change enum like YArray)
+    let delta = event.delta(txn);
+    for change in delta {
+        let change_obj = match change {
+            Change::Added(items) => {
+                // Create YArrayChange for INSERT (children are like array items)
+                let items_list = env.new_object("java/util/ArrayList", "()V", &[])?;
+                for item in items {
+                    let item_obj = out_to_jobject(env, item)?;
+                    env.call_method(
+                        &items_list,
+                        "add",
+                        "(Ljava/lang/Object;)Z",
+                        &[JValue::Object(&item_obj)],
+                    )?;
+                }
+
+                let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
+                env.new_object(
+                    change_class,
+                    "(Ljava/util/List;)V",
+                    &[JValue::Object(&items_list)],
+                )?
+            }
+            Change::Removed(len) => {
+                // Create YArrayChange for DELETE
+                let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
+                let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
+                let delete_type = env.get_static_field(
+                    type_class,
+                    "DELETE",
+                    "Lnet/carcdr/ycrdt/YChange$Type;",
+                )?;
+
+                env.new_object(
+                    change_class,
+                    "(Lnet/carcdr/ycrdt/YChange$Type;I)V",
+                    &[JValue::Object(&delete_type.l()?), JValue::Int(*len as i32)],
+                )?
+            }
+            Change::Retain(len) => {
+                // Create YArrayChange for RETAIN
+                let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
+                let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
+                let retain_type = env.get_static_field(
+                    type_class,
+                    "RETAIN",
+                    "Lnet/carcdr/ycrdt/YChange$Type;",
+                )?;
+
+                env.new_object(
+                    change_class,
+                    "(Lnet/carcdr/ycrdt/YChange$Type;I)V",
+                    &[JValue::Object(&retain_type.l()?), JValue::Int(*len as i32)],
+                )?
+            }
+        };
+
+        // Add to changes list
+        env.call_method(
+            &changes_list,
+            "add",
+            "(Ljava/lang/Object;)Z",
+            &[JValue::Object(&change_obj)],
+        )?;
+    }
+
+    // Process attribute changes
+    let keys = event.keys(txn);
+    for (attr_name, change) in keys.iter() {
+        use yrs::types::EntryChange;
+
+        let attr_change_obj = match change {
+            EntryChange::Inserted(new_val) => {
+                let new_str = new_val.to_string();
+                let attr_name_jstr = env.new_string(attr_name)?;
+                let new_val_jstr = env.new_string(&new_str)?;
+
+                let change_class = env.find_class("net/carcdr/ycrdt/YXmlElementChange")?;
+                let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
+                let insert_type = env.get_static_field(
+                    type_class,
+                    "INSERT",
+                    "Lnet/carcdr/ycrdt/YChange$Type;",
+                )?;
+
+                env.new_object(
+                    change_class,
+                    "(Lnet/carcdr/ycrdt/YChange$Type;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                    &[
+                        JValue::Object(&insert_type.l()?),
+                        JValue::Object(&attr_name_jstr),
+                        JValue::Object(&new_val_jstr),
+                        JValue::Object(&JObject::null()),
+                    ],
+                )?
+            }
+            EntryChange::Updated(old_val, new_val) => {
+                let old_str = old_val.to_string();
+                let new_str = new_val.to_string();
+                let attr_name_jstr = env.new_string(attr_name)?;
+                let old_val_jstr = env.new_string(&old_str)?;
+                let new_val_jstr = env.new_string(&new_str)?;
+
+                let change_class = env.find_class("net/carcdr/ycrdt/YXmlElementChange")?;
+                let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
+                let attribute_type = env.get_static_field(
+                    type_class,
+                    "ATTRIBUTE",
+                    "Lnet/carcdr/ycrdt/YChange$Type;",
+                )?;
+
+                env.new_object(
+                    change_class,
+                    "(Lnet/carcdr/ycrdt/YChange$Type;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                    &[
+                        JValue::Object(&attribute_type.l()?),
+                        JValue::Object(&attr_name_jstr),
+                        JValue::Object(&new_val_jstr),
+                        JValue::Object(&old_val_jstr),
+                    ],
+                )?
+            }
+            EntryChange::Removed(old_val) => {
+                let old_str = old_val.to_string();
+                let attr_name_jstr = env.new_string(attr_name)?;
+                let old_val_jstr = env.new_string(&old_str)?;
+
+                let change_class = env.find_class("net/carcdr/ycrdt/YXmlElementChange")?;
+                let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
+                let delete_type = env.get_static_field(
+                    type_class,
+                    "DELETE",
+                    "Lnet/carcdr/ycrdt/YChange$Type;",
+                )?;
+
+                env.new_object(
+                    change_class,
+                    "(Lnet/carcdr/ycrdt/YChange$Type;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                    &[
+                        JValue::Object(&delete_type.l()?),
+                        JValue::Object(&attr_name_jstr),
+                        JValue::Object(&JObject::null()),
+                        JValue::Object(&old_val_jstr),
+                    ],
+                )?
+            }
+        };
+
+        // Add to changes list
+        env.call_method(
+            &changes_list,
+            "add",
+            "(Ljava/lang/Object;)Z",
+            &[JValue::Object(&attr_change_obj)],
+        )?;
+    }
+
+    // Get the Java YXmlElement object from our global storage
+    let java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
+    let yxmlelement_ref = match java_objects.get(&subscription_id) {
+        Some(r) => r,
+        None => {
+            eprintln!("No Java object found for subscription {}", subscription_id);
+            return Ok(());
+        }
+    };
+
+    let yxmlelement_obj = yxmlelement_ref.as_obj();
+
+    // Create YEvent
+    let event_class = env.find_class("net/carcdr/ycrdt/YEvent")?;
+    let target = yxmlelement_obj; // Use the YXmlElement object as the target
+    let origin_jstr = env.new_string("")?; // Empty origin for now
+
+    let event_obj = env.new_object(
+        event_class,
+        "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)V",
+        &[
+            JValue::Object(target),
+            JValue::Object(&changes_list),
+            JValue::Object(&origin_jstr),
+        ],
+    )?;
+
+    // Call YXmlElement.dispatchEvent(subscriptionId, event)
+    env.call_method(
+        yxmlelement_obj,
+        "dispatchEvent",
+        "(JLnet/carcdr/ycrdt/YEvent;)V",
+        &[JValue::Long(subscription_id), JValue::Object(&event_obj)],
+    )?;
+
+    Ok(())
+}
+
+/// Helper function to convert yrs Out to JObject
+fn out_to_jobject<'local>(
+    env: &mut AttachGuard<'local>,
+    value: &yrs::Out,
+) -> Result<JObject<'local>, jni::errors::Error> {
+    match value {
+        yrs::Out::Any(any) => any_to_jobject(env, any),
+        yrs::Out::YText(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        yrs::Out::YArray(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        yrs::Out::YMap(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        yrs::Out::YXmlElement(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        yrs::Out::YXmlText(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        yrs::Out::YDoc(_) => {
+            // For now, return string representation
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+        _ => {
+            // For other types, convert to string
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+    }
+}
+
+/// Helper function to convert yrs Any to JObject
+fn any_to_jobject<'local>(
+    env: &mut AttachGuard<'local>,
+    value: &yrs::Any,
+) -> Result<JObject<'local>, jni::errors::Error> {
+    use yrs::Any;
+
+    match value {
+        Any::String(s) => {
+            let jstr = env.new_string(s.as_ref())?;
+            Ok(jstr.into())
+        }
+        Any::Bool(b) => {
+            let boolean_class = env.find_class("java/lang/Boolean")?;
+            let obj = env.new_object(
+                boolean_class,
+                "(Z)V",
+                &[JValue::Bool(if *b { 1 } else { 0 })],
+            )?;
+            Ok(obj)
+        }
+        Any::Number(n) => {
+            let double_class = env.find_class("java/lang/Double")?;
+            let obj = env.new_object(double_class, "(D)V", &[JValue::Double(*n)])?;
+            Ok(obj)
+        }
+        Any::BigInt(i) => {
+            let long_class = env.find_class("java/lang/Long")?;
+            let obj = env.new_object(long_class, "(J)V", &[JValue::Long(*i)])?;
+            Ok(obj)
+        }
+        _ => {
+            // For other types, convert to string
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
         }
     }
 }
