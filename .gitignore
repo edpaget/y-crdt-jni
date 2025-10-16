@@ -71,17 +71,10 @@ test-results/
 *.swp
 .~*
 
-# Build artifacts documentation (generated locally)
-/CI_CD_SETUP.md
-/BUILD_TEST_RESULTS.md
-/GRADLE_BUILD_SUCCESS.md
-/CHECKSTYLE_SETUP.md
-/GITIGNORE_SUMMARY.md
-/GRADLE_SETUP.md
+# Planning and research documents (not committed)
+plans/
 
 # Claude Code temporary files
 .claude/*
 !.claude/Claude.md
 !.claude/commands/
-/XML_IMPLEMENTATION_STATUS.md
-/CHILD_NODE_RETRIEVAL_RESEARCH.md
