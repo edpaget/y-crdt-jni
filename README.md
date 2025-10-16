@@ -13,11 +13,17 @@ Y-CRDT is a CRDT implementation that enables real-time collaborative editing wit
 ## Features
 
 - ✅ **YDoc**: Core document type with synchronization support
-- 🚧 **YText**: Collaborative text editing (planned)
-- 🚧 **YArray**: Collaborative arrays (planned)
-- 🚧 **YMap**: Collaborative maps (planned)
+- ✅ **YText**: Collaborative text editing with Unicode support
+- ✅ **YArray**: Collaborative arrays with mixed types and JSON serialization
+- ✅ **YMap**: Collaborative maps with mixed types and JSON serialization
+- ✅ **YXmlText**: Collaborative XML text nodes
+- ✅ **YXmlElement**: Collaborative XML elements with attributes
+- ✅ **YXmlFragment**: Hierarchical XML tree support with child node retrieval
 - ✅ **Binary updates**: Efficient state synchronization
 - ✅ **Memory safe**: Proper resource management with AutoCloseable
+- ✅ **Multi-platform**: Linux, macOS, and Windows support
+
+See [PLAN.md](PLAN.md) for the full development roadmap and [CHANGELOG.md](CHANGELOG.md) for detailed feature list.
 
 ## Requirements
 
@@ -63,170 +69,103 @@ The build automatically detects your platform and builds the appropriate native 
 
 For multi-platform JARs, see the [CI/CD section](#cicd) below.
 
-## Usage
-
-### Basic Example
+## Quick Start
 
 ```java
-import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.*;
 
 public class Example {
     public static void main(String[] args) {
-        // Create a new document
+        // Create a document
         try (YDoc doc = new YDoc()) {
-            System.out.println("Client ID: " + doc.getClientId());
-            System.out.println("GUID: " + doc.getGuid());
+            // Collaborative text editing
+            try (YText text = doc.getText("myText")) {
+                text.push("Hello, ");
+                text.push("World!");
+                System.out.println(text.toString()); // "Hello, World!"
+            }
+
+            // Collaborative map
+            try (YMap map = doc.getMap("myMap")) {
+                map.set("name", "Alice");
+                map.set("age", 30.0);
+                System.out.println(map.toJson()); // {"name":"Alice","age":30.0}
+            }
+
+            // Synchronize with another document
+            byte[] update = doc.encodeStateAsUpdate();
+            try (YDoc doc2 = new YDoc()) {
+                doc2.applyUpdate(update);
+                // doc2 now has the same state as doc
+            }
         }
     }
 }
 ```
 
-### Synchronizing Documents
-
-```java
-import net.carcdr.ycrdt.YDoc;
-
-public class SyncExample {
-    public static void main(String[] args) {
-        try (YDoc doc1 = new YDoc();
-             YDoc doc2 = new YDoc()) {
-
-            // Get the state from doc1
-            byte[] state1 = doc1.encodeStateAsUpdate();
-
-            // Apply doc1's state to doc2
-            doc2.applyUpdate(state1);
-
-            // Documents are now synchronized!
-        }
-    }
-}
-```
-
-### Creating Documents with Specific Client IDs
-
-```java
-try (YDoc doc = new YDoc(12345L)) {
-    System.out.println("Client ID: " + doc.getClientId()); // 12345
-}
-```
+For more examples, see the [Example.java](src/main/java/net/carcdr/ycrdt/Example.java) program with 14+ demonstrations.
 
 ## API Documentation
 
-Full API documentation is available at [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
+**Full API documentation**: [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
 
-### YDoc
+**Implementation details**: See [IMPLEMENTATION.md](IMPLEMENTATION.md) for technical architecture and JNI binding details.
 
-The main document class that represents a Y-CRDT document.
+### Core Types
 
-#### Constructors
+- **YDoc** - Main document class with synchronization support
+- **YText** - Collaborative text with insert, push, delete operations
+- **YArray** - Collaborative array supporting strings and doubles
+- **YMap** - Collaborative map supporting strings and doubles
+- **YXmlText** - XML text nodes with collaborative editing
+- **YXmlElement** - XML elements with attribute management
+- **YXmlFragment** - Hierarchical XML trees with child node access
 
-- `YDoc()` - Creates a new document with a random client ID
-- `YDoc(long clientId)` - Creates a new document with a specific client ID
+All types implement `AutoCloseable` for automatic resource management.
 
-#### Methods
+## Project Status
 
-- `long getClientId()` - Returns the client ID of this document
-- `String getGuid()` - Returns the globally unique identifier for this document
-- `byte[] encodeStateAsUpdate()` - Encodes the current document state as a binary update
-- `void applyUpdate(byte[] update)` - Applies a binary update to this document
-- `void close()` - Releases native resources (called automatically with try-with-resources)
-- `boolean isClosed()` - Checks if the document has been closed
+**Current Version**: 0.1.0-SNAPSHOT
 
-For detailed API documentation, see the [Javadoc](https://carcdr.net/y-crdt-jni/).
+**Test Coverage**:
+- 30 Rust unit tests (100% passing)
+- 147 Java integration tests (100% passing)
 
-## Project Structure
+**Build Status**: [![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
 
-```
-y-crdt-jni/
-├── src/
-│   ├── lib.rs                              # Rust library entry point
-│   ├── ydoc.rs                             # YDoc JNI bindings
-│   └── main/
-│       └── java/
-│           └── net/
-│               └── carcdr/
-│                   └── ycrdt/
-│                       ├── YDoc.java        # Java YDoc class
-│                       ├── NativeLoader.java # Native library loader
-│                       └── Example.java     # Example usage
-├── Cargo.toml                               # Rust dependencies
-├── build.gradle                             # Gradle build configuration
-└── PLAN.md                                  # Development roadmap
-```
-
-## Implementation Status
-
-Based on [PLAN.md](PLAN.md):
-
-### ✅ Phase 1: Foundation (Complete)
-- [x] Configure Cargo.toml for cdylib
-- [x] Add y-crdt dependency
-- [x] Create basic JNI scaffolding
-- [x] Implement YDoc wrapper
-- [x] Create Java YDoc class
-- [x] Set up build system
-- [x] Add basic tests
-
-### 🚧 Phase 2: Core Types (In Progress)
-- [ ] Implement YText bindings
-- [ ] Implement YArray bindings
-- [ ] Implement YMap bindings
-- [ ] Add comprehensive tests
-
-### 🔜 Phase 3: Advanced Features (Planned)
-- [ ] Add XML types support
-- [ ] Implement observer/callback support
-- [ ] Implement transaction support
-- [ ] Add state vector handling
-
-### 🔜 Phase 4: Production Ready (Planned)
-- [ ] Complete test coverage
-- [ ] Set up multi-platform builds (Linux, macOS, Windows)
-- [ ] Create comprehensive documentation
-- [ ] Publish to Maven Central
+See [PLAN.md](PLAN.md) for development roadmap and [CHANGELOG.md](CHANGELOG.md) for detailed change history.
 
 ## Development
 
-### Running the example
-
 ```bash
+# Run the example program
 ./gradlew run
+
+# Run tests
+./gradlew test
+
+# Run Rust tests
+cargo test
+
+# Format and lint
+cargo fmt
+cargo clippy
+./gradlew checkstyle
 ```
 
-### Building for release
-
-```bash
-./gradlew build -Prelease
-```
-
-### Cross-compilation
-
-For cross-compilation to different platforms, see the [cross-compilation guide](docs/cross-compilation.md) (coming soon).
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for build system details and architecture documentation.
 
 ## CI/CD
 
-This project uses GitHub Actions for continuous integration and deployment:
-
-### Workflows
-
-- **Quick Check** - Fast linting and formatting checks on every PR
-- **CI** - Full test suite on Linux, macOS, and Windows
-  - Builds native libraries for all platforms
-  - Creates multi-platform JARs
-  - Runs comprehensive tests
+GitHub Actions workflows:
+- **Quick Check** - Fast linting and formatting on every PR
+- **CI** - Full test suite on Linux, macOS, and Windows with multi-platform JAR creation
 - **Release** - Automated release creation and artifact publishing
-- **Javadoc** - Generates and publishes API documentation to GitHub Pages
+- **Javadoc** - API documentation published to GitHub Pages
 
-### Downloading Pre-built Binaries
+**Pre-built binaries**: Available from [GitHub Actions](https://github.com/edpaget/y-crdt-jni/actions) and [Releases](https://github.com/edpaget/y-crdt-jni/releases)
 
-Pre-built multi-platform JARs are available from:
-- [GitHub Actions artifacts](https://github.com/edpaget/y-crdt-jni/actions) (CI builds)
-- [GitHub Releases](https://github.com/edpaget/y-crdt-jni/releases) (tagged releases)
-
-### Building Multi-Platform JARs Locally
-
-To build for all platforms, you'll need to set up cross-compilation toolchains. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full build matrix.
+See [`.github/workflows/`](.github/workflows/) for workflow configurations.
 
 ## Contributing
 
