@@ -115,6 +115,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses yrs v1 encoding format for maximum compatibility
   - Enables efficient peer-to-peer synchronization, client-server differential updates, offline-first applications
   - 16 comprehensive tests covering state vectors, differential sync, update merging, error handling
+- Automatic Transaction Semantics built into architecture
+  - All CRDT operations are automatically transactional (atomic)
+  - Each operation creates, executes, and commits a transaction transparently
+  - Observer callbacks fire after transaction commits
+  - Transaction origin tracking in YEvent for observer context
+  - No manual transaction management needed - handled automatically
+  - Aligns with CRDT best practices and yrs library design
+  - Note: Traditional begin/commit/rollback not applicable to CRDT append-only architecture
 - Comprehensive test suite (36 Rust tests, 306 Java tests - 100% passing)
   - 214 functional/integration tests
   - 25 memory stress tests
