@@ -1142,10 +1142,9 @@ To add a new Y-CRDT type (e.g., YXmlText):
 
 ## Known Limitations
 
-1. **Single-threaded Access:** Documents not thread-safe; external synchronization required
-2. **No Observer Support:** Cannot subscribe to document changes yet
-3. **Limited Type Support:** Only strings and doubles supported (arrays and maps)
-4. **No Transaction API:** Direct manipulation only
-5. **Platform Builds:** Cross-compilation scripts not yet automated
-6. **No Maven Publishing:** Library not in public repositories
-7. **No Nested Types:** Cannot store arrays/maps inside arrays/maps
+1. **Single-threaded Access:** Core operations require external synchronization (observer callbacks are thread-safe)
+2. **Limited Type Support for Arrays/Maps:** Only strings, doubles, and subdocuments supported (arrays and maps)
+3. **No Transaction API:** Direct manipulation only
+4. **Platform Builds:** Cross-compilation scripts not yet automated
+5. **No Maven Publishing:** Library not in public repositories
+6. **No State Vector API:** Only full state synchronization available (inefficient for large documents)

@@ -255,9 +255,43 @@ After implementing changes:
 - [ ] Update relevant plans/*.md files if design evolved
 - [ ] Update JavaDoc/code comments for API changes
 
+## Understanding Test Output
+
+### What You'll See When Running Tests
+
+When you run `./gradlew test`, you'll see:
+
+1. **Rust tests** run first (from `testRust` task in ycrdt):
+   - Shows `running 36 tests` with individual test names
+   - Uses cargo's test output format
+   - Located in `ycrdt/src/`
+
+2. **Java tests** run after Rust tests:
+   - Shows each test class and method: `net.carcdr.ycrdt.YTextTest > testInsert PASSED`
+   - Summary at end: `Java Test Results: SUCCESS (290 tests, 290 passed, 0 failed, 0 skipped)`
+   - Located in `ycrdt/src/test/java/` and `yprosemirror/src/test/java/`
+
+3. **Build summary**:
+   - `BUILD SUCCESSFUL in Xs`
+   - List of tasks executed
+
+**Note:** If tests are `UP-TO-DATE`, Gradle thinks nothing changed and skips them. Use `--rerun-tasks` to force execution:
+
+```bash
+./gradlew test --rerun-tasks
+```
+
+### Test Output Configuration
+
+Both ycrdt and yprosemirror modules are configured to show:
+- Individual test pass/fail status
+- Test count summary after each test suite
+- Full exception details on failures
+
 ## Notes
 
 - **cargo fmt** is essential for Rust code - the project uses standard Rust formatting
+- **Both Rust AND Java tests run** when you execute `./gradlew test` (Rust first, then Java)
 - Tests must pass before pushing to ensure CI/CD succeeds
 - The GitHub Actions "Quick Check" workflow will catch formatting issues
 - If tests fail, fix them before committing

@@ -96,14 +96,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `yprosemirror` module: ProseMirror integration (Java only, depends on ycrdt)
   - Independent build and publish capabilities per module
   - Maven artifacts: `net.carcdr:ycrdt` and `net.carcdr:yprosemirror`
-- Comprehensive test suite (36 Rust tests, 239 Java tests - 100% passing)
+- Observer API for real-time change notifications
+  - Complete observer support for all 6 CRDT types (YText, YArray, YMap, YXmlFragment, YXmlElement, YXmlText)
+  - YObserver interface with onChange callback
+  - YEvent with typed change information
+  - Type-specific change classes: YTextChange, YArrayChange, YMapChange, YXmlElementChange
+  - YSubscription handles with AutoCloseable support
+  - Thread-safe observer registration and callbacks
+  - 51 comprehensive observer integration tests
+  - Full Rust JNI implementation with proper JVM thread attachment
+- Comprehensive test suite (36 Rust tests, 290 Java tests - 100% passing)
   - 198 functional/integration tests
   - 25 memory stress tests
   - 16 subdocument tests
+  - 51 observer integration tests
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)
 - Javadoc published to GitHub Pages
+- Test output configuration showing individual test results and summaries
+- Development guidelines in .claude/CLAUDE.md for contributors
 
 ### Fixed
 - Critical bug in `encodeStateAsUpdate()` - now encodes against empty state vector for correct synchronization
