@@ -36,7 +36,17 @@ dependencies {
     // Depend on the ycrdt module
     api project(':ycrdt')
 
+    // ProseMirror Kotlin libraries (consumed from Java)
+    implementation 'com.atlassian.prosemirror:model:1.1.13'
+    implementation 'com.atlassian.prosemirror:state:1.1.13'
+    implementation 'com.atlassian.prosemirror:transform:1.1.13'
+
+    // Kotlin standard library (required for Kotlin-Java interoperability)
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+
+    // Testing
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.atlassian.prosemirror:test-builder:1.1.13'
 }
 
 // Test configuration

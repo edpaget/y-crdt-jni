@@ -42,6 +42,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ### 🚧 In Progress
 - **Phase 4:** Production readiness (stress testing, benchmarks, Maven Central)
+- **YProseMirror:** ProseMirror integration (Phase 1 setup complete)
 - **Build Artifacts:** Multi-platform distribution
 - **Documentation:** Tutorial guides and best practices
 
@@ -537,6 +538,15 @@ y-crdt-jni/
 ---
 
 ## Recent Achievements (2025-10-16)
+
+### YProseMirror Module Initialization ✅
+- Set up yprosemirror module with prosemirror-kotlin dependencies
+- Dependencies: model, state, transform (v1.1.13) + kotlin-stdlib (v1.9.22)
+- Created package structure: net.carcdr.yprosemirror
+- Implemented converter class stubs (ProseMirrorConverter, YCrdtConverter)
+- Verified Kotlin-Java interoperability with 2 passing tests
+- **Ready for Phase 1 implementation:** ProseMirror ↔ Y-CRDT conversion
+- **Reference:** See `plans/YPROSEMIRROR_PLAN.md` for full implementation plan
 
 ### Observer API Implementation ✅
 - Implemented complete observer/event system for all 6 CRDT types
