@@ -1,145 +1,27 @@
-plugins {
-    id 'java-library'
-    id 'checkstyle'
+// Root project build configuration for multi-module Y-CRDT JNI project
+
+allprojects {
+    group = 'net.carcdr'
+    version = project.hasProperty('version') ? project.getProperty('version') : '0.1.0-SNAPSHOT'
 }
 
-group = 'net.carcdr'
-version = project.hasProperty('version') ? project.getProperty('version') : '0.1.0-SNAPSHOT'
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'checkstyle'
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-    withJavadocJar()
-    withSourcesJar()
-}
-
-javadoc {
-    options.encoding = 'UTF-8'
-    options.charSet = 'UTF-8'
-    options.author = true
-    options.version = true
-    options.links = [
-        'https://docs.oracle.com/en/java/javase/11/docs/api/'
-    ]
-    if (JavaVersion.current().isJava9Compatible()) {
-        options.addBooleanOption('html5', true)
-    }
-}
-
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    testImplementation 'junit:junit:4.13.2'
-}
-
-// Checkstyle configuration
-checkstyle {
-    toolVersion = '10.12.5'
-    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
-    ignoreFailures = false
-    maxWarnings = 0
-}
-
-checkstyleMain {
-    source = 'src/main/java'
-}
-
-checkstyleTest {
-    source = 'src/test/java'
-}
-
-// Make build depend on checkstyle
-tasks.named('check') {
-    dependsOn 'checkstyleMain', 'checkstyleTest'
-}
-
-// Task to build the Rust library
-task buildRustLibrary(type: Exec) {
-    group = 'build'
-    description = 'Builds the Rust native library'
-
-    commandLine 'cargo', 'build', '--release'
-
-    doLast {
-        println "Rust library built successfully"
-    }
-}
-
-// Task to copy the native library to resources
-task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
-    group = 'build'
-    description = 'Copies the native library to Java resources'
-
-    def osName
-    if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
-        osName = 'linux'
-    } else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
-        osName = 'macos'
-    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
-        osName = 'windows'
-    } else {
-        throw new GradleException("Unsupported OS")
+    repositories {
+        mavenCentral()
     }
 
-    def osArch = System.getProperty("os.arch").toLowerCase()
-    if (osArch.contains("amd64") || osArch.contains("x86_64")) {
-        osArch = 'x86_64'
-    } else if (osArch.contains("aarch64") || osArch.contains("arm64")) {
-        osArch = 'aarch64'
-    } else {
-        throw new GradleException("Unsupported architecture: " + osArch)
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
-    from('target/release') {
-        include '*.so'
-        include '*.dylib'
-        include '*.dll'
-    }
-    into "build/resources/main/native/${osName}/${osArch}"
-
-    doLast {
-        println "Native library copied to resources"
-    }
-}
-
-// Make processResources depend on copying the native library
-processResources.dependsOn copyNativeLibrary
-
-// Clean Rust build artifacts
-task cleanRust(type: Exec) {
-    group = 'build'
-    description = 'Cleans Rust build artifacts'
-    commandLine 'cargo', 'clean'
-}
-
-clean.dependsOn cleanRust
-
-// Task to run Rust tests
-task testRust(type: Exec) {
-    group = 'verification'
-    description = 'Runs Rust tests'
-    commandLine 'cargo', 'test'
-}
-
-test.dependsOn testRust
-
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src/main/java']
-        }
-        resources {
-            srcDirs = ['src/main/resources']
-        }
-    }
-    test {
-        java {
-            srcDirs = ['src/test/java']
-        }
-        resources {
-            srcDirs = ['src/test/resources']
-        }
+    checkstyle {
+        toolVersion = '10.12.5'
+        configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+        ignoreFailures = false
+        maxWarnings = 0
     }
 }

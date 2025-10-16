@@ -1,0 +1,116 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id 'maven-publish'
+}
+
+group = 'net.carcdr'
+version = rootProject.version
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+    withJavadocJar()
+    withSourcesJar()
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.author = true
+    options.version = true
+    options.links = [
+        'https://docs.oracle.com/en/java/javase/11/docs/api/',
+        'https://carcdr.net/y-crdt-jni/'
+    ]
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Depend on the ycrdt module
+    api project(':ycrdt')
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Checkstyle configuration
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+checkstyleMain {
+    source = 'src/main/java'
+}
+
+checkstyleTest {
+    source = 'src/test/java'
+}
+
+// Make build depend on checkstyle
+tasks.named('check') {
+    dependsOn 'checkstyleMain', 'checkstyleTest'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+    test {
+        java {
+            srcDirs = ['src/test/java']
+        }
+        resources {
+            srcDirs = ['src/test/resources']
+        }
+    }
+}
+
+// Publishing configuration
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'yprosemirror'
+            from components.java
+
+            pom {
+                name = 'Y-ProseMirror JNI'
+                description = 'ProseMirror bindings for Y-CRDT JNI'
+                url = 'https://github.com/edpaget/y-crdt-jni'
+
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'edpaget'
+                        name = 'Edward Paget'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
+                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
+                    url = 'https://github.com/edpaget/y-crdt-jni'
+                }
+            }
+        }
+    }
+}

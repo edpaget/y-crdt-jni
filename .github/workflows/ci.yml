@@ -36,19 +36,19 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
+            ycrdt/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
       - name: Run Rust tests
-        run: cargo test --verbose
+        run: cd ycrdt && cargo test --verbose
 
       - name: Build Rust library (debug)
-        run: cargo build --verbose
+        run: cd ycrdt && cargo build --verbose
 
       - name: Build Rust library (release)
-        run: cargo build --release --verbose
+        run: cd ycrdt && cargo build --release --verbose
 
   test-java:
     name: Test Java (${{ matrix.os }})
@@ -82,7 +82,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
+            ycrdt/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -113,8 +113,8 @@ jobs:
         with:
           name: test-reports-${{ matrix.os }}
           path: |
-            build/reports/tests/
-            build/test-results/
+            **/build/reports/tests/
+            **/build/test-results/
 
   build-native-libraries:
     name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
@@ -169,24 +169,24 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
+            ycrdt/target/
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
       - name: Build release library
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cd ycrdt && cargo build --release --target ${{ matrix.target }}
 
       - name: Create resource directory
         run: mkdir -p build/resources/${{ matrix.resource_path }}
 
       - name: Copy native library (Unix)
         if: runner.os != 'Windows'
-        run: cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+        run: cp ycrdt/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
 
       - name: Copy native library (Windows)
         if: runner.os == 'Windows'
-        run: Copy-Item target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+        run: Copy-Item ycrdt\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v4
@@ -220,36 +220,36 @@ jobs:
 
       - name: Organize native libraries
         run: |
-          mkdir -p src/main/resources/native/linux/x86_64
-          mkdir -p src/main/resources/native/macos/x86_64
-          mkdir -p src/main/resources/native/macos/aarch64
-          mkdir -p src/main/resources/native/windows/x86_64
+          mkdir -p ycrdt/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt/src/main/resources/native/macos/x86_64
+          mkdir -p ycrdt/src/main/resources/native/macos/aarch64
+          mkdir -p ycrdt/src/main/resources/native/windows/x86_64
 
           # Copy each platform's library to the correct location
-          find downloaded-artifacts -name "*.so" -exec cp {} src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -name "*.so" -exec cp {} ycrdt/src/main/resources/native/linux/x86_64/ \;
           find downloaded-artifacts -name "*.dylib" | while read file; do
             if [[ "$file" == *"aarch64"* ]]; then
-              cp "$file" src/main/resources/native/macos/aarch64/
+              cp "$file" ycrdt/src/main/resources/native/macos/aarch64/
             else
-              cp "$file" src/main/resources/native/macos/x86_64/
+              cp "$file" ycrdt/src/main/resources/native/macos/x86_64/
             fi
           done
-          find downloaded-artifacts -name "*.dll" -exec cp {} src/main/resources/native/windows/x86_64/ \;
+          find downloaded-artifacts -name "*.dll" -exec cp {} ycrdt/src/main/resources/native/windows/x86_64/ \;
 
       - name: Build JAR with Gradle
-        run: ./gradlew jar --info
+        run: ./gradlew :ycrdt:jar --info
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: y-crdt-jni-jar
-          path: build/libs/*.jar
+          path: ycrdt/build/libs/*.jar
           retention-days: 90
 
       - name: List JAR contents
         run: |
           echo "JAR contents:"
-          jar tf build/libs/*.jar | grep -E "\.so|\.dylib|\.dll" || echo "No native libraries found in JAR"
+          jar tf ycrdt/build/libs/*.jar | grep -E "\.so|\.dylib|\.dll" || echo "No native libraries found in JAR"
 
   check-jar:
     name: Verify JAR Package

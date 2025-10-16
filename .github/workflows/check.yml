@@ -31,22 +31,22 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
+            ycrdt/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
       - name: Check formatting
-        run: cargo fmt -- --check
+        run: cd ycrdt && cargo fmt -- --check
 
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: cd ycrdt && cargo clippy -- -D warnings
 
       - name: Build
-        run: cargo build
+        run: cd ycrdt && cargo build
 
       - name: Test
-        run: cargo test
+        run: cd ycrdt && cargo test
 
   java-check:
     name: Java Check

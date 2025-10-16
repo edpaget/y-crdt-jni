@@ -10,6 +10,18 @@ Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust libr
 
 Y-CRDT is a CRDT implementation that enables real-time collaborative editing with automatic conflict resolution. This library provides JNI bindings to make y-crdt available to Java, Kotlin, and other JVM languages.
 
+## Project Structure
+
+This is a multi-module Gradle project:
+
+- **ycrdt** - Core Y-CRDT JNI bindings with Rust native library
+  - Provides: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
+  - Artifact: `net.carcdr:ycrdt`
+
+- **yprosemirror** - ProseMirror integration (coming soon)
+  - Depends on: ycrdt module
+  - Artifact: `net.carcdr:yprosemirror`
+
 ## Features
 
 - ✅ **YDoc**: Core document type with synchronization support
@@ -40,28 +52,51 @@ See [PLAN.md](PLAN.md) for the full development roadmap and [CHANGELOG.md](CHANG
 - Rust 1.70 or higher
 - Gradle 7.0+ (or use the included wrapper)
 
-### Build the native library and Java classes
+### Build all modules
 
 ```bash
 ./gradlew build
 ```
 
 This will:
-1. Compile the Rust library using Cargo
-2. Compile the Java classes
-3. Run both Rust and Java tests
-4. Package everything into a JAR
+1. Build the ycrdt module (Rust library + Java bindings)
+2. Build the yprosemirror module (depends on ycrdt)
+3. Run all tests
+4. Package everything into JARs
+
+### Build specific module
+
+```bash
+# Build only ycrdt (core library)
+./gradlew :ycrdt:build
+
+# Build only yprosemirror
+./gradlew :yprosemirror:build
+```
 
 ### Run tests
 
 ```bash
+# Run all tests
 ./gradlew test
+
+# Run tests for specific module
+./gradlew :ycrdt:test
+
+# Run Rust tests only
+cd ycrdt && cargo test
 ```
 
 ### Clean build artifacts
 
 ```bash
 ./gradlew clean
+```
+
+### List all modules
+
+```bash
+./gradlew projects
 ```
 
 ### Build for specific platform
@@ -104,7 +139,7 @@ public class Example {
 }
 ```
 
-For more examples, see the [Example.java](src/main/java/net/carcdr/ycrdt/Example.java) program with 14+ demonstrations.
+For more examples, see the [Example.java](ycrdt/src/main/java/net/carcdr/ycrdt/Example.java) program with 14+ demonstrations.
 
 ## API Documentation
 
@@ -148,17 +183,17 @@ See [PLAN.md](PLAN.md) for development roadmap and [CHANGELOG.md](CHANGELOG.md) 
 
 ```bash
 # Run the example program
-./gradlew run
+./gradlew :ycrdt:run
 
-# Run tests
+# Run tests (all modules)
 ./gradlew test
 
 # Run Rust tests
-cargo test
+cd ycrdt && cargo test
 
 # Format and lint
-cargo fmt
-cargo clippy
+cd ycrdt && cargo fmt
+cd ycrdt && cargo clippy
 ./gradlew checkstyle
 ```
 
@@ -182,7 +217,7 @@ Contributions are welcome! Please see [PLAN.md](PLAN.md) for the development roa
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License v2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 

@@ -260,15 +260,33 @@ Implemented full subdocument support for hierarchical document structures:
 ## Build System
 
 ### Current Setup ✅
-- **Cargo:** cdylib library (libycrdt_jni)
+- **Multi-module Gradle project:**
+  - `ycrdt` module: Core Y-CRDT JNI bindings with Rust native library
+  - `yprosemirror` module: ProseMirror integration (depends on ycrdt)
+- **Cargo:** cdylib library (libycrdt_jni) in ycrdt module
 - **Gradle:** Rust integration tasks (buildRustLibrary, copyNativeLibrary, cleanRust, testRust)
 - **NativeLoader:** Platform detection (Linux, macOS, Windows × x86_64/aarch64)
 - **CI/CD:** GitHub Actions (Quick Check, CI, Release, Javadoc)
+- **Publishing:** Separate Maven artifacts for each module
+
+### Module Structure
+```
+y-crdt-jni/
+├── build.gradle (root configuration)
+├── settings.gradle (module declarations)
+├── ycrdt/ (core CRDT bindings)
+│   ├── build.gradle
+│   ├── Cargo.toml
+│   └── src/ (Java + Rust)
+└── yprosemirror/ (ProseMirror integration)
+    ├── build.gradle
+    └── src/ (Java only)
+```
 
 ### TODO 🚧
 - Cross-compilation scripts
 - Multi-platform JAR packaging
-- Maven Central publishing
+- Maven Central publishing for both modules
 
 ---
 
@@ -367,6 +385,15 @@ Implemented full subdocument support for hierarchical document structures:
 ---
 
 ## Recent Achievements (2025-10-16)
+
+### Multi-Module Project Structure ✅
+- Restructured as multi-module Gradle project
+- Created `ycrdt` module with existing functionality
+- Created `yprosemirror` module for ProseMirror integration
+- Independent build and publish capabilities per module
+- Maven artifacts: `net.carcdr:ycrdt` and `net.carcdr:yprosemirror`
+- Updated .gitignore for multi-module structure
+- Updated documentation (README, PLAN, CHANGELOG)
 
 ### Subdocument Support ✅
 - Implemented full subdocument functionality for YMap and YArray

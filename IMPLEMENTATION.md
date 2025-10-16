@@ -2,13 +2,29 @@
 
 This document describes the technical implementation of the y-crdt JNI bindings, providing an overview of the architecture, components, and design decisions.
 
+## Project Structure
+
+This is a multi-module Gradle project with the following modules:
+
+- **ycrdt** (`ycrdt/`) - Core Y-CRDT JNI bindings
+  - Contains: Rust native library (Cargo project) + Java API
+  - Artifact: `net.carcdr:ycrdt`
+  - Location: `ycrdt/src/` for Rust, `ycrdt/src/main/java/` for Java
+
+- **yprosemirror** (`yprosemirror/`) - ProseMirror integration (future work)
+  - Contains: Pure Java library that depends on ycrdt
+  - Artifact: `net.carcdr:yprosemirror`
+  - Location: `yprosemirror/src/main/java/`
+
+Both modules can be built independently or together using Gradle's multi-module capabilities. See the [Build System](#build-system) section for details on building individual modules.
+
 ## Architecture Overview
 
 The project bridges Rust's Y-CRDT implementation (yrs) to the JVM through JNI (Java Native Interface), providing Java classes that wrap native Rust functionality. The architecture consists of three main layers:
 
-1. **Rust JNI Layer** - Native methods that interface between Rust and Java
-2. **Java API Layer** - Idiomatic Java classes with proper resource management
-3. **Build System** - Gradle + Cargo integration for seamless builds
+1. **Rust JNI Layer** - Native methods that interface between Rust and Java (in ycrdt module)
+2. **Java API Layer** - Idiomatic Java classes with proper resource management (in ycrdt module)
+3. **Build System** - Multi-module Gradle + Cargo integration for seamless builds
 
 ## Rust Implementation
 
@@ -579,24 +595,35 @@ Comprehensive demonstration program with 14 examples:
 
 ## Build System
 
-### Gradle Configuration (`build.gradle`)
+### Multi-Module Gradle Configuration
 
+The project uses a multi-module Gradle structure with independent and shared build configurations:
+
+**Root Project (`build.gradle`):**
+- Defines shared configuration for all subprojects
+- Sets group: `net.carcdr` and version: `0.1.0-SNAPSHOT`
+- Applies common plugins (java-library, checkstyle)
+- Configures Java 11 compatibility and Checkstyle for all modules
+
+**ycrdt Module (`ycrdt/build.gradle`):**
 Integrates Rust and Java builds seamlessly:
 
 **Java Configuration:**
 - Java 11 source/target compatibility
 - JUnit 4.13.2 for testing
 - Checkstyle for code quality
+- Maven publishing with artifactId `ycrdt`
 
 **Custom Gradle Tasks:**
 
 1. **`buildRustLibrary`** - Executes `cargo build --release`
    - Compiles Rust code to native library
    - Uses release profile for optimization
+   - Working directory: `ycrdt/` module directory
 
 2. **`copyNativeLibrary`** - Copies native library to resources
    - Depends on `buildRustLibrary`
-   - Copies to `src/main/resources/native/`
+   - Copies to `ycrdt/build/resources/main/native/`
    - Handles platform-specific naming
 
 3. **`cleanRust`** - Executes `cargo clean`
@@ -606,8 +633,30 @@ Integrates Rust and Java builds seamlessly:
    - Runs Rust unit tests
    - Integrated into Java test task
 
+**yprosemirror Module (`yprosemirror/build.gradle`):**
+- Java-only module (no Rust)
+- Depends on ycrdt module: `api project(':ycrdt')`
+- Maven publishing with artifactId `yprosemirror`
+
+**Build Commands:**
+```bash
+# Build all modules
+./gradlew build
+
+# Build specific module
+./gradlew :ycrdt:build
+./gradlew :yprosemirror:build
+
+# Run tests for specific module
+./gradlew :ycrdt:test
+
+# List all modules
+./gradlew projects
+```
+
 **Build Pipeline:**
-- Java compilation depends on Rust library build
+- Java compilation in ycrdt depends on Rust library build
+- yprosemirror module depends on ycrdt module
 - Tests run both Rust and Java test suites
 - Clean task cleans both Rust and Java artifacts
 
@@ -897,56 +946,77 @@ let string = match env.get_string(&input) {
 ## File Structure
 
 ```
-y-crdt-jni/
-├── Cargo.toml                                # Rust configuration
-├── Cargo.lock                                # Rust dependencies lock
-├── build.gradle                              # Gradle build configuration
-├── settings.gradle                           # Gradle settings
+y-crdt-jni/                                   # Root project
+├── build.gradle                              # Root Gradle configuration
+├── settings.gradle                           # Module declarations
 ├── gradlew / gradlew.bat                     # Gradle wrapper scripts
 ├── .gitignore                                # Git ignore rules
 ├── README.md                                 # User documentation
 ├── PLAN.md                                   # Project roadmap
 ├── CHANGELOG.md                              # Version history
 ├── IMPLEMENTATION.md                         # This file
-├── src/
-│   ├── lib.rs                                # Rust library entry point
-│   ├── ydoc.rs                               # YDoc JNI bindings
-│   ├── ytext.rs                              # YText JNI bindings
-│   ├── yarray.rs                             # YArray JNI bindings
-│   ├── ymap.rs                               # YMap JNI bindings
-│   ├── yxmltext.rs                           # YXmlText JNI bindings
-│   ├── yxmlelement.rs                        # YXmlElement JNI bindings
-│   ├── yxmlfragment.rs                       # YXmlFragment JNI bindings
-│   ├── main/java/net/carcdr/ycrdt/
-│   │   ├── YDoc.java                         # YDoc Java wrapper
-│   │   ├── YText.java                        # YText Java wrapper
-│   │   ├── YArray.java                       # YArray Java wrapper
-│   │   ├── YMap.java                         # YMap Java wrapper
-│   │   ├── YXmlText.java                     # YXmlText Java wrapper
-│   │   ├── YXmlElement.java                  # YXmlElement Java wrapper
-│   │   ├── YXmlFragment.java                 # YXmlFragment Java wrapper
-│   │   ├── YXmlNode.java                     # YXmlNode interface
-│   │   ├── NativeLoader.java                # Native library loader
-│   │   └── Example.java                     # Example usage program
-│   └── test/java/net/carcdr/ycrdt/
-│       ├── YDocTest.java                     # YDoc test suite
-│       ├── YTextTest.java                    # YText test suite
-│       ├── YArrayTest.java                   # YArray test suite
-│       ├── YMapTest.java                     # YMap test suite
-│       ├── YXmlTextTest.java                 # YXmlText test suite
-│       ├── YXmlElementTest.java              # YXmlElement test suite
-│       └── YXmlFragmentTest.java             # YXmlFragment test suite
 ├── .github/
 │   └── workflows/
 │       ├── quickcheck.yml                    # Quick check workflow
 │       ├── ci.yml                            # Main CI workflow
 │       ├── release.yml                       # Release workflow
 │       └── javadoc.yml                       # Javadoc publishing
-└── target/                                   # Build artifacts (gitignored)
-    ├── debug/                                # Debug builds
-    │   └── libycrdt_jni.{so,dylib,dll}      # Debug native library
-    └── release/                              # Release builds
-        └── libycrdt_jni.{so,dylib,dll}      # Optimized native library
+├── ycrdt/                                    # Core Y-CRDT module
+│   ├── build.gradle                          # ycrdt module configuration
+│   ├── Cargo.toml                            # Rust configuration
+│   ├── Cargo.lock                            # Rust dependencies lock
+│   ├── src/
+│   │   ├── lib.rs                            # Rust library entry point
+│   │   ├── ydoc.rs                           # YDoc JNI bindings
+│   │   ├── ytext.rs                          # YText JNI bindings
+│   │   ├── yarray.rs                         # YArray JNI bindings
+│   │   ├── ymap.rs                           # YMap JNI bindings
+│   │   ├── yxmltext.rs                       # YXmlText JNI bindings
+│   │   ├── yxmlelement.rs                    # YXmlElement JNI bindings
+│   │   ├── yxmlfragment.rs                   # YXmlFragment JNI bindings
+│   │   ├── main/java/net/carcdr/ycrdt/
+│   │   │   ├── YDoc.java                     # YDoc Java wrapper
+│   │   │   ├── YText.java                    # YText Java wrapper
+│   │   │   ├── YArray.java                   # YArray Java wrapper
+│   │   │   ├── YMap.java                     # YMap Java wrapper
+│   │   │   ├── YXmlText.java                 # YXmlText Java wrapper
+│   │   │   ├── YXmlElement.java              # YXmlElement Java wrapper
+│   │   │   ├── YXmlFragment.java             # YXmlFragment Java wrapper
+│   │   │   ├── YXmlNode.java                 # YXmlNode interface
+│   │   │   ├── NativeLoader.java            # Native library loader
+│   │   │   └── Example.java                 # Example usage program
+│   │   └── test/java/net/carcdr/ycrdt/
+│   │       ├── YDocTest.java                 # YDoc test suite
+│   │       ├── YTextTest.java                # YText test suite
+│   │       ├── YArrayTest.java               # YArray test suite
+│   │       ├── YMapTest.java                 # YMap test suite
+│   │       ├── YXmlTextTest.java             # YXmlText test suite
+│   │       ├── YXmlElementTest.java          # YXmlElement test suite
+│   │       ├── YXmlFragmentTest.java         # YXmlFragment test suite
+│   │       ├── StressTest.java               # Memory stress tests
+│   │       └── SubdocumentTest.java          # Subdocument tests
+│   ├── target/                               # Rust build artifacts (gitignored)
+│   │   ├── debug/
+│   │   │   └── libycrdt_jni.{so,dylib,dll}  # Debug native library
+│   │   └── release/
+│   │       └── libycrdt_jni.{so,dylib,dll}  # Optimized native library
+│   └── build/                                # Gradle build artifacts (gitignored)
+│       └── libs/
+│           ├── ycrdt.jar                     # Main JAR
+│           ├── ycrdt-sources.jar             # Sources JAR
+│           └── ycrdt-javadoc.jar             # Javadoc JAR
+└── yprosemirror/                             # ProseMirror module (future)
+    ├── build.gradle                          # yprosemirror module configuration
+    ├── src/
+    │   ├── main/java/net/carcdr/yprosemirror/
+    │   │   └── (future implementation)
+    │   └── test/java/net/carcdr/yprosemirror/
+    │       └── (future tests)
+    └── build/                                # Gradle build artifacts (gitignored)
+        └── libs/
+            ├── yprosemirror.jar              # Main JAR
+            ├── yprosemirror-sources.jar      # Sources JAR
+            └── yprosemirror-javadoc.jar      # Javadoc JAR
 ```
 
 ## Performance Considerations

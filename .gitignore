@@ -1,10 +1,10 @@
-# Rust
-/target/
-Cargo.lock
+# Rust (module-specific)
+**/target/
+**/Cargo.lock
 
-# Gradle
+# Gradle (multi-module)
 .gradle/
-build/
+**/build/
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 
@@ -53,13 +53,13 @@ Desktop.ini
 # OS - Linux
 *~
 
-# Native libraries (but keep in resources)
+# Native libraries (but keep in module resources)
 *.so
 *.dylib
 *.dll
-!src/main/resources/**/*.so
-!src/main/resources/**/*.dylib
-!src/main/resources/**/*.dll
+!**/src/main/resources/**/*.so
+!**/src/main/resources/**/*.dylib
+!**/src/main/resources/**/*.dll
 
 # Test output
 test-output/

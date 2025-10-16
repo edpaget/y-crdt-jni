@@ -91,7 +91,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All tests passing with no memory leaks detected
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
-- Gradle build system with Rust integration
+- Multi-module Gradle build system with Rust integration
+  - `ycrdt` module: Core Y-CRDT JNI bindings (Java + Rust)
+  - `yprosemirror` module: ProseMirror integration (Java only, depends on ycrdt)
+  - Independent build and publish capabilities per module
+  - Maven artifacts: `net.carcdr:ycrdt` and `net.carcdr:yprosemirror`
 - Comprehensive test suite (36 Rust tests, 239 Java tests - 100% passing)
   - 198 functional/integration tests
   - 25 memory stress tests
