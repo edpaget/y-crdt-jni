@@ -274,7 +274,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetNodeType(
 /// - `index`: The index of the child
 ///
 /// # Returns
-/// Pointer to the element (wrapped in fragment), or 0 if not an element
+/// Pointer to the XmlElementRef, or 0 if not an element
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetElement(
     mut env: JNIEnv,
@@ -297,27 +297,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetElement(
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
         let txn = doc.transact();
 
+        // Get child at index
         if let Some(child) = fragment.get(&txn, index as u32) {
+            // Extract element if it's an element type
             if let Some(element) = child.into_xml_element() {
-                // Create a temporary fragment to wrap just this element
-                // We'll use the element's parent reference approach
-                // For now, return a pointer that can be used to access this element
-                // This requires creating a new wrapper fragment
-                let wrapper_name = format!("__element_wrapper_{}", element.tag());
-                let wrapper_fragment = doc.get_or_insert_xml_fragment(wrapper_name.as_str());
-
-                // Clear the wrapper and insert just this element reference
-                drop(txn);
-                let mut txn = doc.transact_mut();
-                let wrapper_len = wrapper_fragment.len(&txn);
-                if wrapper_len > 0 {
-                    wrapper_fragment.remove_range(&mut txn, 0, wrapper_len);
-                }
-
-                // Note: We can't easily move the element, so we need a different approach
-                // Instead, we'll store the fragment pointer and index, and access it that way
-                // For now, return 0 and we'll need to redesign this
-                return 0;
+                // element is XmlElementRef containing a BranchPtr
+                // BranchPtr is reference-counted, so we can safely return a pointer to it
+                return to_java_ptr(element);
             }
         }
         0
@@ -332,14 +318,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetElement(
 /// - `index`: The index of the child
 ///
 /// # Returns
-/// Pointer to the text (wrapped in fragment), or 0 if not text
+/// Pointer to the XmlTextRef, or 0 if not text
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetText(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     fragment_ptr: jlong,
-    _index: jint,
+    index: jint,
 ) -> jlong {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -350,9 +336,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetText(
         return 0;
     }
 
-    // Similar issue as getElement - we need to redesign how we handle node references
-    // For now return 0
-    0
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
+        let txn = doc.transact();
+
+        // Get child at index
+        if let Some(child) = fragment.get(&txn, index as u32) {
+            // Extract text if it's a text type
+            if let Some(text) = child.into_xml_text() {
+                // text is XmlTextRef containing a BranchPtr
+                // BranchPtr is reference-counted, so we can safely return a pointer to it
+                return to_java_ptr(text);
+            }
+        }
+        0
+    }
 }
 
 /// Returns the XML string representation of the fragment
@@ -391,7 +390,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeToXmlString(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use yrs::{Doc, Transact, XmlFragment};
+    use yrs::{Doc, Transact, XmlElementRef, XmlFragment, XmlFragmentRef, XmlTextRef};
 
     #[test]
     fn test_fragment_creation() {
@@ -463,5 +462,59 @@ mod tests {
 
         let txn = doc.transact();
         assert_eq!(fragment.len(&txn), 1);
+    }
+
+    #[test]
+    fn test_fragment_get_element() {
+        let doc = Doc::new();
+        let fragment = doc.get_or_insert_xml_fragment("test");
+
+        {
+            let mut txn = doc.transact_mut();
+            fragment.insert(&mut txn, 0, XmlElementPrelim::empty("div"));
+            fragment.insert(&mut txn, 1, XmlTextPrelim::new("Hello"));
+        }
+
+        let txn = doc.transact();
+
+        // Get element at index 0
+        let child = fragment.get(&txn, 0).unwrap();
+        let element = child.into_xml_element().unwrap();
+        assert_eq!(element.tag().as_ref(), "div");
+
+        // Convert to pointer and back
+        let element_ptr = to_java_ptr(element);
+        assert_ne!(element_ptr, 0);
+
+        unsafe {
+            let _element_ref = from_java_ptr::<XmlElementRef>(element_ptr);
+            free_java_ptr::<XmlElementRef>(element_ptr);
+        }
+    }
+
+    #[test]
+    fn test_fragment_get_text() {
+        let doc = Doc::new();
+        let fragment = doc.get_or_insert_xml_fragment("test");
+
+        {
+            let mut txn = doc.transact_mut();
+            fragment.insert(&mut txn, 0, XmlTextPrelim::new("Hello"));
+        }
+
+        let txn = doc.transact();
+
+        // Get text at index 0
+        let child = fragment.get(&txn, 0).unwrap();
+        let text = child.into_xml_text().unwrap();
+
+        // Convert to pointer and back
+        let text_ptr = to_java_ptr(text);
+        assert_ne!(text_ptr, 0);
+
+        unsafe {
+            let _text_ref = from_java_ptr::<XmlTextRef>(text_ptr);
+            free_java_ptr::<XmlTextRef>(text_ptr);
+        }
     }
 }

@@ -38,10 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - XML string representation support
   - XmlFragmentRef-based implementation for proper CRDT synchronization
   - 25 comprehensive tests
+- YXmlFragment implementation with JNI bindings
+  - Hierarchical XML tree support with child node retrieval
+  - Insert and remove element/text children at specific indices
+  - Retrieve child nodes by index with type checking
+  - Direct pointer architecture for efficient child access
+  - XML string representation of entire fragment
+  - 27 comprehensive tests
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (24 Rust tests, 126 Java tests - 100% passing)
+- Comprehensive test suite (30 Rust tests, 147 Java tests - 100% passing)
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)
@@ -49,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Critical bug in `encodeStateAsUpdate()` - now encodes against empty state vector for correct synchronization
+- Architecture unification - YXmlElement and YXmlText now use direct XmlElementRef/XmlTextRef pointers consistently across both root-level and child retrieval APIs
 
 ## [0.1.0] - TBD
 

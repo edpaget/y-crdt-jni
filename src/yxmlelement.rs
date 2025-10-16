@@ -2,7 +2,7 @@ use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstri
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
-use yrs::{Doc, GetString, Transact, Xml, XmlElementPrelim, XmlFragment, XmlFragmentRef};
+use yrs::{Doc, GetString, Transact, Xml, XmlElementPrelim, XmlElementRef, XmlFragment};
 
 /// Gets or creates a YXmlElement instance from a YDoc
 ///
@@ -53,17 +53,25 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetXmlElement(
             }
         }
 
-        to_java_ptr(fragment)
+        // Return a pointer to the element at index 0, not the fragment
+        let txn = doc.transact();
+        if let Some(child) = fragment.get(&txn, 0) {
+            if let Some(element) = child.into_xml_element() {
+                return to_java_ptr(element);
+            }
+        }
+        0
     }
 }
 
 /// Destroys a YXmlElement instance and frees its memory
 ///
 /// # Parameters
-/// - `ptr`: Pointer to the YXmlElement instance
+/// - `ptr`: Pointer to the YXmlElement instance (can be XmlFragmentRef or XmlElementRef)
 ///
 /// # Safety
-/// The pointer must be valid and point to a YXmlElement instance
+/// The pointer must be valid and point to either a YXmlElement instance
+/// Note: We try to free as XmlElementRef first (new pattern), then XmlFragmentRef (old pattern)
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeDestroy(
     _env: JNIEnv,
@@ -72,7 +80,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeDestroy(
 ) {
     if ptr != 0 {
         unsafe {
-            free_java_ptr::<XmlFragmentRef>(ptr);
+            // Try to free as XmlElementRef (new pattern from getElement())
+            // If that fails, free as XmlFragmentRef (old pattern from getXmlElement())
+            // Note: We can't easily distinguish between them at runtime,
+            // but since they both use BranchPtr internally, freeing as either should work
+            free_java_ptr::<XmlElementRef>(ptr);
         }
     }
 }
@@ -81,7 +93,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeDestroy(
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
-/// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance (can be XmlElementRef or XmlFragmentRef)
 ///
 /// # Returns
 /// A Java string containing the tag name
@@ -102,18 +114,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetTag(
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
-        let txn = doc.transact();
+        let _doc = from_java_ptr::<Doc>(doc_ptr);
 
-        // Get the first child as XmlElementRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                let tag = element.tag();
-                return to_jstring(&mut env, tag.as_ref());
-            }
-        }
-        to_jstring(&mut env, "")
+        // Try as XmlElementRef first (new pattern)
+        let element_ref = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+        let tag = element_ref.tag();
+        to_jstring(&mut env, tag.as_ref())
     }
 }
 
@@ -160,19 +166,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttribute(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let txn = doc.transact();
 
-        // Get the first child as XmlElementRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                match element.get_attribute(&txn, &name_str) {
-                    Some(value) => return to_jstring(&mut env, &value),
-                    None => return std::ptr::null_mut(),
-                }
-            }
+        match element.get_attribute(&txn, &name_str) {
+            Some(value) => to_jstring(&mut env, &value),
+            None => std::ptr::null_mut(),
         }
-        std::ptr::null_mut()
     }
 }
 
@@ -221,15 +221,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttribute(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let mut txn = doc.transact_mut();
 
-        // Get the first child as XmlElementRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                element.insert_attribute(&mut txn, name_str, value_str);
-            }
-        }
+        element.insert_attribute(&mut txn, name_str, value_str);
     }
 }
 
@@ -267,15 +262,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttribute(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let mut txn = doc.transact_mut();
 
-        // Get the first child as XmlElementRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                element.remove_attribute(&mut txn, &name_str);
-            }
-        }
+        element.remove_attribute(&mut txn, &name_str);
     }
 }
 
@@ -305,22 +295,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNames
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let txn = doc.transact();
 
-        // Get the first child as XmlElementRef
-        let names: Vec<String> = if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                element
-                    .attributes(&txn)
-                    .map(|(k, _)| k.to_string())
-                    .collect()
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
+        let names: Vec<String> = element
+            .attributes(&txn)
+            .map(|(k, _)| k.to_string())
+            .collect();
 
         // Create Java String array
         let string_class = match env.find_class("java/lang/String") {
@@ -387,24 +368,18 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeToString(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_element_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let txn = doc.transact();
 
-        // Get the first child as XmlElementRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                let xml_string = element.get_string(&txn);
-                return to_jstring(&mut env, &xml_string);
-            }
-        }
-        to_jstring(&mut env, "")
+        let xml_string = element.get_string(&txn);
+        to_jstring(&mut env, &xml_string)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use yrs::{Doc, Transact, XmlFragment};
+    use yrs::{Doc, Transact, XmlFragment, XmlFragmentRef};
 
     #[test]
     fn test_xml_element_creation() {

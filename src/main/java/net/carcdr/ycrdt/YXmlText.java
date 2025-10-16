@@ -51,6 +51,24 @@ public class YXmlText implements Closeable {
     }
 
     /**
+     * Package-private constructor that accepts a native handle directly.
+     * Used for retrieving child text nodes from fragments.
+     *
+     * @param doc The parent YDoc instance
+     * @param nativeHandle The native pointer to the XmlTextRef
+     */
+    YXmlText(YDoc doc, long nativeHandle) {
+        if (doc == null) {
+            throw new IllegalArgumentException("YDoc cannot be null");
+        }
+        if (nativeHandle == 0) {
+            throw new IllegalArgumentException("Invalid native handle");
+        }
+        this.doc = doc;
+        this.nativePtr = nativeHandle;
+    }
+
+    /**
      * Returns the length of the text in characters.
      *
      * @return The text length

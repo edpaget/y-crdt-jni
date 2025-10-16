@@ -235,4 +235,146 @@ public class YXmlFragmentTest {
             }
         }
     }
+
+    @Test
+    public void testGetElement() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertElement(0, "div");
+            fragment.insertText(1, "Hello");
+
+            // Get the element
+            try (YXmlElement element = fragment.getElement(0)) {
+                assertNotNull(element);
+                assertEquals("div", element.getTag());
+
+                // Modify it
+                element.setAttribute("class", "container");
+                assertEquals("container", element.getAttribute("class"));
+            }
+
+            // Verify changes persist
+            try (YXmlElement element = fragment.getElement(0)) {
+                assertEquals("container", element.getAttribute("class"));
+            }
+        }
+    }
+
+    @Test
+    public void testGetText() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertText(0, "Hello");
+            fragment.insertElement(1, "span");
+
+            // Get the text node
+            try (YXmlText text = fragment.getText(0)) {
+                assertNotNull(text);
+                assertEquals("Hello", text.toString());
+
+                // Modify it
+                text.push(" World");
+                assertEquals("Hello World", text.toString());
+            }
+
+            // Verify changes persist
+            try (YXmlText text = fragment.getText(0)) {
+                assertEquals("Hello World", text.toString());
+            }
+        }
+    }
+
+    @Test
+    public void testGetElementReturnsNull() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertText(0, "Hello");
+
+            // Try to get element at text node index
+            YXmlElement element = fragment.getElement(0);
+            assertEquals(null, element);
+
+            // Try to get element at invalid index
+            YXmlElement element2 = fragment.getElement(10);
+            assertEquals(null, element2);
+        }
+    }
+
+    @Test
+    public void testGetTextReturnsNull() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertElement(0, "div");
+
+            // Try to get text at element node index
+            YXmlText text = fragment.getText(0);
+            assertEquals(null, text);
+
+            // Try to get text at invalid index
+            YXmlText text2 = fragment.getText(10);
+            assertEquals(null, text2);
+        }
+    }
+
+    @Test
+    public void testMultipleChildRetrieval() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertElement(0, "div");
+            fragment.insertText(1, "Hello");
+            fragment.insertElement(2, "span");
+
+            // Get multiple children
+            try (YXmlElement div = fragment.getElement(0);
+                 YXmlText text = fragment.getText(1);
+                 YXmlElement span = fragment.getElement(2)) {
+
+                assertNotNull(div);
+                assertNotNull(text);
+                assertNotNull(span);
+
+                assertEquals("div", div.getTag());
+                assertEquals("Hello", text.toString());
+                assertEquals("span", span.getTag());
+
+                // Modify all of them
+                div.setAttribute("id", "main");
+                text.push("!");
+                span.setAttribute("class", "highlight");
+
+                assertEquals("main", div.getAttribute("id"));
+                assertEquals("Hello!", text.toString());
+                assertEquals("highlight", span.getAttribute("class"));
+            }
+        }
+    }
+
+    @Test
+    public void testChildRetrievalSync() {
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Create structure in doc1
+            try (YXmlFragment fragment1 = doc1.getXmlFragment("test")) {
+                fragment1.insertElement(0, "div");
+
+                try (YXmlElement div = fragment1.getElement(0)) {
+                    div.setAttribute("class", "container");
+                }
+            }
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Retrieve and verify in doc2
+            try (YXmlFragment fragment2 = doc2.getXmlFragment("test");
+                 YXmlElement div = fragment2.getElement(0)) {
+
+                assertNotNull(div);
+                assertEquals("div", div.getTag());
+                assertEquals("container", div.getAttribute("class"));
+            }
+        }
+    }
 }

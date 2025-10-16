@@ -52,6 +52,24 @@ public class YXmlElement implements Closeable {
     }
 
     /**
+     * Package-private constructor that accepts a native handle directly.
+     * Used for retrieving child elements from fragments.
+     *
+     * @param doc The parent YDoc instance
+     * @param nativeHandle The native pointer to the XmlElementRef
+     */
+    YXmlElement(YDoc doc, long nativeHandle) {
+        if (doc == null) {
+            throw new IllegalArgumentException("YDoc cannot be null");
+        }
+        if (nativeHandle == 0) {
+            throw new IllegalArgumentException("Invalid native handle");
+        }
+        this.doc = doc;
+        this.nativePtr = nativeHandle;
+    }
+
+    /**
      * Returns the tag name of this XML element.
      *
      * @return The tag name

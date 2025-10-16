@@ -149,6 +149,84 @@ public class YXmlFragment implements AutoCloseable {
     }
 
     /**
+     * Retrieves a child element at the specified index.
+     *
+     * <p>This method returns a new {@link YXmlElement} instance that wraps the child element
+     * at the given index. The returned element is independent and must be closed separately
+     * using try-with-resources or by calling {@link YXmlElement#close()}.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlFragment fragment = doc.getXmlFragment("doc")) {
+     *     fragment.insertElement(0, "div");
+     *
+     *     // Retrieve the element
+     *     try (YXmlElement div = fragment.getElement(0)) {
+     *         div.setAttribute("class", "container");
+     *         System.out.println(div.getTag()); // "div"
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param index the index of the child element (0-based)
+     * @return a YXmlElement wrapping the child element, or null if the child at
+     *         the given index is not an element or the index is out of bounds
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public YXmlElement getElement(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long elementPtr = nativeGetElement(doc.getNativeHandle(), nativeHandle, index);
+        if (elementPtr == 0) {
+            return null;
+        }
+        return new YXmlElement(doc, elementPtr);
+    }
+
+    /**
+     * Retrieves a child text node at the specified index.
+     *
+     * <p>This method returns a new {@link YXmlText} instance that wraps the child text node
+     * at the given index. The returned text node is independent and must be closed separately
+     * using try-with-resources or by calling {@link YXmlText#close()}.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlFragment fragment = doc.getXmlFragment("doc")) {
+     *     fragment.insertText(0, "Hello");
+     *
+     *     // Retrieve the text node
+     *     try (YXmlText text = fragment.getText(0)) {
+     *         text.push(" World");
+     *         System.out.println(text.toString()); // "Hello World"
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param index the index of the child text node (0-based)
+     * @return a YXmlText wrapping the child text node, or null if the child at
+     *         the given index is not a text node or the index is out of bounds
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public YXmlText getText(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long textPtr = nativeGetText(doc.getNativeHandle(), nativeHandle, index);
+        if (textPtr == 0) {
+            return null;
+        }
+        return new YXmlText(doc, textPtr);
+    }
+
+    /**
      * Returns the XML string representation of this fragment.
      * This includes all child nodes serialized as XML.
      *
@@ -222,6 +300,10 @@ public class YXmlFragment implements AutoCloseable {
     private static native void nativeRemove(long docPtr, long fragmentPtr, int index, int length);
 
     private static native int nativeGetNodeType(long docPtr, long fragmentPtr, int index);
+
+    private static native long nativeGetElement(long docPtr, long fragmentPtr, int index);
+
+    private static native long nativeGetText(long docPtr, long fragmentPtr, int index);
 
     private static native String nativeToXmlString(long docPtr, long fragmentPtr);
 }

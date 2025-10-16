@@ -15,6 +15,16 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## Recent Updates (2025-10-16)
 
+### YXmlFragment Child Node Retrieval ✅ COMPLETE
+- Implemented hierarchical XML child access API
+- **YXmlFragment:** Added `getElement(int)` and `getText(int)` methods for retrieving child nodes
+- **Native Methods:** Added `nativeGetElement` and `nativeGetText` in yxmlfragment.rs
+- Returns direct XmlElementRef/XmlTextRef pointers instead of wrapper fragments
+- Updated YXmlElement and YXmlText constructors to accept raw native handles
+- 7 comprehensive tests for child retrieval (all passing)
+- Enables navigation and manipulation of XML tree structures
+- Fixed architecture issue: Both old and new patterns now return direct element/text pointers
+
 ### YXmlText and YXmlElement Implementation ✅ COMPLETE
 - Implemented full collaborative XML support
 - **YXmlText:** 7 native JNI methods (getXmlText, destroy, length, toString, insert, push, delete)
@@ -24,7 +34,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - 25 comprehensive tests for YXmlElement
 - Support for collaborative XML text editing and element attributes
 - Examples added to Example.java (Examples 10-13, renumbered cleanup to 14)
-- Uses XmlFragmentRef internally with lazy child creation for proper synchronization
+- Returns direct XmlElementRef/XmlTextRef for proper hierarchical support
 
 ### YMap Implementation ✅ COMPLETE
 - Implemented full collaborative map support
@@ -257,31 +267,35 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## 6. Testing Infrastructure (Core Complete ✅)
 - ✅ Write Rust unit tests for JNI functions
-  - ✅ 24 tests total (all passing)
+  - ✅ 30 tests total (all passing)
   - ✅ 3 tests in lib.rs and ydoc.rs
   - ✅ 4 tests in ytext.rs
   - ✅ 4 tests in yarray.rs
   - ✅ 4 tests in ymap.rs
   - ✅ 4 tests in yxmltext.rs
   - ✅ 4 tests in yxmlelement.rs
+  - ✅ 7 tests in yxmlfragment.rs (including child retrieval tests)
   - ✅ Tests for pointer conversion, doc creation, client ID, state encoding
   - ✅ Tests for text creation, insert/read, push, delete
   - ✅ Tests for array creation, push/read, insert, remove
   - ✅ Tests for map creation, set/get, remove, clear
   - ✅ Tests for XML text creation, insert/read, push, delete
   - ✅ Tests for XML element creation, attributes, tag retrieval
+  - ✅ Tests for fragment child retrieval (element and text nodes)
 - ✅ Create Java integration tests
-  - ✅ 126 tests total (all passing - 100% success rate)
+  - ✅ 147 tests total (all passing - 100% success rate)
   - ✅ `YDocTest.java` with 13 comprehensive tests
   - ✅ `YTextTest.java` with 23 comprehensive tests
   - ✅ `YArrayTest.java` with 27 comprehensive tests
   - ✅ `YMapTest.java` with 30 comprehensive tests
   - ✅ `YXmlTextTest.java` with 20 comprehensive tests
   - ✅ `YXmlElementTest.java` with 25 comprehensive tests
+  - ✅ `YXmlFragmentTest.java` with 9 comprehensive tests (added 7 for child retrieval)
   - ✅ Tests cover creation, lifecycle, synchronization, error handling
   - ✅ Unicode/emoji support tests (YText, YXmlText)
   - ✅ Mixed type support tests (YArray, YMap)
   - ✅ XML attribute management tests (YXmlElement)
+  - ✅ XML child node retrieval tests (YXmlFragment)
   - ✅ Complex editing sequence tests
   - ✅ Bidirectional sync tests
 - 🔜 Test memory leak scenarios with stress tests (TODO)
@@ -399,7 +413,7 @@ Map Rust panics and Results to appropriate Java exceptions:
    - Full documentation
 
 **Completed:** 2025-10-15
-**Build Status:** ✅ All tests passing (24 Rust tests, 126 Java tests)
+**Build Status:** ✅ All tests passing (30 Rust tests, 147 Java tests)
 **Artifacts:** libycrdt_jni.dylib (macOS), ready for other platforms
 
 ### Phase 2: Core Types ✅ COMPLETE (YText ✅, YArray ✅, YMap ✅)
@@ -434,17 +448,19 @@ Map Rust panics and Results to appropriate Java exceptions:
 
 **Status:** All Core Types Complete (5 of 5 types)
 **Completed:** 2025-10-16
-**Build Status:** ✅ All 126 Java tests passing, ✅ All 24 Rust tests passing
+**Build Status:** ✅ All 147 Java tests passing, ✅ All 30 Rust tests passing
 **Next Step:** Phase 3 - Advanced Features (observers, transactions, advanced update handling)
 
 ### Phase 3: Advanced Features (Partial ✅)
-1. ✅ Add basic XML types support **COMPLETE (LIMITED)**
+1. ✅ Add basic XML types support **COMPLETE (WITH CHILD RETRIEVAL)**
    - ✅ YXmlText bindings (7 native methods, 20 tests)
    - ✅ YXmlElement bindings (8 native methods, 25 tests)
-   - ✅ XmlFragmentRef-based implementation for proper CRDT sync
+   - ✅ YXmlFragment bindings (9 native methods, 9 tests including 7 for child retrieval)
+   - ✅ Child node retrieval API (getElement, getText)
+   - ✅ Direct XmlElementRef/XmlTextRef pointer architecture
    - ✅ Examples in Example.java (Examples 10-13)
-   - ⚠️ **Limitations:** No hierarchical structure, no child management, no formatting
-2. 🔜 Implement hierarchical XML API (see Phase 3.5 below)
+   - ⚠️ **Remaining Limitations:** No text formatting, no full tree navigation
+2. 🔜 Implement complete hierarchical XML API (see Phase 3.5 below)
    - Redesigned API for proper XML tree support
    - Child element management
    - Text formatting support
@@ -778,7 +794,7 @@ To maintain backward compatibility:
 - ✅ YDoc accessible from Java with full API
 - ✅ Basic memory management working (no leaks detected in basic tests)
 - ✅ Build system functioning for host platform
-- ✅ Tests passing (24 Rust, 126 Java tests)
+- ✅ Tests passing (30 Rust, 147 Java tests)
 - ✅ Documentation complete for Phase 1 scope
 
 ### Phase 2 Criteria ✅ MET
@@ -792,11 +808,12 @@ To maintain backward compatibility:
 - ✅ Comprehensive test coverage for YMap (30 tests, 100% passing)
 
 ### Phase 3 Criteria (Partial ✅)
-- ✅ Basic YXmlText accessible from Java (COMPLETE - limited)
-- ✅ Basic YXmlElement accessible from Java (COMPLETE - limited)
+- ✅ Basic YXmlText accessible from Java (COMPLETE)
+- ✅ Basic YXmlElement accessible from Java (COMPLETE)
+- ✅ YXmlFragment with child node retrieval (COMPLETE)
 - ✅ XML synchronization working between documents (COMPLETE)
-- ✅ Comprehensive test coverage for basic XML (45 tests, 100% passing)
-- 🔜 Hierarchical XML API (Phase 3.5 - planned)
+- ✅ Comprehensive test coverage for basic XML (54 tests, 100% passing)
+- 🔜 Complete hierarchical XML API with formatting (Phase 3.5 - planned)
 - 🔜 Observer/callback support (TODO)
 - 🔜 Transaction support (TODO)
 
@@ -810,9 +827,9 @@ To maintain backward compatibility:
 - 🔜 Migration path from basic XML API (TODO)
 
 ### Overall Success Criteria (Target)
-- ✅ All core y-crdt types accessible from Java (YDoc ✅, YText ✅, YArray ✅, YMap ✅, YXmlText ✅, YXmlElement ✅)
+- ✅ All core y-crdt types accessible from Java (YDoc ✅, YText ✅, YArray ✅, YMap ✅, YXmlText ✅, YXmlElement ✅, YXmlFragment ✅)
 - 🔜 No memory leaks in stress tests (basic tests passing, stress tests TODO)
 - 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Support for all major platforms (architecture ready, cross-compilation TODO)
-- ✅ Comprehensive test coverage (>80%) (126 Java tests + 24 Rust tests, all passing)
+- ✅ Comprehensive test coverage (>80%) (147 Java tests + 30 Rust tests, all passing)
 - ✅ Production-ready documentation (for implemented features)

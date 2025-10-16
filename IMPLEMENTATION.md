@@ -194,6 +194,35 @@ Implements collaborative XML elements with 8 native methods:
 **Testing:**
 - 4 Rust unit tests covering creation, tag retrieval, attributes, and attribute removal
 
+### YXmlFragment Bindings (`src/yxmlfragment.rs`)
+
+Implements collaborative XML fragment containers with 9 native methods:
+
+1. **`nativeGetFragment(docPtr, name)`** - Gets or creates a YXmlFragment instance
+2. **`nativeDestroy(ptr)`** - Frees YXmlFragment memory
+3. **`nativeLength(docPtr, fragmentPtr)`** - Returns number of child nodes
+4. **`nativeInsertElement(docPtr, fragmentPtr, index, tag)`** - Inserts element child at index
+5. **`nativeInsertText(docPtr, fragmentPtr, index, content)`** - Inserts text child at index
+6. **`nativeRemove(docPtr, fragmentPtr, index, length)`** - Removes range of children
+7. **`nativeGetNodeType(docPtr, fragmentPtr, index)`** - Returns node type (ELEMENT=0, TEXT=1)
+8. **`nativeGetElement(docPtr, fragmentPtr, index)`** - Returns XmlElementRef pointer at index
+9. **`nativeGetText(docPtr, fragmentPtr, index)`** - Returns XmlTextRef pointer at index
+
+**Key Implementation Details:**
+- Uses `XmlFragmentRef` directly (no wrapper)
+- Child retrieval returns direct `XmlElementRef` and `XmlTextRef` pointers
+- Node type detection using `into_xml_element()` and `into_xml_text()` conversions
+- Enables hierarchical XML tree navigation
+- BranchPtr is reference-counted, safe to clone for multiple Java objects
+
+**Architecture Change (2025-10-16):**
+- Updated `nativeGetXmlElement` and `nativeGetXmlText` (in yxmlelement.rs and yxmltext.rs) to return direct element/text pointers instead of fragment wrappers
+- Both old pattern (`doc.getXmlElement()`) and new pattern (`fragment.getElement()`) now use direct pointer architecture
+- Eliminates confusion between XmlFragmentRef wrapper and XmlElementRef/XmlTextRef direct references
+
+**Testing:**
+- 7 Rust unit tests covering creation, insertion, removal, node type detection, and child retrieval
+
 ## Java Implementation
 
 ### YDoc (`src/main/java/net/carcdr/ycrdt/YDoc.java`)
@@ -365,6 +394,48 @@ Collaborative XML element class with attribute management:
 
 **Testing:**
 - 25 comprehensive tests covering attribute operations, tag retrieval, and synchronization
+
+### YXmlFragment (`src/main/java/net/carcdr/ycrdt/YXmlFragment.java`)
+
+Collaborative XML fragment container class for hierarchical XML structures:
+
+**Public Methods:**
+- `int length()` - Returns number of child nodes
+- `void insertElement(int index, String tag)` - Inserts element child at index
+- `void insertText(int index, String content)` - Inserts text child at index
+- `void remove(int index, int length)` - Removes range of children
+- `YXmlNode.NodeType getNodeType(int index)` - Returns node type (ELEMENT or TEXT)
+- `YXmlElement getElement(int index)` - Retrieves element child (returns null if not an element)
+- `YXmlText getText(int index)` - Retrieves text child (returns null if not text)
+- `String toXmlString()` - Returns XML string representation
+- `void close()` - Frees native resources
+- `boolean isClosed()` - Checks if closed
+
+**Design Features:**
+- Implements `Closeable` for resource management
+- Package-private constructor (created via `YDoc.getXmlFragment()`)
+- Child node retrieval creates independent YXmlElement/YXmlText instances
+- Comprehensive bounds checking
+- Null checking for content parameters
+- Thread-safe close operation
+- Supports hierarchical XML tree construction
+- Comprehensive JavaDoc with examples
+
+**Child Node Retrieval (Added 2025-10-16):**
+- `getElement(index)` and `getText(index)` return independent closeable instances
+- Child objects must be closed separately using try-with-resources
+- Returns null if index is out of bounds or wrong node type
+- Enables tree navigation and manipulation
+
+**Testing:**
+- 9 comprehensive tests (2 basic + 7 for child retrieval) covering:
+  - Fragment creation and lifecycle
+  - Child insertion (elements and text)
+  - Node type detection
+  - Child retrieval and manipulation
+  - Modification persistence
+  - Cross-document synchronization
+  - Error handling (null values, out of bounds)
 
 ### NativeLoader (`src/main/java/net/carcdr/ycrdt/NativeLoader.java`)
 
@@ -586,7 +657,7 @@ let string = match env.get_string(&input) {
 
 ## Testing Strategy
 
-### Rust Tests (24 total)
+### Rust Tests (30 total)
 
 **Unit Tests:**
 - `lib.rs` - Pointer conversion (1 test)
@@ -596,6 +667,7 @@ let string = match env.get_string(&input) {
 - `ymap.rs` - Map operations (4 tests)
 - `yxmltext.rs` - XML text operations (4 tests)
 - `yxmlelement.rs` - XML element operations (4 tests)
+- `yxmlfragment.rs` - XML fragment operations (7 tests)
 
 **Coverage:**
 - Creation and destruction
@@ -603,7 +675,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (126 total)
+### Java Tests (147 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -651,6 +723,16 @@ let string = match env.get_string(&input) {
 - Error handling (null names, null values)
 - Multiple attributes and complex sequences
 - Multiple elements in same document
+
+**YXmlFragmentTest (9 tests):**
+- Fragment creation and lifecycle
+- Child insertion (elements and text)
+- Node removal operations
+- Node type detection
+- Child retrieval (getElement, getText)
+- Child modification and persistence
+- Cross-document synchronization with child retrieval
+- Error handling (null values, out of bounds, wrong types)
 
 **Test Quality:**
 - 100% pass rate
@@ -707,6 +789,7 @@ y-crdt-jni/
 │   ├── ymap.rs                               # YMap JNI bindings
 │   ├── yxmltext.rs                           # YXmlText JNI bindings
 │   ├── yxmlelement.rs                        # YXmlElement JNI bindings
+│   ├── yxmlfragment.rs                       # YXmlFragment JNI bindings
 │   ├── main/java/net/carcdr/ycrdt/
 │   │   ├── YDoc.java                         # YDoc Java wrapper
 │   │   ├── YText.java                        # YText Java wrapper
@@ -714,6 +797,8 @@ y-crdt-jni/
 │   │   ├── YMap.java                         # YMap Java wrapper
 │   │   ├── YXmlText.java                     # YXmlText Java wrapper
 │   │   ├── YXmlElement.java                  # YXmlElement Java wrapper
+│   │   ├── YXmlFragment.java                 # YXmlFragment Java wrapper
+│   │   ├── YXmlNode.java                     # YXmlNode interface
 │   │   ├── NativeLoader.java                # Native library loader
 │   │   └── Example.java                     # Example usage program
 │   └── test/java/net/carcdr/ycrdt/
@@ -722,7 +807,8 @@ y-crdt-jni/
 │       ├── YArrayTest.java                   # YArray test suite
 │       ├── YMapTest.java                     # YMap test suite
 │       ├── YXmlTextTest.java                 # YXmlText test suite
-│       └── YXmlElementTest.java              # YXmlElement test suite
+│       ├── YXmlElementTest.java              # YXmlElement test suite
+│       └── YXmlFragmentTest.java             # YXmlFragment test suite
 ├── .github/
 │   └── workflows/
 │       ├── quickcheck.yml                    # Quick check workflow

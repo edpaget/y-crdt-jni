@@ -209,8 +209,10 @@ mod tests {
 
     #[test]
     fn test_doc_with_client_id() {
-        let mut options = yrs::Options::default();
-        options.client_id = 12345;
+        let options = yrs::Options {
+            client_id: 12345,
+            ..Default::default()
+        };
         let doc = Doc::with_options(options);
         assert_eq!(doc.client_id(), 12345);
     }

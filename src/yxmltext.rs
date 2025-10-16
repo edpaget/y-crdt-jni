@@ -2,7 +2,7 @@ use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstri
 use jni::objects::{JClass, JString};
 use jni::sys::{jint, jlong, jstring};
 use jni::JNIEnv;
-use yrs::{Doc, GetString, Text, Transact, XmlFragment, XmlFragmentRef, XmlTextPrelim};
+use yrs::{Doc, GetString, Text, Transact, XmlFragment, XmlTextPrelim, XmlTextRef};
 
 /// Gets or creates a YXmlText instance from a YDoc
 ///
@@ -53,7 +53,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetXmlText(
             }
         }
 
-        to_java_ptr(fragment)
+        // Return a pointer to the text at index 0, not the fragment
+        let txn = doc.transact();
+        if let Some(child) = fragment.get(&txn, 0) {
+            if let Some(text) = child.into_xml_text() {
+                return to_java_ptr(text);
+            }
+        }
+        0
     }
 }
 
@@ -72,7 +79,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDestroy(
 ) {
     if ptr != 0 {
         unsafe {
-            free_java_ptr::<XmlFragmentRef>(ptr);
+            free_java_ptr::<XmlTextRef>(ptr);
         }
     }
 }
@@ -103,16 +110,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeLength(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_text_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
         let txn = doc.transact();
 
-        // Get the first child as XmlTextRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(text) = child.into_xml_text() {
-                return text.len(&txn) as jint;
-            }
-        }
-        0
+        text.len(&txn) as jint
     }
 }
 
@@ -142,17 +143,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeToString(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_text_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
         let txn = doc.transact();
 
-        // Get the first child as XmlTextRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(text) = child.into_xml_text() {
-                let string = text.get_string(&txn);
-                return to_jstring(&mut env, &string);
-            }
-        }
-        to_jstring(&mut env, "")
+        let string = text.get_string(&txn);
+        to_jstring(&mut env, &string)
     }
 }
 
@@ -192,15 +187,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_text_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
         let mut txn = doc.transact_mut();
 
-        // Get the first child as XmlTextRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(text) = child.into_xml_text() {
-                text.insert(&mut txn, index as u32, &chunk_str);
-            }
-        }
+        text.insert(&mut txn, index as u32, &chunk_str);
     }
 }
 
@@ -238,15 +228,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_text_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
         let mut txn = doc.transact_mut();
 
-        // Get the first child as XmlTextRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(text) = child.into_xml_text() {
-                text.push(&mut txn, &chunk_str);
-            }
-        }
+        text.push(&mut txn, &chunk_str);
     }
 }
 
@@ -277,22 +262,17 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
 
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(xml_text_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
         let mut txn = doc.transact_mut();
 
-        // Get the first child as XmlTextRef
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(text) = child.into_xml_text() {
-                text.remove_range(&mut txn, index as u32, length as u32);
-            }
-        }
+        text.remove_range(&mut txn, index as u32, length as u32);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use yrs::{Doc, Transact, XmlFragment};
+    use yrs::{Doc, Transact, XmlFragment, XmlFragmentRef};
 
     #[test]
     fn test_xml_text_creation() {
