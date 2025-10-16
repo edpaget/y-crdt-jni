@@ -13,10 +13,12 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
   - Rich text formatting (insertWithAttributes, format)
   - Nested elements (childCount, insertElement, insertText, getChild, removeChild)
   - Ancestor lookup (getParent, getIndexInParent)
-- **Testing:** 231 total tests (33 Rust + 198 Java), 100% passing
+- **Testing:** 256 total tests (33 Rust + 223 Java), 100% passing
+  - 198 functional/integration tests
+  - 25 memory stress tests (no leaks detected)
 - **Documentation:** Comprehensive JavaDoc, IMPLEMENTATION.md, published to GitHub Pages
 - **Build System:** Gradle + Cargo integration, GitHub Actions CI/CD
-- **Memory Management:** Closeable pattern, proper native resource cleanup
+- **Memory Management:** Closeable pattern, proper native resource cleanup, stress tested
 
 ### 🚧 In Progress
 - **Phase 3:** Advanced features (observers, transactions, advanced state management)
@@ -69,7 +71,7 @@ Implemented all core collaborative data types:
 
 **Key Achievement:** Fixed critical bug in `encodeStateAsUpdate()` - now encodes against empty state vector for correct synchronization
 
-**Build Status:** ✅ All 198 Java tests passing, ✅ All 33 Rust tests passing
+**Build Status:** ✅ All 223 Java tests passing (198 functional + 25 stress), ✅ All 33 Rust tests passing
 
 ---
 
@@ -144,10 +146,10 @@ Implemented full hierarchical XML support with tree navigation:
 **Target:** v1.0.0 release
 
 1. **Complete Test Coverage**
-   - Memory leak stress tests
-   - Concurrent access patterns
-   - Performance benchmarks
-   - Integration tests
+   - ✅ Memory leak stress tests (25 tests - COMPLETE)
+   - 🔜 Concurrent access patterns
+   - 🔜 Performance benchmarks
+   - 🔜 Integration tests
 
 2. **Multi-Platform Builds**
    - CI/CD for Linux, macOS, Windows
@@ -179,7 +181,7 @@ Implemented full hierarchical XML support with tree navigation:
 - yxmlelement.rs: 4 tests
 - yxmlfragment.rs: 7 tests (including child retrieval)
 
-### Java Tests: 198 total (100% passing)
+### Java Tests: 223 total (100% passing)
 - YDocTest: 13 tests
 - YTextTest: 23 tests
 - YArrayTest: 27 tests
@@ -187,8 +189,19 @@ Implemented full hierarchical XML support with tree navigation:
 - YXmlTextTest: 41 tests (14 formatting + 7 ancestor lookup)
 - YXmlElementTest: 55 tests (18 nested element + 12 ancestor lookup)
 - YXmlFragmentTest: 9 tests
+- StressTest: 25 tests (memory stress tests)
 
-**Coverage:** Creation, lifecycle, synchronization, error handling, Unicode/emoji, mixed types, XML attributes, child management, rich text formatting, ancestor lookup, bidirectional sync, complex editing sequences
+**Functional Test Coverage:** Creation, lifecycle, synchronization, error handling, Unicode/emoji, mixed types, XML attributes, child management, rich text formatting, ancestor lookup, bidirectional sync, complex editing sequences
+
+**Stress Test Coverage:**
+- Create/close cycles (1,000 iterations per type)
+- Large documents (10,000 elements)
+- Deep XML nesting (100+ levels)
+- Wide XML trees (1,000 children)
+- Many attributes (1,000 per element)
+- Complex synchronization scenarios
+- Combined multi-type operations
+- **Result:** All tests passing, no memory leaks detected
 
 ---
 
@@ -291,15 +304,27 @@ Implemented full hierarchical XML support with tree navigation:
 
 ### Overall Target 🎯
 - ✅ All core y-crdt types accessible
-- 🔜 No memory leaks in stress tests
-- 🔜 Performance overhead < 20% vs native Rust
+- ✅ No memory leaks in stress tests (25 tests passing)
+- 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Multi-platform support
-- ✅ Comprehensive test coverage (>80%)
+- ✅ Comprehensive test coverage (>80%) - Currently 256 tests (100% passing)
 - ✅ Production-ready documentation
 
 ---
 
 ## Recent Achievements (2025-10-16)
+
+### Memory Stress Tests ✅
+- Added comprehensive stress test suite with 25 tests
+- Create/close cycles: 1,000 iterations per type (YDoc, YText, YArray, YMap, XML types)
+- Large documents: 10,000 elements in text/array/map
+- Deep XML nesting: 100+ levels tested
+- Wide XML trees: 1,000 children per element
+- Many attributes: 1,000 attributes per element
+- Complex synchronization: 100 document synchronizations
+- Combined operations: Multiple types in single document
+- **Result:** All 25 tests passing, zero memory leaks detected
+- Total test count increased to 256 (33 Rust + 223 Java)
 
 ### Ancestor Lookup for XML Nodes ✅
 - Implemented getParent() and getIndexInParent() for YXmlElement and YXmlText
@@ -341,11 +366,6 @@ Implemented full hierarchical XML support with tree navigation:
 - Boolean, integer support
 - Nested types (arrays of arrays)
 - Custom type serialization
-
-### Developer Experience
-- Kotlin extensions
-- Spring Boot integration
-- Reactive streams support
 
 ---
 

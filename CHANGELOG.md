@@ -68,10 +68,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Parent can be YXmlElement or YXmlFragment
   - Synchronized parent references across documents
   - 19 comprehensive ancestor lookup tests (12 for YXmlElement, 7 for YXmlText)
+- Memory stress tests
+  - 25 comprehensive stress tests for all CRDT types
+  - Create/close cycles (1,000 iterations per type)
+  - Large documents (10,000 elements)
+  - Deep XML nesting (100+ levels)
+  - Wide XML trees (1,000 children)
+  - Many attributes (1,000 attributes per element)
+  - Complex synchronization scenarios
+  - Combined multi-type stress tests
+  - All tests passing with no memory leaks detected
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (33 Rust tests, 198 Java tests - 100% passing)
+- Comprehensive test suite (33 Rust tests, 223 Java tests - 100% passing)
+  - 198 functional/integration tests
+  - 25 memory stress tests
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)
