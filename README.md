@@ -17,12 +17,19 @@ This is a multi-module Gradle project:
 - **ycrdt** - Core Y-CRDT JNI bindings with Rust native library
   - Provides: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
   - Artifact: `net.carcdr:ycrdt`
+  - Documentation: [ycrdt/README.md](ycrdt/README.md)
 
-- **yprosemirror** - ProseMirror integration (Phase 2 complete)
+- **yprosemirror** - ProseMirror integration
   - Provides bidirectional sync between ProseMirror and Y-CRDT
   - Depends on: ycrdt module
   - Artifact: `net.carcdr:yprosemirror`
-  - See [yprosemirror/README.md](yprosemirror/README.md) for details
+  - Documentation: [yprosemirror/README.md](yprosemirror/README.md)
+
+- **yhocuspocus** - Collaborative editing server
+  - Transport-agnostic server for Y-CRDT synchronization
+  - Depends on: ycrdt module
+  - Artifact: `net.carcdr:yhocuspocus`
+  - Documentation: [yhocuspocus/README.md](yhocuspocus/README.md)
 
 ## Features
 
@@ -39,11 +46,11 @@ This is a multi-module Gradle project:
 - ✅ **Memory safe**: Proper resource management with AutoCloseable
 - ✅ **Multi-platform**: Linux, macOS, and Windows support
 
-See [PLAN.md](PLAN.md) for the full development roadmap and [CHANGELOG.md](CHANGELOG.md) for detailed feature list.
+See [PLAN.md](PLAN.md) for the full development roadmap. For module-specific changelogs, see each module's documentation.
 
 ## Requirements
 
-- Java 11 or higher
+- Java 21 or higher
 - Rust 1.70+ (for building from source)
 - Gradle 7.0+ (for building)
 
@@ -51,7 +58,7 @@ See [PLAN.md](PLAN.md) for the full development roadmap and [CHANGELOG.md](CHANG
 
 ### Prerequisites
 
-- Java 11 or higher
+- Java 21 or higher
 - Rust 1.70 or higher
 - Gradle 7.0+ (or use the included wrapper)
 
@@ -208,7 +215,10 @@ For detailed examples, see the observer tests in the [test suite](ycrdt/src/test
 
 **Full API documentation**: [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
 
-**Implementation details**: See [IMPLEMENTATION.md](IMPLEMENTATION.md) for technical architecture and JNI binding details.
+**Implementation details**: See each module's IMPLEMENTATION.md file for technical details:
+- [ycrdt/IMPLEMENTATION.md](ycrdt/IMPLEMENTATION.md) - JNI bindings and native layer
+- [yprosemirror/IMPLEMENTATION.md](yprosemirror/IMPLEMENTATION.md) - ProseMirror integration
+- [yhocuspocus/IMPLEMENTATION.md](yhocuspocus/IMPLEMENTATION.md) - Server architecture
 
 ### Core Types
 
@@ -240,7 +250,7 @@ All types implement `AutoCloseable` for automatic resource management.
 
 **Build Status**: [![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
 
-See [PLAN.md](PLAN.md) for development roadmap and [CHANGELOG.md](CHANGELOG.md) for detailed change history.
+See [PLAN.md](PLAN.md) for development roadmap. For detailed changelogs, see each module's documentation.
 
 ## Development
 
@@ -260,7 +270,7 @@ cd ycrdt && cargo clippy
 ./gradlew checkstyle
 ```
 
-See [IMPLEMENTATION.md](IMPLEMENTATION.md) for build system details and architecture documentation.
+See module-specific IMPLEMENTATION.md files for architecture and build details.
 
 ## CI/CD
 

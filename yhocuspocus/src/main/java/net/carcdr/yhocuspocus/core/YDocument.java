@@ -109,14 +109,27 @@ public class YDocument implements AutoCloseable {
     }
 
     /**
-     * Broadcasts a stateless message.
+     * Broadcasts a stateless message to all connections except sender.
      *
-     * @param payload the stateless message payload
-     * @param exceptConnectionId connection ID to exclude
+     * <p>Stateless messages are custom application-level messages that don't
+     * affect the CRDT state. They can be used for features like chat, notifications,
+     * or custom application logic.</p>
+     *
+     * @param payload the stateless message payload (string content)
+     * @param exceptConnectionId connection ID to exclude from broadcast
      */
     public void broadcastStateless(String payload, String exceptConnectionId) {
-        // Implementation will be added in Phase 4 (Awareness & Stateless Messages)
-        // For now, this is a placeholder
+        if (payload == null || payload.isEmpty()) {
+            return;
+        }
+
+        // Create stateless message using OutgoingMessage
+        byte[] message = net.carcdr.yhocuspocus.protocol.OutgoingMessage
+            .stateless(name, payload)
+            .encode();
+
+        // Broadcast to all connections except sender
+        broadcast(message, exceptConnectionId);
     }
 
     /**

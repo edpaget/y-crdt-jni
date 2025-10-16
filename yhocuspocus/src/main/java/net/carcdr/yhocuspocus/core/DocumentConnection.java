@@ -158,25 +158,41 @@ public class DocumentConnection {
     /**
      * Handles stateless messages.
      *
-     * <p>Will be fully implemented in Phase 4.</p>
+     * <p>Stateless messages are custom application-level messages that don't
+     * affect the CRDT state. They are sent only to the requesting client.
+     * Extension hooks will be added in Phase 5.</p>
      *
      * @param message the stateless message
      */
     private void handleStateless(IncomingMessage message) {
-        // Run onStateless hooks
-        // Phase 5 will add extension hook support
+        String payload = message.getStatelessPayload();
+        if (payload == null) {
+            return;
+        }
+
+        // Echo the stateless message back to the sender
+        // In Phase 5, this will run through extension hooks
+        OutgoingMessage response = OutgoingMessage.stateless(documentName, payload);
+        send(response.encode());
     }
 
     /**
      * Handles broadcast stateless messages.
      *
-     * <p>Will be fully implemented in Phase 4.</p>
+     * <p>Broadcasts the stateless message to all connections except the sender.
+     * This allows clients to send custom messages that are distributed to all
+     * other clients (e.g., chat messages, notifications).</p>
      *
      * @param message the broadcast stateless message
      */
     private void handleBroadcastStateless(IncomingMessage message) {
-        // Broadcast to all connections
-        document.broadcastStateless(message.getStatelessPayload(), getConnectionId());
+        String payload = message.getStatelessPayload();
+        if (payload == null) {
+            return;
+        }
+
+        // Broadcast to all connections except sender
+        document.broadcastStateless(payload, getConnectionId());
     }
 
     /**
