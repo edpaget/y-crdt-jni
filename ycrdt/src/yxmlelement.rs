@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::xml::XmlEvent;
 use yrs::types::Change;
-use yrs::{Doc, GetString, Observable, Transact, TransactionMut, Xml, XmlElementPrelim, XmlElementRef, XmlFragment};
+use yrs::{
+    Doc, GetString, Observable, Transact, TransactionMut, Xml, XmlElementPrelim, XmlElementRef,
+    XmlFragment,
+};
 
 // Global storage for Java YXmlElement objects (needed for callbacks)
 lazy_static::lazy_static! {
@@ -926,7 +929,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeObserve(
             };
 
             // Dispatch event to Java
-            if let Err(e) = dispatch_xmlelement_event(&mut env, xml_element_ptr, subscription_id, txn, event) {
+            if let Err(e) =
+                dispatch_xmlelement_event(&mut env, xml_element_ptr, subscription_id, txn, event)
+            {
                 eprintln!("Failed to dispatch XML element event: {:?}", e);
             }
         });
@@ -998,11 +1003,8 @@ fn dispatch_xmlelement_event(
                 // Create YArrayChange for DELETE
                 let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -1014,11 +1016,8 @@ fn dispatch_xmlelement_event(
                 // Create YArrayChange for RETAIN
                 let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let retain_type = env.get_static_field(
-                    type_class,
-                    "RETAIN",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let retain_type =
+                    env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -1050,11 +1049,8 @@ fn dispatch_xmlelement_event(
 
                 let change_class = env.find_class("net/carcdr/ycrdt/YXmlElementChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let insert_type = env.get_static_field(
-                    type_class,
-                    "INSERT",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let insert_type =
+                    env.get_static_field(type_class, "INSERT", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -1100,11 +1096,8 @@ fn dispatch_xmlelement_event(
 
                 let change_class = env.find_class("net/carcdr/ycrdt/YXmlElementChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,

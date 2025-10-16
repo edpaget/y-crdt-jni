@@ -665,11 +665,8 @@ fn dispatch_array_event(
                 // Create YArrayChange for DELETE
                 let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -681,11 +678,8 @@ fn dispatch_array_event(
                 // Create YArrayChange for RETAIN
                 let change_class = env.find_class("net/carcdr/ycrdt/YArrayChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let retain_type = env.get_static_field(
-                    type_class,
-                    "RETAIN",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let retain_type =
+                    env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,

@@ -396,11 +396,8 @@ fn dispatch_text_event(
                 // Create YTextChange for DELETE
                 let change_class = env.find_class("net/carcdr/ycrdt/YTextChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -412,11 +409,8 @@ fn dispatch_text_event(
                 // Create YTextChange for RETAIN
                 let change_class = env.find_class("net/carcdr/ycrdt/YTextChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let retain_type = env.get_static_field(
-                    type_class,
-                    "RETAIN",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let retain_type =
+                    env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 let attrs_map = if let Some(attrs) = attrs {
                     create_java_hashmap(env, &**attrs)?
@@ -427,7 +421,11 @@ fn dispatch_text_event(
                 env.new_object(
                     change_class,
                     "(Lnet/carcdr/ycrdt/YChange$Type;ILjava/util/Map;)V",
-                    &[JValue::Object(&retain_type.l()?), JValue::Int(*len as i32), JValue::Object(&attrs_map)],
+                    &[
+                        JValue::Object(&retain_type.l()?),
+                        JValue::Int(*len as i32),
+                        JValue::Object(&attrs_map),
+                    ],
                 )?
             }
         };
@@ -502,7 +500,10 @@ fn create_java_hashmap<'local>(
 }
 
 /// Helper function to convert yrs Any to JObject
-fn any_to_jobject<'local>(env: &mut AttachGuard<'local>, value: &yrs::Any) -> Result<JObject<'local>, jni::errors::Error> {
+fn any_to_jobject<'local>(
+    env: &mut AttachGuard<'local>,
+    value: &yrs::Any,
+) -> Result<JObject<'local>, jni::errors::Error> {
     use yrs::Any;
 
     match value {

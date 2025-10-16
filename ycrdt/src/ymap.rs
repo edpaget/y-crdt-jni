@@ -762,11 +762,8 @@ fn dispatch_map_event(
 
                 let change_class = env.find_class("net/carcdr/ycrdt/YMapChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let insert_type = env.get_static_field(
-                    type_class,
-                    "INSERT",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let insert_type =
+                    env.get_static_field(type_class, "INSERT", "Lnet/carcdr/ycrdt/YChange$Type;")?;
                 let key_jstr = env.new_string(&key_str)?;
 
                 env.new_object(
@@ -811,11 +808,8 @@ fn dispatch_map_event(
 
                 let change_class = env.find_class("net/carcdr/ycrdt/YMapChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
                 let key_jstr = env.new_string(&key_str)?;
 
                 env.new_object(

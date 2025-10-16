@@ -5,7 +5,10 @@ use jni::{AttachGuard, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::xml::XmlTextEvent;
-use yrs::{Any, Doc, GetString, Observable, Text, Transact, TransactionMut, Xml, XmlFragment, XmlTextPrelim, XmlTextRef};
+use yrs::{
+    Any, Doc, GetString, Observable, Text, Transact, TransactionMut, Xml, XmlFragment,
+    XmlTextPrelim, XmlTextRef,
+};
 
 // Global storage for Java YXmlText objects (needed for callbacks)
 lazy_static::lazy_static! {
@@ -727,7 +730,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeObserve(
             };
 
             // Dispatch event to Java
-            if let Err(e) = dispatch_xmltext_event(&mut env, xmltext_ptr, subscription_id, txn, event) {
+            if let Err(e) =
+                dispatch_xmltext_event(&mut env, xmltext_ptr, subscription_id, txn, event)
+            {
                 eprintln!("Failed to dispatch xmltext event: {:?}", e);
             }
         });
@@ -801,11 +806,8 @@ fn dispatch_xmltext_event(
                 // Create YTextChange for DELETE
                 let change_class = env.find_class("net/carcdr/ycrdt/YTextChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let delete_type = env.get_static_field(
-                    type_class,
-                    "DELETE",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let delete_type =
+                    env.get_static_field(type_class, "DELETE", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 env.new_object(
                     change_class,
@@ -817,11 +819,8 @@ fn dispatch_xmltext_event(
                 // Create YTextChange for RETAIN
                 let change_class = env.find_class("net/carcdr/ycrdt/YTextChange")?;
                 let type_class = env.find_class("net/carcdr/ycrdt/YChange$Type")?;
-                let retain_type = env.get_static_field(
-                    type_class,
-                    "RETAIN",
-                    "Lnet/carcdr/ycrdt/YChange$Type;",
-                )?;
+                let retain_type =
+                    env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 let attrs_map = if let Some(attrs) = attrs {
                     create_java_hashmap_from_attrs(env, &**attrs)?
@@ -832,7 +831,11 @@ fn dispatch_xmltext_event(
                 env.new_object(
                     change_class,
                     "(Lnet/carcdr/ycrdt/YChange$Type;ILjava/util/Map;)V",
-                    &[JValue::Object(&retain_type.l()?), JValue::Int(*len as i32), JValue::Object(&attrs_map)],
+                    &[
+                        JValue::Object(&retain_type.l()?),
+                        JValue::Int(*len as i32),
+                        JValue::Object(&attrs_map),
+                    ],
                 )?
             }
         };
@@ -907,7 +910,10 @@ fn create_java_hashmap_from_attrs<'local>(
 }
 
 /// Helper function to convert yrs Any to JObject (for XmlText)
-fn any_to_jobject_xmltext<'local>(env: &mut AttachGuard<'local>, value: &yrs::Any) -> Result<JObject<'local>, jni::errors::Error> {
+fn any_to_jobject_xmltext<'local>(
+    env: &mut AttachGuard<'local>,
+    value: &yrs::Any,
+) -> Result<JObject<'local>, jni::errors::Error> {
     use yrs::Any;
 
     match value {
