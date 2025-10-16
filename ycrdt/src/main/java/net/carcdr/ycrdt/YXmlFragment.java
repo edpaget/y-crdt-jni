@@ -173,6 +173,59 @@ public class YXmlFragment implements Closeable, YObservable {
     }
 
     /**
+     * Retrieves a child node at the specified index.
+     *
+     * <p>This generic method automatically returns the correct type (YXmlElement or YXmlText)
+     * based on the child node type. This is more convenient than calling {@link #getNodeType}
+     * followed by type-specific getters.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlFragment fragment = doc.getXmlFragment("doc")) {
+     *     fragment.insertElement(0, "div");
+     *     fragment.insertText(1, "Hello");
+     *
+     *     // Generic access - automatically returns correct type
+     *     Object child0 = fragment.getChild(0); // Returns YXmlElement
+     *     Object child1 = fragment.getChild(1); // Returns YXmlText
+     *
+     *     if (child0 instanceof YXmlElement) {
+     *         YXmlElement elem = (YXmlElement) child0;
+     *         // Use element...
+     *         elem.close();
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param index the index of the child node (0-based)
+     * @return a YXmlElement or YXmlText depending on the child type,
+     *         or null if the index is out of bounds
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public Object getChild(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+
+        YXmlNode.NodeType type = getNodeType(index);
+        if (type == null) {
+            return null;
+        }
+
+        switch (type) {
+            case ELEMENT:
+                return getElement(index);
+            case TEXT:
+                return getText(index);
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Retrieves a child element at the specified index.
      *
      * <p>This method returns a new {@link YXmlElement} instance that wraps the child element
