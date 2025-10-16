@@ -15,6 +15,17 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## Recent Updates (2025-10-16)
 
+### YXmlElement Nested Element Support ✅ COMPLETE
+- Implemented full hierarchical XML support for YXmlElement
+- **New Methods:** `childCount()`, `insertElement(index, tag)`, `insertText(index)`, `getChild(index)`, `removeChild(index)`
+- Supports deeply nested XML structures (elements within elements)
+- Polymorphic child handling - getChild() returns Object (cast to YXmlElement or YXmlText)
+- 5 new Rust native methods for child management
+- 18 new Java tests for nested element functionality (all passing)
+- Enables building complex hierarchical XML trees (HTML/SVG editors, rich documents)
+- Child nodes synchronized across documents
+- Test coverage includes: simple nesting, deep nesting (5+ levels), mixed children, complex trees
+
 ### YXmlText Rich Text Formatting ✅ COMPLETE
 - Implemented full rich text formatting support for YXmlText
 - **New Methods:** `insertWithAttributes(index, text, attributes)` and `format(index, length, attributes)`
@@ -160,7 +171,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Uses XmlFragmentRef with XmlTextPrelim child for proper CRDT synchronization
 - ✅ 7 Rust unit tests (all passing) including 3 formatting tests
 
-### YXmlElement Implementation Details (src/yxmlelement.rs) ✅ COMPLETE
+### YXmlElement Implementation Details (src/yxmlelement.rs) ✅ COMPLETE (WITH NESTED ELEMENTS)
 - ✅ `nativeGetXmlElement(long, String)` - Get or create YXmlElement instance
 - ✅ `nativeDestroy(long)` - Free YXmlElement memory
 - ✅ `nativeGetTag(long, long)` - Get element tag name
@@ -169,7 +180,14 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ `nativeRemoveAttribute(long, long, String)` - Remove attribute by name
 - ✅ `nativeGetAttributeNames(long, long)` - Get all attribute names as String array
 - ✅ `nativeToString(long, long)` - Get XML string representation
+- ✅ `nativeChildCount(long, long)` - Get number of child nodes
+- ✅ `nativeInsertElement(long, long, int, String)` - Insert element child at index
+- ✅ `nativeInsertText(long, long, int)` - Insert text child at index
+- ✅ `nativeGetChild(long, long, int)` - Get child node with type detection
+- ✅ `nativeRemoveChild(long, long, int)` - Remove child at index
 - ✅ Uses XmlFragmentRef with XmlElementPrelim child for proper CRDT synchronization
+- ✅ XmlElementRef implements XmlFragment trait for hierarchical support
+- ✅ Supports deeply nested XML structures (elements within elements)
 - ✅ 4 Rust unit tests (all passing)
 
 ## 3. Java/Kotlin API Layer (Core Types Complete ✅)
@@ -242,15 +260,18 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ Unicode and emoji support
 - ✅ 34 comprehensive tests (all passing) including 14 formatting tests
 
-### YXmlElement.java Features ✅ COMPLETE
+### YXmlElement.java Features ✅ COMPLETE (WITH NESTED ELEMENTS)
 - ✅ Implements `Closeable` for proper resource management
 - ✅ Full API: `getTag()`, `getAttribute()`, `setAttribute()`, `removeAttribute()`, `getAttributeNames()`, `toString()`, `close()`, `isClosed()`
-- ✅ Input validation with meaningful exceptions (null checks)
+- ✅ Hierarchical XML API: `childCount()`, `insertElement()`, `insertText()`, `getChild()`, `removeChild()`
+- ✅ Input validation with meaningful exceptions (null checks, bounds checking)
 - ✅ Thread-safe close() operation
 - ✅ Comprehensive JavaDoc with examples
-- ✅ Package-private constructor (created via YDoc.getXmlElement())
+- ✅ Package-private constructor (created via YDoc.getXmlElement() or returned from insertElement())
 - ✅ XML attribute management (key-value pairs)
-- ✅ 25 comprehensive tests (all passing)
+- ✅ Supports deeply nested XML structures (elements within elements)
+- ✅ Polymorphic child handling (returns Object, cast to YXmlElement or YXmlText)
+- ✅ 43 comprehensive tests (all passing) including 18 nested element tests
 
 ## 4. Build System Integration (Partial ✅)
 - ✅ Set up `cargo` build to produce platform-specific shared libraries (.so, .dylib, .dll)
@@ -300,13 +321,13 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
   - ✅ Tests for XML element creation, attributes, tag retrieval
   - ✅ Tests for fragment child retrieval (element and text nodes)
 - ✅ Create Java integration tests
-  - ✅ 161 tests total (all passing - 100% success rate)
+  - ✅ 179 tests total (all passing - 100% success rate)
   - ✅ `YDocTest.java` with 13 comprehensive tests
   - ✅ `YTextTest.java` with 23 comprehensive tests
   - ✅ `YArrayTest.java` with 27 comprehensive tests
   - ✅ `YMapTest.java` with 30 comprehensive tests
   - ✅ `YXmlTextTest.java` with 34 comprehensive tests (including 14 formatting tests)
-  - ✅ `YXmlElementTest.java` with 25 comprehensive tests
+  - ✅ `YXmlElementTest.java` with 43 comprehensive tests (including 18 nested element tests)
   - ✅ `YXmlFragmentTest.java` with 9 comprehensive tests (added 7 for child retrieval)
   - ✅ Tests cover creation, lifecycle, synchronization, error handling
   - ✅ Unicode/emoji support tests (YText, YXmlText)
@@ -432,7 +453,7 @@ Map Rust panics and Results to appropriate Java exceptions:
    - Full documentation
 
 **Completed:** 2025-10-15
-**Build Status:** ✅ All tests passing (33 Rust tests, 161 Java tests)
+**Build Status:** ✅ All tests passing (33 Rust tests, 179 Java tests)
 **Artifacts:** libycrdt_jni.dylib (macOS), ready for other platforms
 
 ### Phase 2: Core Types ✅ COMPLETE (YText ✅, YArray ✅, YMap ✅)
@@ -832,19 +853,19 @@ To maintain backward compatibility:
 - 🔜 Observer/callback support (TODO)
 - 🔜 Transaction support (TODO)
 
-### Phase 3.5 Criteria (Planned)
-- 🔜 YXmlFragment with child management (TODO)
-- 🔜 YXmlElement with hierarchy support (TODO)
+### Phase 3.5 Criteria (Partial ✅)
+- ✅ YXmlFragment with child management (COMPLETE - child retrieval API)
+- ✅ YXmlElement with hierarchy support (COMPLETE - nested elements)
 - ✅ YXmlText with formatting support (COMPLETE)
-- 🔜 Tree navigation (parent/child) (TODO)
-- 🔜 Complex XML tree synchronization (TODO)
-- 🔜 Comprehensive test coverage for hierarchical XML (TODO)
-- 🔜 Migration path from basic XML API (TODO)
+- ✅ Tree navigation (parent/child) (COMPLETE - getChild() and insertElement/insertText())
+- ✅ Complex XML tree synchronization (COMPLETE - tested with nested structures)
+- ✅ Comprehensive test coverage for hierarchical XML (COMPLETE - 18 nested element tests)
+- 🔜 Advanced tree navigation (getParent(), getIndexInParent()) (TODO)
 
 ### Overall Success Criteria (Target)
 - ✅ All core y-crdt types accessible from Java (YDoc ✅, YText ✅, YArray ✅, YMap ✅, YXmlText ✅, YXmlElement ✅, YXmlFragment ✅)
 - 🔜 No memory leaks in stress tests (basic tests passing, stress tests TODO)
 - 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Support for all major platforms (architecture ready, cross-compilation TODO)
-- ✅ Comprehensive test coverage (>80%) (161 Java tests + 33 Rust tests, all passing)
+- ✅ Comprehensive test coverage (>80%) (179 Java tests + 33 Rust tests, all passing)
 - ✅ Production-ready documentation (for implemented features)

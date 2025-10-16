@@ -53,10 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Direct pointer architecture for efficient child access
   - XML string representation of entire fragment
   - 27 comprehensive tests
+- YXmlElement nested element support
+  - Insert element and text children at any index (insertElement, insertText)
+  - Get child count (childCount)
+  - Retrieve child nodes by index with type detection (getChild)
+  - Remove children at specific indices (removeChild)
+  - Support for deeply nested hierarchical XML structures
+  - Polymorphic child handling (elements and text nodes)
+  - 18 comprehensive nested element tests
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (33 Rust tests, 161 Java tests - 100% passing)
+- Comprehensive test suite (33 Rust tests, 179 Java tests - 100% passing)
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)

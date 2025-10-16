@@ -160,6 +160,112 @@ public class YXmlElement implements Closeable {
     }
 
     /**
+     * Gets the number of child nodes in this element.
+     *
+     * @return The number of child nodes
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public int childCount() {
+        checkClosed();
+        return nativeChildCount(doc.getNativePtr(), nativePtr);
+    }
+
+    /**
+     * Inserts an XML element child at the specified index.
+     *
+     * @param index The index at which to insert the child
+     * @param tag The tag name for the new element
+     * @return The new child element
+     * @throws IllegalArgumentException if tag is null
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public YXmlElement insertElement(int index, String tag) {
+        checkClosed();
+        if (tag == null) {
+            throw new IllegalArgumentException("Tag cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, index, tag);
+        if (childPtr == 0) {
+            throw new RuntimeException("Failed to insert element child");
+        }
+        return new YXmlElement(doc, childPtr);
+    }
+
+    /**
+     * Inserts an XML text child at the specified index.
+     *
+     * @param index The index at which to insert the child
+     * @return The new child text node
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public YXmlText insertText(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, index);
+        if (childPtr == 0) {
+            throw new RuntimeException("Failed to insert text child");
+        }
+        return new YXmlText(doc, childPtr);
+    }
+
+    /**
+     * Gets the child node at the specified index.
+     * The returned object can be either YXmlElement or YXmlText.
+     *
+     * @param index The index of the child to retrieve
+     * @return The child node, or null if not found
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public Object getChild(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        Object result = nativeGetChild(doc.getNativePtr(), nativePtr, index);
+        if (result == null) {
+            return null;
+        }
+
+        // Result is Object[2] where [0] = Integer type, [1] = Long pointer
+        Object[] array = (Object[]) result;
+        int type = ((Integer) array[0]).intValue();
+        long pointer = ((Long) array[1]).longValue();
+
+        if (type == 0) {
+            // Element
+            return new YXmlElement(doc, pointer);
+        } else if (type == 1) {
+            // Text
+            return new YXmlText(doc, pointer);
+        } else {
+            throw new RuntimeException("Unknown child type: " + type);
+        }
+    }
+
+    /**
+     * Removes the child node at the specified index.
+     *
+     * @param index The index of the child to remove
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public void removeChild(int index) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeRemoveChild(doc.getNativePtr(), nativePtr, index);
+    }
+
+    /**
      * Checks if this YXmlElement has been closed.
      *
      * @return true if this YXmlElement has been closed, false otherwise
@@ -223,4 +329,9 @@ public class YXmlElement implements Closeable {
             long docPtr, long xmlElementPtr, String name);
     private static native Object nativeGetAttributeNames(long docPtr, long xmlElementPtr);
     private static native String nativeToString(long docPtr, long xmlElementPtr);
+    private static native int nativeChildCount(long docPtr, long xmlElementPtr);
+    private static native long nativeInsertElement(long docPtr, long xmlElementPtr, int index, String tag);
+    private static native long nativeInsertText(long docPtr, long xmlElementPtr, int index);
+    private static native Object nativeGetChild(long docPtr, long xmlElementPtr, int index);
+    private static native void nativeRemoveChild(long docPtr, long xmlElementPtr, int index);
 }

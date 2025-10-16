@@ -179,7 +179,7 @@ Implements collaborative XML text editing with rich text formatting support, 9 n
 
 ### YXmlElement Bindings (`src/yxmlelement.rs`)
 
-Implements collaborative XML elements with 8 native methods:
+Implements collaborative XML elements with hierarchical support, 13 native methods:
 
 1. **`nativeGetXmlElement(docPtr, name)`** - Gets or creates a YXmlElement instance
 2. **`nativeDestroy(ptr)`** - Frees YXmlElement memory
@@ -189,6 +189,11 @@ Implements collaborative XML elements with 8 native methods:
 6. **`nativeRemoveAttribute(docPtr, xmlElementPtr, name)`** - Removes attribute by name
 7. **`nativeGetAttributeNames(docPtr, xmlElementPtr)`** - Returns all attribute names as String array
 8. **`nativeToString(docPtr, xmlElementPtr)`** - Returns XML string representation
+9. **`nativeChildCount(docPtr, xmlElementPtr)`** - Returns number of child nodes
+10. **`nativeInsertElement(docPtr, xmlElementPtr, index, tag)`** - Inserts element child at index
+11. **`nativeInsertText(docPtr, xmlElementPtr, index)`** - Inserts text child at index
+12. **`nativeGetChild(docPtr, xmlElementPtr, index)`** - Returns child node [type, pointer] array
+13. **`nativeRemoveChild(docPtr, xmlElementPtr, index)`** - Removes child at index
 
 **Key Implementation Details:**
 - Uses `XmlFragmentRef` with lazy `XmlElementPrelim` child creation
@@ -197,6 +202,13 @@ Implements collaborative XML elements with 8 native methods:
 - Attribute operations use `insert_attribute()`, `get_attribute()`, `remove_attribute()`
 - Tag name retrieved without transaction parameter (immutable)
 - Returns JObject for String array in `getAttributeNames()`
+- **Hierarchical Support:**
+  - `XmlElementRef` implements `XmlFragment` trait, providing child management methods
+  - Child insertion uses `insert()` method with `XmlElementPrelim` or `XmlTextPrelim`
+  - Child retrieval returns `XmlOut` enum (Element, Text, or Fragment)
+  - Polymorphic child handling via `Object[]` with type indicator (0=Element, 1=Text)
+  - Child pointers returned as independent closeable Java objects
+  - Supports deeply nested XML structures (elements within elements)
 - Lifetime parameters required for JNI object returns
 
 **Testing:**
@@ -388,7 +400,7 @@ Collaborative XML text editing class with rich text formatting support:
 
 ### YXmlElement (`src/main/java/net/carcdr/ycrdt/YXmlElement.java`)
 
-Collaborative XML element class with attribute management:
+Collaborative XML element class with attribute management and hierarchical support:
 
 **Public Methods:**
 - `String getTag()` - Returns element tag name
@@ -397,20 +409,40 @@ Collaborative XML element class with attribute management:
 - `void removeAttribute(String name)` - Removes attribute by name
 - `String[] getAttributeNames()` - Returns all attribute names as array
 - `String toString()` - Returns XML string representation
+- `int childCount()` - Returns number of child nodes
+- `YXmlElement insertElement(int index, String tag)` - Inserts element child at index
+- `YXmlText insertText(int index)` - Inserts text child at index
+- `Object getChild(int index)` - Returns child (YXmlElement or YXmlText) at index
+- `void removeChild(int index)` - Removes child at index
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if closed
 
 **Design Features:**
 - Implements `Closeable` for resource management
-- Package-private constructor (created via `YDoc.getXmlElement()`)
+- Package-private constructor (created via `YDoc.getXmlElement()` or returned from `insertElement()`)
 - Attribute key-value pair management
-- Comprehensive null checking for attribute names and values
+- **Hierarchical XML Support:**
+  - Insert element and text children at any index
+  - Retrieve children polymorphically (returns Object, cast to YXmlElement or YXmlText)
+  - Remove children by index
+  - Supports deeply nested XML structures
+  - Child objects are independent closeable instances
+- Comprehensive null checking for attribute names, values, and tags
+- Index bounds checking for child operations
 - Thread-safe close operation
 - XML string serialization for inspection
 - Comprehensive JavaDoc
 
 **Testing:**
-- 25 comprehensive tests covering attribute operations, tag retrieval, and synchronization
+- 43 comprehensive tests (25 original + 18 nested element tests) covering:
+  - Attribute operations, tag retrieval, and synchronization
+  - Child count and insertion (elements and text)
+  - Child retrieval and removal
+  - Nested element structures
+  - Mixed children (elements and text)
+  - Deeply nested structures (5+ levels)
+  - Cross-document synchronization with nested content
+  - Error handling (null tags, negative indices, out of bounds)
 
 ### YXmlFragment (`src/main/java/net/carcdr/ycrdt/YXmlFragment.java`)
 
@@ -692,7 +724,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (161 total)
+### Java Tests (179 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -742,7 +774,7 @@ let string = match env.get_string(&input) {
   - Various attribute types (Boolean, Integer, String, Double)
   - Error handling (null attributes, negative indices)
 
-**YXmlElementTest (25 tests):**
+**YXmlElementTest (43 tests):**
 - Element creation and tag retrieval
 - Attribute operations (get, set, remove)
 - Attribute name enumeration
@@ -750,6 +782,18 @@ let string = match env.get_string(&input) {
 - Error handling (null names, null values)
 - Multiple attributes and complex sequences
 - Multiple elements in same document
+- **Nested element tests (18 tests):**
+  - Child count tracking
+  - Element and text child insertion
+  - Multiple children in correct order
+  - Child retrieval by index with type checking
+  - Child removal operations
+  - Nested element hierarchies (3+ levels)
+  - Mixed children (elements and text together)
+  - Cross-document synchronization with nested structures
+  - Complex nested structures (5+ levels deep)
+  - XML string representation with nesting
+  - Error handling (null tags, negative indices, out of bounds)
 
 **YXmlFragmentTest (9 tests):**
 - Fragment creation and lifecycle
@@ -978,5 +1022,4 @@ To add a new Y-CRDT type (e.g., YXmlText):
 4. **No Transaction API:** Direct manipulation only
 5. **Platform Builds:** Cross-compilation scripts not yet automated
 6. **No Maven Publishing:** Library not in public repositories
-7. **No Nested XML:** Cannot nest XML elements within XML elements yet
-8. **No Nested Types:** Cannot store arrays/maps inside arrays/maps
+7. **No Nested Types:** Cannot store arrays/maps inside arrays/maps
