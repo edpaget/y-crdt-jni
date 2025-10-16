@@ -789,7 +789,7 @@ fn dispatch_xmltext_event(
 
                 // Convert attributes to HashMap (or null)
                 let attrs_map = if let Some(attrs) = attrs {
-                    create_java_hashmap_from_attrs(env, &**attrs)?
+                    create_java_hashmap_from_attrs(env, attrs)?
                 } else {
                     JObject::null()
                 };
@@ -823,7 +823,7 @@ fn dispatch_xmltext_event(
                     env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 let attrs_map = if let Some(attrs) = attrs {
-                    create_java_hashmap_from_attrs(env, &**attrs)?
+                    create_java_hashmap_from_attrs(env, attrs)?
                 } else {
                     JObject::null()
                 };
