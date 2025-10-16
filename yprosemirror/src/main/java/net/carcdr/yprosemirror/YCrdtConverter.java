@@ -1,10 +1,17 @@
 package net.carcdr.yprosemirror;
 
+import com.atlassian.prosemirror.model.Fragment;
+import com.atlassian.prosemirror.model.Mark;
 import com.atlassian.prosemirror.model.Node;
 import com.atlassian.prosemirror.model.Schema;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YXmlElement;
 import net.carcdr.ycrdt.YXmlFragment;
+import net.carcdr.ycrdt.YXmlText;
 
 /**
  * Converts Y-CRDT structures to ProseMirror documents.
@@ -53,6 +60,9 @@ public final class YCrdtConverter {
      *   <li>Text content and formatting (as text nodes with marks)</li>
      * </ul>
      *
+     * <p>The fragment's children are converted to a ProseMirror Fragment which is then
+     * wrapped in a document node if the schema has a top-level document type.
+     *
      * @param fragment the YXmlFragment to convert
      * @param schema the ProseMirror schema to conform to
      * @return the ProseMirror document node
@@ -67,8 +77,12 @@ public final class YCrdtConverter {
             throw new IllegalArgumentException("Schema cannot be null");
         }
 
-        // TODO: Implement conversion logic
-        throw new UnsupportedOperationException("Not yet implemented - Phase 1");
+        // Convert fragment children to ProseMirror Fragment
+        Fragment pmFragment = yXmlFragmentToFragment(fragment, schema);
+
+        // Wrap in a document node using schema's top node type
+        // Typically this is "doc" in most ProseMirror schemas
+        return schema.node(schema.getTopNodeType(), null, pmFragment, null);
     }
 
     /**
@@ -88,8 +102,7 @@ public final class YCrdtConverter {
             throw new IllegalArgumentException("Schema cannot be null");
         }
 
-        // TODO: Implement conversion logic
-        throw new UnsupportedOperationException("Not yet implemented - Phase 1");
+        return convertYXmlElementToNode(element, schema);
     }
 
     /**
@@ -116,7 +129,198 @@ public final class YCrdtConverter {
             throw new IllegalArgumentException("Schema cannot be null");
         }
 
-        // TODO: Implement conversion logic
-        throw new UnsupportedOperationException("Not yet implemented - Phase 1");
+        YXmlFragment fragment = ydoc.getXmlFragment(fragmentName);
+        try {
+            return yXmlToNode(fragment, schema);
+        } finally {
+            fragment.close();
+        }
+    }
+
+    /**
+     * Converts a YXmlFragment to a ProseMirror Fragment.
+     *
+     * @param yFragment the Y-CRDT fragment
+     * @param schema the ProseMirror schema
+     * @return a ProseMirror Fragment containing the converted children
+     */
+    private static Fragment yXmlFragmentToFragment(YXmlFragment yFragment, Schema schema) {
+        List<Node> nodes = new ArrayList<>();
+
+        // Convert each child
+        int length = yFragment.length();
+        for (int i = 0; i < length; i++) {
+            Object child = yFragment.getChild(i);
+
+            if (child instanceof YXmlElement) {
+                YXmlElement yElement = (YXmlElement) child;
+                Node pmNode = convertYXmlElementToNode(yElement, schema);
+                if (pmNode != null) {
+                    nodes.add(pmNode);
+                }
+                yElement.close();
+            } else if (child instanceof YXmlText) {
+                YXmlText yText = (YXmlText) child;
+                Node textNode = convertYXmlTextToNode(yText, schema);
+                if (textNode != null) {
+                    nodes.add(textNode);
+                }
+                yText.close();
+            }
+        }
+
+        // Convert list to Fragment using Fragment constructor
+        // Fragment(List, Integer) - size parameter can be null
+        return new Fragment(nodes, null);
+    }
+
+    /**
+     * Converts a YXmlElement to a ProseMirror Node.
+     *
+     * @param yElement the Y-CRDT element
+     * @param schema the ProseMirror schema
+     * @return the ProseMirror node
+     */
+    private static Node convertYXmlElementToNode(YXmlElement yElement, Schema schema) {
+        String tag = yElement.getTag();
+
+        // Get node type from schema
+        // In ProseMirror, node type names typically match XML tags
+        com.atlassian.prosemirror.model.NodeType nodeType = schema.getNodes().get(tag);
+        if (nodeType == null) {
+            // If tag doesn't exist in schema, skip or use a default
+            // For now, we'll skip unknown tags
+            return null;
+        }
+
+        // Convert XML attributes to ProseMirror attributes
+        Map<String, Object> attrs = xmlAttrsToMap(yElement);
+
+        // Convert children
+        Fragment content = convertYXmlElementChildren(yElement, schema);
+
+        // Create the node
+        return schema.node(nodeType, attrs, content, null);
+    }
+
+    /**
+     * Converts the children of a YXmlElement to a ProseMirror Fragment.
+     *
+     * @param yElement the Y-CRDT element
+     * @param schema the ProseMirror schema
+     * @return a Fragment containing the child nodes
+     */
+    private static Fragment convertYXmlElementChildren(YXmlElement yElement, Schema schema) {
+        List<Node> children = new ArrayList<>();
+
+        int childCount = yElement.childCount();
+        for (int i = 0; i < childCount; i++) {
+            Object child = yElement.getChild(i);
+
+            if (child instanceof YXmlElement) {
+                YXmlElement childElement = (YXmlElement) child;
+                Node pmNode = convertYXmlElementToNode(childElement, schema);
+                if (pmNode != null) {
+                    children.add(pmNode);
+                }
+                childElement.close();
+            } else if (child instanceof YXmlText) {
+                YXmlText childText = (YXmlText) child;
+                Node textNode = convertYXmlTextToNode(childText, schema);
+                if (textNode != null) {
+                    children.add(textNode);
+                }
+                childText.close();
+            }
+        }
+
+        // Convert list to Fragment using Fragment constructor
+        return new Fragment(children, null);
+    }
+
+    /**
+     * Converts a YXmlText node to a ProseMirror text node.
+     *
+     * @param yText the Y-CRDT text node
+     * @param schema the ProseMirror schema
+     * @return the ProseMirror text node
+     */
+    private static Node convertYXmlTextToNode(YXmlText yText, Schema schema) {
+        String text = yText.toString();
+
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+
+        // TODO: Extract formatting attributes and convert to marks
+        // For now, create plain text without marks
+        return schema.text(text, null);
+    }
+
+    /**
+     * Converts Y-CRDT XML attributes to a ProseMirror attribute map.
+     *
+     * @param yElement the Y-CRDT element
+     * @return a map of attribute name to value
+     */
+    private static Map<String, Object> xmlAttrsToMap(YXmlElement yElement) {
+        Map<String, Object> attrs = new HashMap<>();
+
+        // Get all attribute names
+        String[] attrNames = yElement.getAttributeNames();
+        if (attrNames != null) {
+            for (String name : attrNames) {
+                String value = yElement.getAttribute(name);
+                if (value != null) {
+                    attrs.put(name, value);
+                }
+            }
+        }
+
+        return attrs.isEmpty() ? null : attrs;
+    }
+
+    /**
+     * Converts Y-CRDT formatting attributes to ProseMirror marks.
+     *
+     * @param attrs the formatting attributes from YXmlText
+     * @param schema the ProseMirror schema
+     * @return a list of ProseMirror marks
+     */
+    @SuppressWarnings("unused")
+    private static List<Mark> attributesToMarks(Map<String, Object> attrs, Schema schema) {
+        List<Mark> marks = new ArrayList<>();
+
+        if (attrs == null || attrs.isEmpty()) {
+            return marks;
+        }
+
+        for (Map.Entry<String, Object> entry : attrs.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            // Check if this is a simple mark (boolean true)
+            if (value instanceof Boolean && (Boolean) value) {
+                // Simple mark like "bold", "italic"
+                com.atlassian.prosemirror.model.MarkType markType = schema.getMarks().get(key);
+                if (markType != null) {
+                    marks.add(schema.mark(markType, null));
+                }
+            } else if (key.contains("_")) {
+                // Complex mark with attributes (e.g., "link_href")
+                String[] parts = key.split("_", 2);
+                String markName = parts[0];
+                String attrName = parts[1];
+
+                com.atlassian.prosemirror.model.MarkType markType = schema.getMarks().get(markName);
+                if (markType != null) {
+                    Map<String, Object> markAttrs = new HashMap<>();
+                    markAttrs.put(attrName, value);
+                    marks.add(schema.mark(markType, markAttrs));
+                }
+            }
+        }
+
+        return marks;
     }
 }
