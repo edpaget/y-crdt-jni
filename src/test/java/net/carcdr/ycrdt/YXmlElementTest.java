@@ -724,4 +724,266 @@ public class YXmlElementTest {
             text.close();
         }
     }
+
+    // Ancestor lookup tests
+
+    @Test
+    public void testGetParentOfRootElement() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            Object parent = div.getParent();
+            assertNotNull(parent);
+            assertTrue(parent instanceof YXmlFragment);
+            ((YXmlFragment) parent).close();
+        }
+    }
+
+    @Test
+    public void testGetParentOfChildElement() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+
+            Object parent = span.getParent();
+            assertNotNull(parent);
+            assertTrue(parent instanceof YXmlElement);
+            assertEquals("div", ((YXmlElement) parent).getTag());
+
+            span.close();
+            ((YXmlElement) parent).close();
+        }
+    }
+
+    @Test
+    public void testGetParentOfNestedElement() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement p = div.insertElement(0, "p");
+            YXmlElement span = p.insertElement(0, "span");
+
+            // Check span's parent is p
+            Object spanParent = span.getParent();
+            assertNotNull(spanParent);
+            assertTrue(spanParent instanceof YXmlElement);
+            assertEquals("p", ((YXmlElement) spanParent).getTag());
+
+            // Check p's parent is div
+            Object pParent = p.getParent();
+            assertNotNull(pParent);
+            assertTrue(pParent instanceof YXmlElement);
+            assertEquals("div", ((YXmlElement) pParent).getTag());
+
+            p.close();
+            span.close();
+            ((YXmlElement) spanParent).close();
+            ((YXmlElement) pParent).close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentSingleChild() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+
+            assertEquals(0, span.getIndexInParent());
+
+            span.close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentMultipleChildren() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement child0 = div.insertElement(0, "h1");
+            YXmlElement child1 = div.insertElement(1, "p");
+            YXmlElement child2 = div.insertElement(2, "span");
+
+            assertEquals(0, child0.getIndexInParent());
+            assertEquals(1, child1.getIndexInParent());
+            assertEquals(2, child2.getIndexInParent());
+
+            child0.close();
+            child1.close();
+            child2.close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentAfterInsertion() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement child0 = div.insertElement(0, "h1");
+            YXmlElement child1 = div.insertElement(1, "p");
+
+            assertEquals(0, child0.getIndexInParent());
+            assertEquals(1, child1.getIndexInParent());
+
+            // Insert a new element at index 0, shifting others
+            YXmlElement newChild = div.insertElement(0, "span");
+
+            assertEquals(0, newChild.getIndexInParent());
+            assertEquals(1, child0.getIndexInParent());
+            assertEquals(2, child1.getIndexInParent());
+
+            child0.close();
+            child1.close();
+            newChild.close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentRootElement() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            int index = div.getIndexInParent();
+            assertEquals(0, index); // Root element should be at index 0 in its fragment
+        }
+    }
+
+    @Test
+    public void testGetParentAndIndexForTextNode() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+            YXmlText text = span.insertText(0);
+
+            // Check text's parent is span
+            Object textParent = text.getParent();
+            assertNotNull(textParent);
+            assertTrue(textParent instanceof YXmlElement);
+            assertEquals("span", ((YXmlElement) textParent).getTag());
+
+            // Check text's index in parent
+            assertEquals(0, text.getIndexInParent());
+
+            span.close();
+            text.close();
+            ((YXmlElement) textParent).close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentMixedChildren() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+            YXmlText text1 = div.insertText(1);
+            YXmlElement p = div.insertElement(2, "p");
+            YXmlText text2 = div.insertText(3);
+
+            assertEquals(0, span.getIndexInParent());
+            assertEquals(1, text1.getIndexInParent());
+            assertEquals(2, p.getIndexInParent());
+            assertEquals(3, text2.getIndexInParent());
+
+            span.close();
+            text1.close();
+            p.close();
+            text2.close();
+        }
+    }
+
+    @Test
+    public void testParentNavigationAfterRemoval() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement child0 = div.insertElement(0, "h1");
+            YXmlElement child1 = div.insertElement(1, "p");
+            YXmlElement child2 = div.insertElement(2, "span");
+
+            assertEquals(0, child0.getIndexInParent());
+            assertEquals(1, child1.getIndexInParent());
+            assertEquals(2, child2.getIndexInParent());
+
+            // Remove middle child
+            div.removeChild(1);
+
+            // Indices should update
+            assertEquals(0, child0.getIndexInParent());
+            assertEquals(1, child2.getIndexInParent());
+
+            child0.close();
+            child1.close();
+            child2.close();
+        }
+    }
+
+    @Test
+    public void testAncestorNavigationDeeplyNested() {
+        try (YDoc doc = new YDoc();
+             YXmlElement root = doc.getXmlElement("root")) {
+            // Create: root > level1 > level2 > level3
+            YXmlElement level1 = root.insertElement(0, "level1");
+            YXmlElement level2 = level1.insertElement(0, "level2");
+            YXmlElement level3 = level2.insertElement(0, "level3");
+
+            // Navigate up from level3 to root
+            Object parent3 = level3.getParent();
+            assertNotNull(parent3);
+            assertTrue(parent3 instanceof YXmlElement);
+            assertEquals("level2", ((YXmlElement) parent3).getTag());
+            assertEquals(0, level3.getIndexInParent());
+
+            Object parent2 = ((YXmlElement) parent3).getParent();
+            assertNotNull(parent2);
+            assertTrue(parent2 instanceof YXmlElement);
+            assertEquals("level1", ((YXmlElement) parent2).getTag());
+            assertEquals(0, level2.getIndexInParent());
+
+            Object parent1 = ((YXmlElement) parent2).getParent();
+            assertNotNull(parent1);
+            assertTrue(parent1 instanceof YXmlElement);
+            assertEquals("root", ((YXmlElement) parent1).getTag());
+            assertEquals(0, level1.getIndexInParent());
+
+            // Root's parent should be a fragment
+            Object rootParent = root.getParent();
+            assertNotNull(rootParent);
+            assertTrue(rootParent instanceof YXmlFragment);
+
+            level1.close();
+            level2.close();
+            level3.close();
+            ((YXmlElement) parent3).close();
+            ((YXmlElement) parent2).close();
+            ((YXmlElement) parent1).close();
+            ((YXmlFragment) rootParent).close();
+        }
+    }
+
+    @Test
+    public void testParentNavigationSynchronization() {
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Create nested structure in doc1
+            try (YXmlElement div1 = doc1.getXmlElement("div")) {
+                YXmlElement p = div1.insertElement(0, "p");
+                p.setAttribute("id", "para");
+                p.close();
+            }
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Verify parent navigation works in doc2
+            try (YXmlElement div2 = doc2.getXmlElement("div")) {
+                Object child = div2.getChild(0);
+                assertTrue(child instanceof YXmlElement);
+                YXmlElement p = (YXmlElement) child;
+
+                Object parent = p.getParent();
+                assertNotNull(parent);
+                assertTrue(parent instanceof YXmlElement);
+                assertEquals("div", ((YXmlElement) parent).getTag());
+                assertEquals(0, p.getIndexInParent());
+
+                p.close();
+                ((YXmlElement) parent).close();
+            }
+        }
+    }
 }

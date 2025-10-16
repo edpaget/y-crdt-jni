@@ -4,7 +4,7 @@ use jni::sys::{jint, jlong, jstring};
 use jni::JNIEnv;
 use std::collections::HashMap;
 use std::sync::Arc;
-use yrs::{Any, Doc, GetString, Text, Transact, XmlFragment, XmlTextPrelim, XmlTextRef};
+use yrs::{Any, Doc, GetString, Text, Transact, Xml, XmlFragment, XmlTextPrelim, XmlTextRef};
 
 /// Gets or creates a YXmlText instance from a YDoc
 ///
@@ -484,6 +484,177 @@ fn convert_java_map_to_attrs(
     }
 
     Ok(attrs)
+}
+
+/// Gets the parent of this XML text node
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_text_ptr`: Pointer to the YXmlText instance
+///
+/// # Returns
+///
+/// An Object array [type, pointer] where:
+/// - type: 0 = XmlElement, 1 = XmlFragment
+/// - pointer: Java pointer to the parent object
+///
+/// Returns null if this node has no parent
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetParent<'a>(
+    mut env: JNIEnv<'a>,
+    _class: JClass<'a>,
+    doc_ptr: jlong,
+    xml_text_ptr: jlong,
+) -> JObject<'a> {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return JObject::null();
+    }
+    if xml_text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlText pointer");
+        return JObject::null();
+    }
+
+    unsafe {
+        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
+
+        match text.parent() {
+            Some(parent) => {
+                use yrs::XmlOut;
+
+                // Create Object array [type, pointer]
+                // type: 0=Element, 1=Fragment
+                let (type_val, ptr) = match parent {
+                    XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
+                    XmlOut::Fragment(frag) => (1i32, to_java_ptr(frag)),
+                    XmlOut::Text(_) => {
+                        throw_exception(&mut env, "Unexpected XmlText as parent");
+                        return JObject::null();
+                    }
+                };
+
+                // Create Object array
+                let array = match env.new_object_array(2, "java/lang/Object", JObject::null()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        throw_exception(&mut env, &format!("Failed to create array: {:?}", e));
+                        return JObject::null();
+                    }
+                };
+
+                // Set type (Integer)
+                let type_obj = match env.new_object(
+                    "java/lang/Integer",
+                    "(I)V",
+                    &[jni::objects::JValueGen::Int(type_val)],
+                ) {
+                    Ok(obj) => obj,
+                    Err(e) => {
+                        throw_exception(&mut env, &format!("Failed to create Integer: {:?}", e));
+                        return JObject::null();
+                    }
+                };
+
+                if let Err(e) = env.set_object_array_element(&array, 0, type_obj) {
+                    throw_exception(&mut env, &format!("Failed to set type: {:?}", e));
+                    return JObject::null();
+                }
+
+                // Set pointer (Long)
+                let ptr_obj = match env.new_object(
+                    "java/lang/Long",
+                    "(J)V",
+                    &[jni::objects::JValueGen::Long(ptr)],
+                ) {
+                    Ok(obj) => obj,
+                    Err(e) => {
+                        throw_exception(&mut env, &format!("Failed to create Long: {:?}", e));
+                        return JObject::null();
+                    }
+                };
+
+                if let Err(e) = env.set_object_array_element(&array, 1, ptr_obj) {
+                    throw_exception(&mut env, &format!("Failed to set pointer: {:?}", e));
+                    return JObject::null();
+                }
+
+                JObject::from(array)
+            }
+            None => JObject::null(),
+        }
+    }
+}
+
+/// Gets the index of this XML text node within its parent
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_text_ptr`: Pointer to the YXmlText instance
+///
+/// # Returns
+/// The 0-based index of this node within its parent's children,
+/// or -1 if this node has no parent or the index could not be determined
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParent(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    xml_text_ptr: jlong,
+) -> jni::sys::jint {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return -1;
+    }
+    if xml_text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlText pointer");
+        return -1;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
+        let txn = doc.transact();
+
+        match text.parent() {
+            Some(parent) => {
+                use yrs::XmlOut;
+
+                use yrs::branch::Branch;
+                let my_id = <XmlTextRef as AsRef<Branch>>::as_ref(text).id();
+
+                // Match on parent type and iterate children directly
+                match parent {
+                    XmlOut::Element(elem) => {
+                        // Iterate through parent's children to find our index
+                        for index in 0..elem.len(&txn) {
+                            if let Some(child) = elem.get(&txn, index) {
+                                let child_id = child.as_ptr().id();
+                                if child_id == my_id {
+                                    return index as jni::sys::jint;
+                                }
+                            }
+                        }
+                        -1
+                    }
+                    XmlOut::Fragment(frag) => {
+                        // Iterate through parent's children to find our index
+                        for index in 0..frag.len(&txn) {
+                            if let Some(child) = frag.get(&txn, index) {
+                                let child_id = child.as_ptr().id();
+                                if child_id == my_id {
+                                    return index as jni::sys::jint;
+                                }
+                            }
+                        }
+                        -1
+                    }
+                    XmlOut::Text(_) => -1, // Text can't be a parent
+                }
+            }
+            None => -1, // No parent
+        }
+    }
 }
 
 #[cfg(test)]

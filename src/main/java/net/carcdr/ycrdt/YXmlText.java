@@ -231,6 +231,47 @@ public class YXmlText implements Closeable {
     }
 
     /**
+     * Gets the parent of this XML text node.
+     * The parent can be either a YXmlElement or YXmlFragment.
+     *
+     * @return The parent node (YXmlElement or YXmlFragment), or null if this text node has no parent
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public Object getParent() {
+        checkClosed();
+        Object result = nativeGetParent(doc.getNativePtr(), nativePtr);
+        if (result == null) {
+            return null;
+        }
+
+        // Result is Object[2] where [0] = Integer type, [1] = Long pointer
+        Object[] array = (Object[]) result;
+        int type = ((Integer) array[0]).intValue();
+        long pointer = ((Long) array[1]).longValue();
+
+        if (type == 0) {
+            // Element
+            return new YXmlElement(doc, pointer);
+        } else if (type == 1) {
+            // Fragment
+            return new YXmlFragment(doc, pointer);
+        } else {
+            throw new RuntimeException("Unknown parent type: " + type);
+        }
+    }
+
+    /**
+     * Gets the index of this text node within its parent's children.
+     *
+     * @return The 0-based index within parent, or -1 if this text node has no parent
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public int getIndexInParent() {
+        checkClosed();
+        return nativeGetIndexInParent(doc.getNativePtr(), nativePtr);
+    }
+
+    /**
      * Checks if this YXmlText has been closed.
      *
      * @return true if this YXmlText has been closed, false otherwise
@@ -295,4 +336,6 @@ public class YXmlText implements Closeable {
             long docPtr, long xmlTextPtr, int index, String chunk, Map<String, Object> attributes);
     private static native void nativeFormat(
             long docPtr, long xmlTextPtr, int index, int length, Map<String, Object> attributes);
+    private static native Object nativeGetParent(long docPtr, long xmlTextPtr);
+    private static native int nativeGetIndexInParent(long docPtr, long xmlTextPtr);
 }

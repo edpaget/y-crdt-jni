@@ -508,4 +508,165 @@ public class YXmlTextTest {
             assertNotNull(xmlText.toString());
         }
     }
+
+    // Ancestor lookup tests
+
+    @Test
+    public void testGetParentOfRootTextNode() {
+        try (YDoc doc = new YDoc();
+             YXmlText text = doc.getXmlText("test")) {
+            Object parent = text.getParent();
+            assertNotNull(parent);
+            assertTrue(parent instanceof YXmlFragment);
+            ((YXmlFragment) parent).close();
+        }
+    }
+
+    @Test
+    public void testGetParentOfChildTextNode() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlText text = div.insertText(0);
+
+            Object parent = text.getParent();
+            assertNotNull(parent);
+            assertTrue(parent instanceof YXmlElement);
+            assertEquals("div", ((YXmlElement) parent).getTag());
+
+            text.close();
+            ((YXmlElement) parent).close();
+            div.close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentForTextNode() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlText text = div.insertText(0);
+
+            assertEquals(0, text.getIndexInParent());
+
+            text.close();
+            div.close();
+        }
+    }
+
+    @Test
+    public void testGetIndexInParentMixedChildrenWithText() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+            YXmlText text1 = div.insertText(1);
+            YXmlElement p = div.insertElement(2, "p");
+            YXmlText text2 = div.insertText(3);
+
+            assertEquals(0, span.getIndexInParent());
+            assertEquals(1, text1.getIndexInParent());
+            assertEquals(2, p.getIndexInParent());
+            assertEquals(3, text2.getIndexInParent());
+
+            span.close();
+            text1.close();
+            p.close();
+            text2.close();
+            div.close();
+        }
+    }
+
+    @Test
+    public void testTextNodeParentAfterRemoval() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span = div.insertElement(0, "span");
+            YXmlText text1 = div.insertText(1);
+            YXmlText text2 = div.insertText(2);
+
+            assertEquals(0, span.getIndexInParent());
+            assertEquals(1, text1.getIndexInParent());
+            assertEquals(2, text2.getIndexInParent());
+
+            // Remove middle element (span)
+            div.removeChild(0);
+
+            // Text nodes should have updated indices
+            assertEquals(0, text1.getIndexInParent());
+            assertEquals(1, text2.getIndexInParent());
+
+            span.close();
+            text1.close();
+            text2.close();
+            div.close();
+        }
+    }
+
+    @Test
+    public void testTextNodeParentInNestedStructure() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement p = div.insertElement(0, "p");
+            YXmlText text = p.insertText(0);
+
+            // Check text's parent is p
+            Object textParent = text.getParent();
+            assertNotNull(textParent);
+            assertTrue(textParent instanceof YXmlElement);
+            assertEquals("p", ((YXmlElement) textParent).getTag());
+            assertEquals(0, text.getIndexInParent());
+
+            // Check p's parent is div
+            Object pParent = p.getParent();
+            assertNotNull(pParent);
+            assertTrue(pParent instanceof YXmlElement);
+            assertEquals("div", ((YXmlElement) pParent).getTag());
+            assertEquals(0, p.getIndexInParent());
+
+            div.close();
+            p.close();
+            text.close();
+            ((YXmlElement) textParent).close();
+            ((YXmlElement) pParent).close();
+        }
+    }
+
+    @Test
+    public void testTextNodeParentSynchronization() {
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Create nested structure in doc1
+            try (YXmlElement div1 = doc1.getXmlElement("div")) {
+                YXmlElement p = div1.insertElement(0, "p");
+                YXmlText text = p.insertText(0);
+                text.push("Hello");
+                p.close();
+                text.close();
+            }
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Verify parent navigation works in doc2
+            try (YXmlElement div2 = doc2.getXmlElement("div")) {
+                Object pChild = div2.getChild(0);
+                assertTrue(pChild instanceof YXmlElement);
+                YXmlElement p = (YXmlElement) pChild;
+
+                Object textChild = p.getChild(0);
+                assertTrue(textChild instanceof YXmlText);
+                YXmlText text = (YXmlText) textChild;
+
+                Object textParent = text.getParent();
+                assertNotNull(textParent);
+                assertTrue(textParent instanceof YXmlElement);
+                assertEquals("p", ((YXmlElement) textParent).getTag());
+                assertEquals(0, text.getIndexInParent());
+
+                p.close();
+                text.close();
+                ((YXmlElement) textParent).close();
+            }
+        }
+    }
 }

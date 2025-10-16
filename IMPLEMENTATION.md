@@ -148,7 +148,7 @@ Implements collaborative maps with 12 native methods:
 
 ### YXmlText Bindings (`src/yxmltext.rs`)
 
-Implements collaborative XML text editing with rich text formatting support, 9 native methods:
+Implements collaborative XML text editing with rich text formatting and ancestor lookup support, 11 native methods:
 
 1. **`nativeGetXmlText(docPtr, name)`** - Gets or creates a YXmlText instance
 2. **`nativeDestroy(ptr)`** - Frees YXmlText memory
@@ -159,6 +159,8 @@ Implements collaborative XML text editing with rich text formatting support, 9 n
 7. **`nativeDelete(docPtr, xmlTextPtr, index, length)`** - Deletes text range
 8. **`nativeInsertWithAttributes(docPtr, xmlTextPtr, index, chunk, attributes)`** - Inserts text with formatting
 9. **`nativeFormat(docPtr, xmlTextPtr, index, length, attributes)`** - Applies formatting to text range
+10. **`nativeGetParent(docPtr, xmlTextPtr)`** - Returns parent node [type, pointer] array
+11. **`nativeGetIndexInParent(docPtr, xmlTextPtr)`** - Returns index within parent's children
 
 **Key Implementation Details:**
 - Uses `XmlFragmentRef` with lazy `XmlTextPrelim` child creation
@@ -173,13 +175,19 @@ Implements collaborative XML text editing with rich text formatting support, 9 n
   - Type detection via JNI reflection (`getClass().getName()`)
   - Null values in map translate to `Any::Null` for format removal
   - Formatting synchronized across documents via CRDT update mechanism
+- **Ancestor Lookup:**
+  - `parent()` method returns `Option<XmlOut>` (Element or Fragment)
+  - Parent nodes returned as BranchPtr (reference-counted, safe to clone)
+  - Index calculation iterates parent's children, comparing BranchIDs via `AsRef<Branch>::as_ref().id()`
+  - Match on concrete parent types (Element, Fragment) to access `len()` and `get()` methods
+  - Returns -1 if no parent or node not found in parent's children
 
 **Testing:**
 - 7 Rust unit tests covering creation, insert/read, push, delete, and formatting (format, insertWithAttributes, removeFormat)
 
 ### YXmlElement Bindings (`src/yxmlelement.rs`)
 
-Implements collaborative XML elements with hierarchical support, 13 native methods:
+Implements collaborative XML elements with hierarchical support and ancestor lookup, 15 native methods:
 
 1. **`nativeGetXmlElement(docPtr, name)`** - Gets or creates a YXmlElement instance
 2. **`nativeDestroy(ptr)`** - Frees YXmlElement memory
@@ -194,6 +202,8 @@ Implements collaborative XML elements with hierarchical support, 13 native metho
 11. **`nativeInsertText(docPtr, xmlElementPtr, index)`** - Inserts text child at index
 12. **`nativeGetChild(docPtr, xmlElementPtr, index)`** - Returns child node [type, pointer] array
 13. **`nativeRemoveChild(docPtr, xmlElementPtr, index)`** - Removes child at index
+14. **`nativeGetParent(docPtr, xmlElementPtr)`** - Returns parent node [type, pointer] array
+15. **`nativeGetIndexInParent(docPtr, xmlElementPtr)`** - Returns index within parent's children
 
 **Key Implementation Details:**
 - Uses `XmlFragmentRef` with lazy `XmlElementPrelim` child creation
@@ -209,6 +219,12 @@ Implements collaborative XML elements with hierarchical support, 13 native metho
   - Polymorphic child handling via `Object[]` with type indicator (0=Element, 1=Text)
   - Child pointers returned as independent closeable Java objects
   - Supports deeply nested XML structures (elements within elements)
+- **Ancestor Lookup:**
+  - `parent()` method returns `Option<XmlOut>` (Element or Fragment)
+  - Parent nodes returned as BranchPtr (reference-counted, safe to clone)
+  - Index calculation iterates parent's children, comparing BranchIDs via `AsRef<Branch>::as_ref().id()`
+  - Match on concrete parent types (Element, Fragment) to access `len()` and `get()` methods
+  - Returns -1 if no parent or node not found in parent's children
 - Lifetime parameters required for JNI object returns
 
 **Testing:**
@@ -365,7 +381,7 @@ Collaborative map class supporting mixed types:
 
 ### YXmlText (`src/main/java/net/carcdr/ycrdt/YXmlText.java`)
 
-Collaborative XML text editing class with rich text formatting support:
+Collaborative XML text editing class with rich text formatting and ancestor lookup support:
 
 **Public Methods:**
 - `int length()` - Returns XML text length
@@ -375,6 +391,8 @@ Collaborative XML text editing class with rich text formatting support:
 - `void delete(int index, int length)` - Deletes text range
 - `void insertWithAttributes(int index, String chunk, Map<String, Object> attributes)` - Inserts text with formatting
 - `void format(int index, int length, Map<String, Object> attributes)` - Applies formatting to existing text
+- `Object getParent()` - Returns parent node (YXmlElement or YXmlFragment), or null if no parent
+- `int getIndexInParent()` - Returns 0-based index within parent's children, or -1 if no parent
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if closed
 
@@ -393,14 +411,21 @@ Collaborative XML text editing class with rich text formatting support:
   - Null attribute values remove formatting
   - Formatting rendered as XML tags in `toString()` output
   - Formatting synchronized across documents
+- **Ancestor Lookup:**
+  - Navigate upward through XML tree hierarchy with `getParent()`
+  - Determine position within parent using `getIndexInParent()`
+  - Parent can be YXmlElement or YXmlFragment (returned polymorphically as Object)
+  - Parent references are independent closeable instances
+  - Synchronized parent references across documents via CRDT
 
 **Testing:**
-- 34 comprehensive tests including unicode, synchronization, formatting, and edge cases
+- 41 comprehensive tests including unicode, synchronization, formatting, ancestor lookup, and edge cases
 - 14 tests specifically for rich text formatting features
+- 7 tests specifically for ancestor lookup (parent retrieval, index calculation, mixed children, nested structures, synchronization)
 
 ### YXmlElement (`src/main/java/net/carcdr/ycrdt/YXmlElement.java`)
 
-Collaborative XML element class with attribute management and hierarchical support:
+Collaborative XML element class with attribute management, hierarchical support, and ancestor lookup:
 
 **Public Methods:**
 - `String getTag()` - Returns element tag name
@@ -414,6 +439,8 @@ Collaborative XML element class with attribute management and hierarchical suppo
 - `YXmlText insertText(int index)` - Inserts text child at index
 - `Object getChild(int index)` - Returns child (YXmlElement or YXmlText) at index
 - `void removeChild(int index)` - Removes child at index
+- `Object getParent()` - Returns parent node (YXmlElement or YXmlFragment), or null if no parent
+- `int getIndexInParent()` - Returns 0-based index within parent's children, or -1 if no parent
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if closed
 
@@ -427,6 +454,12 @@ Collaborative XML element class with attribute management and hierarchical suppo
   - Remove children by index
   - Supports deeply nested XML structures
   - Child objects are independent closeable instances
+- **Ancestor Lookup:**
+  - Navigate upward through XML tree hierarchy with `getParent()`
+  - Determine position within parent using `getIndexInParent()`
+  - Parent can be YXmlElement or YXmlFragment (returned polymorphically as Object)
+  - Parent references are independent closeable instances
+  - Synchronized parent references across documents via CRDT
 - Comprehensive null checking for attribute names, values, and tags
 - Index bounds checking for child operations
 - Thread-safe close operation
@@ -434,7 +467,7 @@ Collaborative XML element class with attribute management and hierarchical suppo
 - Comprehensive JavaDoc
 
 **Testing:**
-- 43 comprehensive tests (25 original + 18 nested element tests) covering:
+- 55 comprehensive tests (25 original + 18 nested element tests + 12 ancestor lookup tests) covering:
   - Attribute operations, tag retrieval, and synchronization
   - Child count and insertion (elements and text)
   - Child retrieval and removal
@@ -442,6 +475,12 @@ Collaborative XML element class with attribute management and hierarchical suppo
   - Mixed children (elements and text)
   - Deeply nested structures (5+ levels)
   - Cross-document synchronization with nested content
+  - **Ancestor lookup tests:**
+    - Parent retrieval for root elements (fragment parents)
+    - Parent retrieval for nested elements (element parents)
+    - Index calculation within parent
+    - Navigation through deeply nested hierarchies (4+ levels)
+    - Parent synchronization across documents
   - Error handling (null tags, negative indices, out of bounds)
 
 ### YXmlFragment (`src/main/java/net/carcdr/ycrdt/YXmlFragment.java`)
@@ -475,6 +514,11 @@ Collaborative XML fragment container class for hierarchical XML structures:
 - Child objects must be closed separately using try-with-resources
 - Returns null if index is out of bounds or wrong node type
 - Enables tree navigation and manipulation
+
+**Ancestor Lookup Support (Added 2025-10-16):**
+- Added package-private constructor accepting `long nativeHandle` directly
+- Enables YXmlFragment to be returned from `getParent()` calls in YXmlElement/YXmlText
+- Fragment pointer is reference-counted BranchPtr, safe to return as independent Java object
 
 **Testing:**
 - 9 comprehensive tests (2 basic + 7 for child retrieval) covering:
@@ -724,7 +768,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (179 total)
+### Java Tests (198 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -756,7 +800,7 @@ let string = match env.get_string(&input) {
 - Complex operation sequences
 - Multiple maps in same document
 
-**YXmlTextTest (34 tests):**
+**YXmlTextTest (41 tests):**
 - XML text operations (insert, push, delete)
 - Unicode and emoji support
 - Synchronization
@@ -773,8 +817,14 @@ let string = match env.get_string(&input) {
   - Mixed content and formatting
   - Various attribute types (Boolean, Integer, String, Double)
   - Error handling (null attributes, negative indices)
+- **Ancestor lookup (7 tests):**
+  - Parent retrieval for text nodes
+  - Index calculation within parent
+  - Mixed children with elements
+  - Nested structures
+  - Parent synchronization across documents
 
-**YXmlElementTest (43 tests):**
+**YXmlElementTest (55 tests):**
 - Element creation and tag retrieval
 - Attribute operations (get, set, remove)
 - Attribute name enumeration
@@ -794,6 +844,12 @@ let string = match env.get_string(&input) {
   - Complex nested structures (5+ levels deep)
   - XML string representation with nesting
   - Error handling (null tags, negative indices, out of bounds)
+- **Ancestor lookup (12 tests):**
+  - Parent retrieval for root elements (fragment parents)
+  - Parent retrieval for nested elements (element parents)
+  - Index calculation within parent
+  - Navigation through deeply nested hierarchies (4+ levels)
+  - Parent synchronization across documents
 
 **YXmlFragmentTest (9 tests):**
 - Fragment creation and lifecycle

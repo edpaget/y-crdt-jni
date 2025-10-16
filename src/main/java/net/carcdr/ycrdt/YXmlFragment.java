@@ -57,6 +57,24 @@ public class YXmlFragment implements AutoCloseable {
     }
 
     /**
+     * Package-private constructor that accepts a native handle directly.
+     * Used for retrieving fragment references from parent navigation.
+     *
+     * @param doc The parent YDoc instance
+     * @param nativeHandle The native pointer to the XmlFragmentRef
+     */
+    YXmlFragment(YDoc doc, long nativeHandle) {
+        if (doc == null) {
+            throw new IllegalArgumentException("YDoc cannot be null");
+        }
+        if (nativeHandle == 0) {
+            throw new IllegalArgumentException("Invalid native handle");
+        }
+        this.doc = doc;
+        this.nativeHandle = nativeHandle;
+    }
+
+    /**
      * Returns the number of children in this fragment.
      *
      * @return the number of child nodes

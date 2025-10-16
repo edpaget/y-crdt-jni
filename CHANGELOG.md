@@ -61,10 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for deeply nested hierarchical XML structures
   - Polymorphic child handling (elements and text nodes)
   - 18 comprehensive nested element tests
+- YXmlElement and YXmlText ancestor lookup support
+  - Get parent node for any element or text node (getParent)
+  - Get index within parent's children (getIndexInParent)
+  - Navigate upward through XML tree hierarchy
+  - Parent can be YXmlElement or YXmlFragment
+  - Synchronized parent references across documents
+  - 19 comprehensive ancestor lookup tests (12 for YXmlElement, 7 for YXmlText)
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (33 Rust tests, 179 Java tests - 100% passing)
+- Comprehensive test suite (33 Rust tests, 198 Java tests - 100% passing)
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)

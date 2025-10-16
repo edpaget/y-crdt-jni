@@ -461,7 +461,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElement(
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let mut txn = doc.transact_mut();
 
-        let new_element = element.insert(&mut txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
+        let new_element = element.insert(
+            &mut txn,
+            index as u32,
+            XmlElementPrelim::empty(tag_str.as_str()),
+        );
         to_java_ptr(new_element)
     }
 }
@@ -661,6 +665,191 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveChild(
         let mut txn = doc.transact_mut();
 
         element.remove(&mut txn, index as u32);
+    }
+}
+
+/// Gets the parent node of this element
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance
+///
+/// # Returns
+/// A Java Object array [type, pointer] where type is 0 for Element, 1 for Fragment, or null if no parent
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParent<'a>(
+    mut env: JNIEnv<'a>,
+    _class: JClass<'a>,
+    doc_ptr: jlong,
+    xml_element_ptr: jlong,
+) -> JObject<'a> {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return JObject::null();
+    }
+    if xml_element_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return JObject::null();
+    }
+
+    unsafe {
+        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+
+        match element.parent() {
+            Some(parent) => {
+                use yrs::XmlOut;
+
+                // Create Object array [type, pointer]
+                let object_class = match env.find_class("java/lang/Object") {
+                    Ok(cls) => cls,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to find Object class");
+                        return JObject::null();
+                    }
+                };
+
+                let array = match env.new_object_array(2, object_class, JObject::null()) {
+                    Ok(arr) => arr,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to create Object array");
+                        return JObject::null();
+                    }
+                };
+
+                let (type_val, ptr) = match parent {
+                    XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
+                    XmlOut::Fragment(frag) => (1i32, to_java_ptr(frag)),
+                    XmlOut::Text(_) => {
+                        throw_exception(&mut env, "Unexpected XmlText as parent");
+                        return JObject::null();
+                    }
+                };
+
+                // Set type as Integer
+                let integer_class = match env.find_class("java/lang/Integer") {
+                    Ok(cls) => cls,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to find Integer class");
+                        return JObject::null();
+                    }
+                };
+
+                let type_obj = match env.new_object(
+                    integer_class,
+                    "(I)V",
+                    &[jni::objects::JValue::Int(type_val)],
+                ) {
+                    Ok(obj) => obj,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to create Integer object");
+                        return JObject::null();
+                    }
+                };
+
+                if env.set_object_array_element(&array, 0, &type_obj).is_err() {
+                    throw_exception(&mut env, "Failed to set type in array");
+                    return JObject::null();
+                }
+
+                // Set pointer as Long
+                let long_class = match env.find_class("java/lang/Long") {
+                    Ok(cls) => cls,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to find Long class");
+                        return JObject::null();
+                    }
+                };
+
+                let ptr_obj =
+                    match env.new_object(long_class, "(J)V", &[jni::objects::JValue::Long(ptr)]) {
+                        Ok(obj) => obj,
+                        Err(_) => {
+                            throw_exception(&mut env, "Failed to create Long object");
+                            return JObject::null();
+                        }
+                    };
+
+                if env.set_object_array_element(&array, 1, &ptr_obj).is_err() {
+                    throw_exception(&mut env, "Failed to set pointer in array");
+                    return JObject::null();
+                }
+
+                JObject::from(array)
+            }
+            None => JObject::null(),
+        }
+    }
+}
+
+/// Gets the index of this element within its parent's children
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance
+///
+/// # Returns
+/// The index within parent, or -1 if no parent or not found
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    xml_element_ptr: jlong,
+) -> jni::sys::jint {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return -1;
+    }
+    if xml_element_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return -1;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+        let txn = doc.transact();
+
+        // Get parent and iterate through children to find index
+        match element.parent() {
+            Some(parent) => {
+                use yrs::XmlOut;
+
+                use yrs::branch::Branch;
+                let my_id = <XmlElementRef as AsRef<Branch>>::as_ref(element).id();
+
+                // Match on parent type and iterate children directly
+                match parent {
+                    XmlOut::Element(elem) => {
+                        // Iterate through parent's children to find our index
+                        for index in 0..elem.len(&txn) {
+                            if let Some(child) = elem.get(&txn, index) {
+                                let child_id = child.as_ptr().id();
+                                if child_id == my_id {
+                                    return index as jni::sys::jint;
+                                }
+                            }
+                        }
+                        -1
+                    }
+                    XmlOut::Fragment(frag) => {
+                        // Iterate through parent's children to find our index
+                        for index in 0..frag.len(&txn) {
+                            if let Some(child) = frag.get(&txn, index) {
+                                let child_id = child.as_ptr().id();
+                                if child_id == my_id {
+                                    return index as jni::sys::jint;
+                                }
+                            }
+                        }
+                        -1
+                    }
+                    XmlOut::Text(_) => -1, // Text can't be a parent
+                }
+            }
+            None => -1, // No parent
+        }
     }
 }
 
