@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - XML string representation support
   - XmlFragmentRef-based implementation for proper CRDT synchronization
   - 25 comprehensive tests
+- YXmlText rich text formatting support
+  - Insert text with formatting attributes (insertWithAttributes)
+  - Apply formatting to existing text ranges (format)
+  - Support for arbitrary formatting attributes (bold, italic, color, font, custom)
+  - Format removal via null attribute values
+  - Map<String, Object> to Attrs conversion with support for Boolean, Integer, Long, Double, String
+  - Formatting synchronized across documents
+  - 14 comprehensive formatting tests
 - YXmlFragment implementation with JNI bindings
   - Hierarchical XML tree support with child node retrieval
   - Insert and remove element/text children at specific indices
@@ -48,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (30 Rust tests, 147 Java tests - 100% passing)
+- Comprehensive test suite (33 Rust tests, 161 Java tests - 100% passing)
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)

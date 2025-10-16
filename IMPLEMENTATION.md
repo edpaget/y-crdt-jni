@@ -148,7 +148,7 @@ Implements collaborative maps with 12 native methods:
 
 ### YXmlText Bindings (`src/yxmltext.rs`)
 
-Implements collaborative XML text editing with 7 native methods:
+Implements collaborative XML text editing with rich text formatting support, 9 native methods:
 
 1. **`nativeGetXmlText(docPtr, name)`** - Gets or creates a YXmlText instance
 2. **`nativeDestroy(ptr)`** - Frees YXmlText memory
@@ -157,6 +157,8 @@ Implements collaborative XML text editing with 7 native methods:
 5. **`nativeInsert(docPtr, xmlTextPtr, index, chunk)`** - Inserts text at index
 6. **`nativePush(docPtr, xmlTextPtr, chunk)`** - Appends text to end
 7. **`nativeDelete(docPtr, xmlTextPtr, index, length)`** - Deletes text range
+8. **`nativeInsertWithAttributes(docPtr, xmlTextPtr, index, chunk, attributes)`** - Inserts text with formatting
+9. **`nativeFormat(docPtr, xmlTextPtr, index, length, attributes)`** - Applies formatting to text range
 
 **Key Implementation Details:**
 - Uses `XmlFragmentRef` with lazy `XmlTextPrelim` child creation
@@ -165,9 +167,15 @@ Implements collaborative XML text editing with 7 native methods:
 - All operations require both document and XML text pointers
 - Transactions created automatically for each operation
 - Unicode and emoji support verified
+- **Rich Text Formatting:**
+  - `convert_java_map_to_attrs()` helper converts Java `Map<String, Object>` to Rust `HashMap<Arc<str>, Any>`
+  - Supports Boolean, Integer, Long, Double, Float, and String attribute values
+  - Type detection via JNI reflection (`getClass().getName()`)
+  - Null values in map translate to `Any::Null` for format removal
+  - Formatting synchronized across documents via CRDT update mechanism
 
 **Testing:**
-- 4 Rust unit tests covering creation, insert/read, push, and delete
+- 7 Rust unit tests covering creation, insert/read, push, delete, and formatting (format, insertWithAttributes, removeFormat)
 
 ### YXmlElement Bindings (`src/yxmlelement.rs`)
 
@@ -345,14 +353,16 @@ Collaborative map class supporting mixed types:
 
 ### YXmlText (`src/main/java/net/carcdr/ycrdt/YXmlText.java`)
 
-Collaborative XML text editing class:
+Collaborative XML text editing class with rich text formatting support:
 
 **Public Methods:**
 - `int length()` - Returns XML text length
-- `String toString()` - Returns XML text content
+- `String toString()` - Returns XML text content with formatting as XML tags
 - `void insert(int index, String chunk)` - Inserts text at index
 - `void push(String chunk)` - Appends text to end
 - `void delete(int index, int length)` - Deletes text range
+- `void insertWithAttributes(int index, String chunk, Map<String, Object> attributes)` - Inserts text with formatting
+- `void format(int index, int length, Map<String, Object> attributes)` - Applies formatting to existing text
 - `void close()` - Frees native resources
 - `boolean isClosed()` - Checks if closed
 
@@ -361,13 +371,20 @@ Collaborative XML text editing class:
 - Package-private constructor (created via `YDoc.getXmlText()`)
 - Input validation with meaningful exceptions
 - Index bounds checking
-- Null checking for all string parameters
+- Null checking for all string and map parameters
 - Thread-safe close operation
-- Comprehensive JavaDoc
+- Comprehensive JavaDoc with formatting examples
 - Unicode and emoji support
+- **Rich Text Formatting:**
+  - Arbitrary formatting attributes supported (bold, italic, color, font, custom)
+  - Map values can be Boolean, Integer, Long, Double, String
+  - Null attribute values remove formatting
+  - Formatting rendered as XML tags in `toString()` output
+  - Formatting synchronized across documents
 
 **Testing:**
-- 20 comprehensive tests including unicode, synchronization, and edge cases
+- 34 comprehensive tests including unicode, synchronization, formatting, and edge cases
+- 14 tests specifically for rich text formatting features
 
 ### YXmlElement (`src/main/java/net/carcdr/ycrdt/YXmlElement.java`)
 
@@ -657,7 +674,7 @@ let string = match env.get_string(&input) {
 
 ## Testing Strategy
 
-### Rust Tests (30 total)
+### Rust Tests (33 total)
 
 **Unit Tests:**
 - `lib.rs` - Pointer conversion (1 test)
@@ -665,7 +682,7 @@ let string = match env.get_string(&input) {
 - `ytext.rs` - Text operations (4 tests)
 - `yarray.rs` - Array operations (4 tests)
 - `ymap.rs` - Map operations (4 tests)
-- `yxmltext.rs` - XML text operations (4 tests)
+- `yxmltext.rs` - XML text operations (7 tests, including 3 formatting tests)
 - `yxmlelement.rs` - XML element operations (4 tests)
 - `yxmlfragment.rs` - XML fragment operations (7 tests)
 
@@ -675,7 +692,7 @@ let string = match env.get_string(&input) {
 - Type conversions
 - Memory safety
 
-### Java Tests (147 total)
+### Java Tests (161 total)
 
 **YDocTest (13 tests):**
 - Creation and lifecycle
@@ -707,13 +724,23 @@ let string = match env.get_string(&input) {
 - Complex operation sequences
 - Multiple maps in same document
 
-**YXmlTextTest (20 tests):**
+**YXmlTextTest (34 tests):**
 - XML text operations (insert, push, delete)
 - Unicode and emoji support
 - Synchronization
 - Complex editing sequences
 - Error handling and edge cases
 - Bidirectional synchronization
+- **Rich text formatting (14 tests):**
+  - Format with bold and italic
+  - Insert text with attributes
+  - Multiple formatting attributes
+  - Format removal
+  - Complex formatting sequences
+  - Formatting synchronization
+  - Mixed content and formatting
+  - Various attribute types (Boolean, Integer, String, Double)
+  - Error handling (null attributes, negative indices)
 
 **YXmlElementTest (25 tests):**
 - Element creation and tag retrieval

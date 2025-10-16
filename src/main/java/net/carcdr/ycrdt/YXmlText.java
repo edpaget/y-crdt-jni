@@ -1,13 +1,14 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.Map;
 
 /**
  * YXmlText represents a collaborative XML text type in a Y-CRDT document.
  *
  * <p>YXmlText provides collaborative text editing operations specifically designed for
- * XML documents. It supports insert, push, and delete operations with automatic conflict
- * resolution.</p>
+ * XML documents. It supports insert, push, delete, and rich text formatting operations
+ * with automatic conflict resolution.</p>
  *
  * <p>This class implements {@link Closeable} and should be used with try-with-resources
  * to ensure proper cleanup of native resources.</p>
@@ -147,6 +148,89 @@ public class YXmlText implements Closeable {
     }
 
     /**
+     * Inserts text with formatting attributes at the specified index.
+     *
+     * <p>The attributes map can contain formatting information such as:</p>
+     * <ul>
+     *   <li>Bold: {@code Map.of("b", true)}</li>
+     *   <li>Italic: {@code Map.of("i", true)}</li>
+     *   <li>Font: {@code Map.of("font", "Arial")}</li>
+     *   <li>Color: {@code Map.of("color", "#FF0000")}</li>
+     * </ul>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * Map<String, Object> bold = Map.of("b", true);
+     * xmlText.insertWithAttributes(0, "Hello", bold);
+     * }</pre>
+     *
+     * @param index The index at which to insert the text (0-based)
+     * @param chunk The text to insert
+     * @param attributes A map of formatting attributes to apply to the text
+     * @throws IllegalArgumentException if chunk or attributes is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public void insertWithAttributes(int index, String chunk, Map<String, Object> attributes) {
+        checkClosed();
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        if (attributes == null) {
+            throw new IllegalArgumentException("Attributes cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, index, chunk, attributes);
+    }
+
+    /**
+     * Formats a range of text with the specified attributes.
+     *
+     * <p>This method applies formatting to existing text. The attributes map can contain
+     * formatting information such as:</p>
+     * <ul>
+     *   <li>Bold: {@code Map.of("b", true)}</li>
+     *   <li>Italic: {@code Map.of("i", true)}</li>
+     *   <li>Underline: {@code Map.of("u", true)}</li>
+     * </ul>
+     *
+     * <p>To remove formatting, pass {@code null} as the attribute value:</p>
+     * <pre>{@code
+     * Map<String, Object> removeBold = Map.of("b", null);
+     * xmlText.format(0, 5, removeBold);
+     * }</pre>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * xmlText.insert(0, "Hello World");
+     * Map<String, Object> bold = Map.of("b", true);
+     * xmlText.format(0, 5, bold); // Makes "Hello" bold
+     * }</pre>
+     *
+     * @param index The starting index of the range to format (0-based)
+     * @param length The number of characters to format
+     * @param attributes A map of formatting attributes to apply
+     * @throws IllegalArgumentException if attributes is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index or length is negative
+     */
+    public void format(int index, int length, Map<String, Object> attributes) {
+        checkClosed();
+        if (attributes == null) {
+            throw new IllegalArgumentException("Attributes cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        }
+        nativeFormat(doc.getNativePtr(), nativePtr, index, length, attributes);
+    }
+
+    /**
      * Checks if this YXmlText has been closed.
      *
      * @return true if this YXmlText has been closed, false otherwise
@@ -207,4 +291,8 @@ public class YXmlText implements Closeable {
     private static native void nativeInsert(long docPtr, long xmlTextPtr, int index, String chunk);
     private static native void nativePush(long docPtr, long xmlTextPtr, String chunk);
     private static native void nativeDelete(long docPtr, long xmlTextPtr, int index, int length);
+    private static native void nativeInsertWithAttributes(
+            long docPtr, long xmlTextPtr, int index, String chunk, Map<String, Object> attributes);
+    private static native void nativeFormat(
+            long docPtr, long xmlTextPtr, int index, int length, Map<String, Object> attributes);
 }

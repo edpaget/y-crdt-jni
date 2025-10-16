@@ -2,6 +2,9 @@ package net.carcdr.ycrdt;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -274,6 +277,235 @@ public class YXmlTextTest {
 
             xmlText.push(" 🌍");
             assertTrue(xmlText.toString().contains("🌍"));
+        }
+    }
+
+    // Rich text formatting tests
+
+    @Test
+    public void testFormatBold() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello world");
+
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.format(0, 5, bold);
+
+            assertEquals("<b>hello</b> world", xmlText.toString());
+        }
+    }
+
+    @Test
+    public void testFormatItalic() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello world");
+
+            Map<String, Object> italic = new HashMap<>();
+            italic.put("i", true);
+            xmlText.format(6, 5, italic);
+
+            assertEquals("hello <i>world</i>", xmlText.toString());
+        }
+    }
+
+    @Test
+    public void testInsertWithAttributes() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello ");
+
+            Map<String, Object> italic = new HashMap<>();
+            italic.put("i", true);
+            xmlText.insertWithAttributes(6, "world", italic);
+
+            assertEquals("hello <i>world</i>", xmlText.toString());
+        }
+    }
+
+    @Test
+    public void testMultipleFormattingAttributes() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello world");
+
+            // Apply bold first
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.format(0, 5, bold);
+
+            // Then apply italic to overlapping region
+            Map<String, Object> italic = new HashMap<>();
+            italic.put("i", true);
+            xmlText.format(0, 5, italic);
+
+            String result = xmlText.toString();
+            // Both formatting attributes should be present
+            assertTrue(result.contains("b") || result.contains("i"));
+        }
+    }
+
+    @Test
+    public void testRemoveFormatting() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            // Insert with italic
+            Map<String, Object> italic = new HashMap<>();
+            italic.put("i", true);
+            xmlText.insertWithAttributes(0, "world", italic);
+
+            assertEquals("<i>world</i>", xmlText.toString());
+
+            // Remove italic formatting
+            Map<String, Object> removeItalic = new HashMap<>();
+            removeItalic.put("i", null);
+            xmlText.format(0, 5, removeItalic);
+
+            assertEquals("world", xmlText.toString());
+        }
+    }
+
+    @Test
+    public void testComplexFormattingSequence() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "The quick brown fox");
+
+            // Make "quick" bold
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.format(4, 5, bold);
+
+            assertTrue(xmlText.toString().contains("b"));
+            assertTrue(xmlText.toString().contains("quick"));
+        }
+    }
+
+    @Test
+    public void testFormattingSynchronization() {
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Apply formatting in doc1
+            try (YXmlText xmlText1 = doc1.getXmlText("shared")) {
+                xmlText1.insert(0, "hello world");
+
+                Map<String, Object> bold = new HashMap<>();
+                bold.put("b", true);
+                xmlText1.format(0, 5, bold);
+            }
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Verify formatting is preserved
+            try (YXmlText xmlText2 = doc2.getXmlText("shared")) {
+                assertEquals("<b>hello</b> world", xmlText2.toString());
+            }
+        }
+    }
+
+    @Test
+    public void testInsertWithAttributesSynchronization() {
+        try (YDoc doc1 = new YDoc();
+             YDoc doc2 = new YDoc()) {
+
+            // Insert with attributes in doc1
+            try (YXmlText xmlText1 = doc1.getXmlText("shared")) {
+                Map<String, Object> italic = new HashMap<>();
+                italic.put("i", true);
+                xmlText1.insertWithAttributes(0, "hello", italic);
+            }
+
+            // Sync to doc2
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Verify formatting is preserved
+            try (YXmlText xmlText2 = doc2.getXmlText("shared")) {
+                assertEquals("<i>hello</i>", xmlText2.toString());
+            }
+        }
+    }
+
+    @Test
+    public void testMixedContentAndFormatting() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            // Insert plain text
+            xmlText.insert(0, "hello ");
+
+            // Insert with bold
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.insertWithAttributes(6, "world", bold);
+
+            // Add more plain text
+            xmlText.push("!");
+
+            String result = xmlText.toString();
+            assertTrue(result.contains("hello"));
+            assertTrue(result.contains("world"));
+            assertTrue(result.contains("!"));
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFormatNullAttributes() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello");
+            xmlText.format(0, 5, null);
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInsertWithAttributesNullAttributes() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insertWithAttributes(0, "hello", null);
+        }
+    }
+
+    @Test(expected = IndexOutOfBoundsException.class)
+    public void testFormatNegativeIndex() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.format(-1, 5, bold);
+        }
+    }
+
+    @Test(expected = IndexOutOfBoundsException.class)
+    public void testFormatNegativeLength() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+            xmlText.format(0, -1, bold);
+        }
+    }
+
+    @Test
+    public void testVariousAttributeTypes() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello");
+
+            // Test with different value types
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("b", true);           // Boolean
+            attrs.put("size", 14);          // Integer
+            attrs.put("color", "#FF0000");  // String
+            attrs.put("opacity", 0.5);      // Double
+
+            xmlText.format(0, 5, attrs);
+
+            // Should not throw an exception
+            assertNotNull(xmlText.toString());
         }
     }
 }

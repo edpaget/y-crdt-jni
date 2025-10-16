@@ -15,6 +15,17 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## Recent Updates (2025-10-16)
 
+### YXmlText Rich Text Formatting ✅ COMPLETE
+- Implemented full rich text formatting support for YXmlText
+- **New Methods:** `insertWithAttributes(index, text, attributes)` and `format(index, length, attributes)`
+- Supports arbitrary formatting attributes (bold, italic, color, font, custom attributes)
+- Format removal via null attribute values
+- Comprehensive Java Map<String, Object> to Rust HashMap<Arc<str>, Any> conversion
+- 3 new Rust unit tests for formatting operations (all passing)
+- 14 new Java tests for rich text formatting (all passing)
+- Enables collaborative rich text editors and formatted XML content
+- Formatting synchronized across documents
+
 ### YXmlFragment Child Node Retrieval ✅ COMPLETE
 - Implemented hierarchical XML child access API
 - **YXmlFragment:** Added `getElement(int)` and `getText(int)` methods for retrieving child nodes
@@ -143,8 +154,11 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 - ✅ `nativeInsert(long, long, int, String)` - Insert text at index
 - ✅ `nativePush(long, long, String)` - Append text to end
 - ✅ `nativeDelete(long, long, int, int)` - Delete range of text
+- ✅ `nativeInsertWithAttributes(long, long, int, String, Map)` - Insert text with formatting
+- ✅ `nativeFormat(long, long, int, int, Map)` - Apply formatting to text range
+- ✅ Helper function `convert_java_map_to_attrs` for Map<String, Object> to Attrs conversion
 - ✅ Uses XmlFragmentRef with XmlTextPrelim child for proper CRDT synchronization
-- ✅ 4 Rust unit tests (all passing)
+- ✅ 7 Rust unit tests (all passing) including 3 formatting tests
 
 ### YXmlElement Implementation Details (src/yxmlelement.rs) ✅ COMPLETE
 - ✅ `nativeGetXmlElement(long, String)` - Get or create YXmlElement instance
@@ -218,12 +232,15 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 ### YXmlText.java Features ✅ COMPLETE
 - ✅ Implements `Closeable` for proper resource management
 - ✅ Full API: `length()`, `toString()`, `insert()`, `push()`, `delete()`, `close()`, `isClosed()`
+- ✅ Rich text formatting: `insertWithAttributes()`, `format()`
+- ✅ Support for arbitrary formatting attributes (Map<String, Object>)
+- ✅ Format removal via null attribute values
 - ✅ Input validation with meaningful exceptions (null checks, bounds checking)
 - ✅ Thread-safe close() operation
-- ✅ Comprehensive JavaDoc with examples
+- ✅ Comprehensive JavaDoc with formatting examples
 - ✅ Package-private constructor (created via YDoc.getXmlText())
 - ✅ Unicode and emoji support
-- ✅ 20 comprehensive tests (all passing)
+- ✅ 34 comprehensive tests (all passing) including 14 formatting tests
 
 ### YXmlElement.java Features ✅ COMPLETE
 - ✅ Implements `Closeable` for proper resource management
@@ -267,28 +284,28 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 
 ## 6. Testing Infrastructure (Core Complete ✅)
 - ✅ Write Rust unit tests for JNI functions
-  - ✅ 30 tests total (all passing)
+  - ✅ 33 tests total (all passing)
   - ✅ 3 tests in lib.rs and ydoc.rs
   - ✅ 4 tests in ytext.rs
   - ✅ 4 tests in yarray.rs
   - ✅ 4 tests in ymap.rs
-  - ✅ 4 tests in yxmltext.rs
+  - ✅ 7 tests in yxmltext.rs (including 3 formatting tests)
   - ✅ 4 tests in yxmlelement.rs
   - ✅ 7 tests in yxmlfragment.rs (including child retrieval tests)
   - ✅ Tests for pointer conversion, doc creation, client ID, state encoding
   - ✅ Tests for text creation, insert/read, push, delete
   - ✅ Tests for array creation, push/read, insert, remove
   - ✅ Tests for map creation, set/get, remove, clear
-  - ✅ Tests for XML text creation, insert/read, push, delete
+  - ✅ Tests for XML text creation, insert/read, push, delete, formatting
   - ✅ Tests for XML element creation, attributes, tag retrieval
   - ✅ Tests for fragment child retrieval (element and text nodes)
 - ✅ Create Java integration tests
-  - ✅ 147 tests total (all passing - 100% success rate)
+  - ✅ 161 tests total (all passing - 100% success rate)
   - ✅ `YDocTest.java` with 13 comprehensive tests
   - ✅ `YTextTest.java` with 23 comprehensive tests
   - ✅ `YArrayTest.java` with 27 comprehensive tests
   - ✅ `YMapTest.java` with 30 comprehensive tests
-  - ✅ `YXmlTextTest.java` with 20 comprehensive tests
+  - ✅ `YXmlTextTest.java` with 34 comprehensive tests (including 14 formatting tests)
   - ✅ `YXmlElementTest.java` with 25 comprehensive tests
   - ✅ `YXmlFragmentTest.java` with 9 comprehensive tests (added 7 for child retrieval)
   - ✅ Tests cover creation, lifecycle, synchronization, error handling
@@ -296,6 +313,8 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
   - ✅ Mixed type support tests (YArray, YMap)
   - ✅ XML attribute management tests (YXmlElement)
   - ✅ XML child node retrieval tests (YXmlFragment)
+  - ✅ Rich text formatting tests (YXmlText)
+  - ✅ Format synchronization tests
   - ✅ Complex editing sequence tests
   - ✅ Bidirectional sync tests
 - 🔜 Test memory leak scenarios with stress tests (TODO)
@@ -413,7 +432,7 @@ Map Rust panics and Results to appropriate Java exceptions:
    - Full documentation
 
 **Completed:** 2025-10-15
-**Build Status:** ✅ All tests passing (30 Rust tests, 147 Java tests)
+**Build Status:** ✅ All tests passing (33 Rust tests, 161 Java tests)
 **Artifacts:** libycrdt_jni.dylib (macOS), ready for other platforms
 
 ### Phase 2: Core Types ✅ COMPLETE (YText ✅, YArray ✅, YMap ✅)
@@ -448,23 +467,24 @@ Map Rust panics and Results to appropriate Java exceptions:
 
 **Status:** All Core Types Complete (5 of 5 types)
 **Completed:** 2025-10-16
-**Build Status:** ✅ All 147 Java tests passing, ✅ All 30 Rust tests passing
+**Build Status:** ✅ All 161 Java tests passing, ✅ All 33 Rust tests passing
 **Next Step:** Phase 3 - Advanced Features (observers, transactions, advanced update handling)
 
 ### Phase 3: Advanced Features (Partial ✅)
-1. ✅ Add basic XML types support **COMPLETE (WITH CHILD RETRIEVAL)**
-   - ✅ YXmlText bindings (7 native methods, 20 tests)
+1. ✅ Add basic XML types support **COMPLETE (WITH CHILD RETRIEVAL AND FORMATTING)**
+   - ✅ YXmlText bindings (9 native methods, 34 tests including 14 formatting tests)
    - ✅ YXmlElement bindings (8 native methods, 25 tests)
    - ✅ YXmlFragment bindings (9 native methods, 9 tests including 7 for child retrieval)
    - ✅ Child node retrieval API (getElement, getText)
+   - ✅ Rich text formatting API (insertWithAttributes, format)
    - ✅ Direct XmlElementRef/XmlTextRef pointer architecture
    - ✅ Examples in Example.java (Examples 10-13)
-   - ⚠️ **Remaining Limitations:** No text formatting, no full tree navigation
+   - ⚠️ **Remaining Limitations:** No full tree navigation, no nested elements
 2. 🔜 Implement complete hierarchical XML API (see Phase 3.5 below)
    - Redesigned API for proper XML tree support
    - Child element management
-   - Text formatting support
-   - Rich text editing capabilities
+   - Full tree navigation
+   - Nested element support
 3. 🔜 Implement advanced update encoding/decoding
    - State vectors
    - Differential updates
@@ -604,28 +624,22 @@ public class YXmlText implements YXmlNode, Closeable {
     public void insert(int index, String chunk);
     public void delete(int index, int length);
 
-    // NEW: Formatting support
-    public void format(int index, int length, String key, String value);
-    public void removeFormat(int index, int length, String key);
-    public Map<String, String> getFormat(int index);
+    // ✅ IMPLEMENTED: Formatting support
+    public void insertWithAttributes(int index, String chunk, Map<String, Object> attributes);
+    public void format(int index, int length, Map<String, Object> attributes);
 
-    // NEW: Common formatting shortcuts
-    public void setBold(int index, int length, boolean bold);
-    public void setItalic(int index, int length, boolean italic);
-    public void setColor(int index, int length, String color);
-
-    // NEW: Tree navigation
+    // 🔜 TODO: Tree navigation
     public YXmlFragment getParentFragment();
     public YXmlElement getParentElement();
     public int getIndexInParent();
 }
 ```
 
-**Rust Implementation (Additional Methods):**
-- `nativeTextFormat(docPtr, textPtr, index, length, key, value)` - Apply formatting
-- `nativeTextRemoveFormat(docPtr, textPtr, index, length, key)` - Remove formatting
-- `nativeTextGetFormat(docPtr, textPtr, index)` - Get formatting at position (returns key-value pairs)
-- `nativeTextGetParent(docPtr, textPtr)` - Get parent (fragment or element)
+**Rust Implementation:**
+- ✅ `nativeInsertWithAttributes(docPtr, textPtr, index, chunk, attributes)` - Insert with formatting
+- ✅ `nativeFormat(docPtr, textPtr, index, length, attributes)` - Apply formatting
+- ✅ `convert_java_map_to_attrs` - Convert Map<String, Object> to Attrs
+- 🔜 `nativeTextGetParent(docPtr, textPtr)` - Get parent (fragment or element)
 
 **5. Migration Strategy**
 
@@ -811,16 +825,17 @@ To maintain backward compatibility:
 - ✅ Basic YXmlText accessible from Java (COMPLETE)
 - ✅ Basic YXmlElement accessible from Java (COMPLETE)
 - ✅ YXmlFragment with child node retrieval (COMPLETE)
+- ✅ YXmlText rich text formatting (COMPLETE)
 - ✅ XML synchronization working between documents (COMPLETE)
-- ✅ Comprehensive test coverage for basic XML (54 tests, 100% passing)
-- 🔜 Complete hierarchical XML API with formatting (Phase 3.5 - planned)
+- ✅ Comprehensive test coverage for basic XML (68 tests, 100% passing)
+- 🔜 Complete hierarchical XML API with tree navigation (Phase 3.5 - planned)
 - 🔜 Observer/callback support (TODO)
 - 🔜 Transaction support (TODO)
 
 ### Phase 3.5 Criteria (Planned)
 - 🔜 YXmlFragment with child management (TODO)
 - 🔜 YXmlElement with hierarchy support (TODO)
-- 🔜 YXmlText with formatting support (TODO)
+- ✅ YXmlText with formatting support (COMPLETE)
 - 🔜 Tree navigation (parent/child) (TODO)
 - 🔜 Complex XML tree synchronization (TODO)
 - 🔜 Comprehensive test coverage for hierarchical XML (TODO)
@@ -831,5 +846,5 @@ To maintain backward compatibility:
 - 🔜 No memory leaks in stress tests (basic tests passing, stress tests TODO)
 - 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Support for all major platforms (architecture ready, cross-compilation TODO)
-- ✅ Comprehensive test coverage (>80%) (147 Java tests + 30 Rust tests, all passing)
+- ✅ Comprehensive test coverage (>80%) (161 Java tests + 33 Rust tests, all passing)
 - ✅ Production-ready documentation (for implemented features)
