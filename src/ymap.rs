@@ -523,6 +523,116 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJson(
     }
 }
 
+/// Sets a YDoc subdocument value in the map
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the parent YDoc instance
+/// - `map_ptr`: Pointer to the YMap instance
+/// - `key`: The key to set
+/// - `subdoc_ptr`: Pointer to the YDoc subdocument to insert
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    map_ptr: jlong,
+    key: JString,
+    subdoc_ptr: jlong,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if map_ptr == 0 {
+        throw_exception(&mut env, "Invalid YMap pointer");
+        return;
+    }
+    if subdoc_ptr == 0 {
+        throw_exception(&mut env, "Invalid subdocument pointer");
+        return;
+    }
+
+    // Convert key to Rust string
+    let key_str: String = match env.get_string(&key) {
+        Ok(s) => s.into(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to get key string");
+            return;
+        }
+    };
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let map = from_java_ptr::<MapRef>(map_ptr);
+        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
+
+        // Clone the subdoc for insertion (Doc implements Prelim)
+        let subdoc_clone = subdoc.clone();
+
+        let mut txn = doc.transact_mut();
+        map.insert(&mut txn, key_str, subdoc_clone);
+    }
+}
+
+/// Gets a YDoc subdocument value from the map by key
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the parent YDoc instance
+/// - `map_ptr`: Pointer to the YMap instance
+/// - `key`: The key to look up
+///
+/// # Returns
+/// A pointer to the YDoc subdocument, or 0 if key not found or value is not a Doc
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoc(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    map_ptr: jlong,
+    key: JString,
+) -> jlong {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return 0;
+    }
+    if map_ptr == 0 {
+        throw_exception(&mut env, "Invalid YMap pointer");
+        return 0;
+    }
+
+    // Convert key to Rust string
+    let key_str: String = match env.get_string(&key) {
+        Ok(s) => match s.to_str() {
+            Ok(s) => s.to_string(),
+            Err(_) => {
+                throw_exception(&mut env, "Invalid UTF-8 in key");
+                return 0;
+            }
+        },
+        Err(_) => {
+            throw_exception(&mut env, "Failed to get key string");
+            return 0;
+        }
+    };
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let map = from_java_ptr::<MapRef>(map_ptr);
+        let txn = doc.transact();
+
+        match map.get(&txn, &key_str) {
+            Some(value) => {
+                // Try to cast to Doc
+                match value.cast::<Doc>() {
+                    Ok(subdoc) => to_java_ptr(subdoc.clone()),
+                    Err(_) => 0,
+                }
+            }
+            None => 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,5 +708,26 @@ mod tests {
 
         let txn = doc.transact();
         assert_eq!(map.len(&txn), 0);
+    }
+
+    #[test]
+    fn test_map_subdocument() {
+        let doc = Doc::new();
+        let map = doc.get_or_insert_map("test");
+        let subdoc = Doc::new();
+
+        // Insert subdocument
+        {
+            let mut txn = doc.transact_mut();
+            map.insert(&mut txn, "nested", subdoc.clone());
+        }
+
+        // Retrieve subdocument
+        let txn = doc.transact();
+        let retrieved = map.get(&txn, "nested");
+        assert!(retrieved.is_some());
+
+        let retrieved_doc = retrieved.unwrap().cast::<Doc>();
+        assert!(retrieved_doc.is_ok());
     }
 }

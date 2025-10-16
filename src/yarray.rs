@@ -392,6 +392,132 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeToJson(
     }
 }
 
+/// Inserts a YDoc subdocument at the specified index
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the parent YDoc instance
+/// - `array_ptr`: Pointer to the YArray instance
+/// - `index`: The index at which to insert
+/// - `subdoc_ptr`: Pointer to the YDoc subdocument to insert
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertDoc(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    array_ptr: jlong,
+    index: jint,
+    subdoc_ptr: jlong,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if array_ptr == 0 {
+        throw_exception(&mut env, "Invalid YArray pointer");
+        return;
+    }
+    if subdoc_ptr == 0 {
+        throw_exception(&mut env, "Invalid subdocument pointer");
+        return;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let array = from_java_ptr::<ArrayRef>(array_ptr);
+        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
+
+        // Clone the subdoc for insertion (Doc implements Prelim)
+        let subdoc_clone = subdoc.clone();
+
+        let mut txn = doc.transact_mut();
+        array.insert(&mut txn, index as u32, subdoc_clone);
+    }
+}
+
+/// Pushes a YDoc subdocument to the end of the array
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the parent YDoc instance
+/// - `array_ptr`: Pointer to the YArray instance
+/// - `subdoc_ptr`: Pointer to the YDoc subdocument to push
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushDoc(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    array_ptr: jlong,
+    subdoc_ptr: jlong,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if array_ptr == 0 {
+        throw_exception(&mut env, "Invalid YArray pointer");
+        return;
+    }
+    if subdoc_ptr == 0 {
+        throw_exception(&mut env, "Invalid subdocument pointer");
+        return;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let array = from_java_ptr::<ArrayRef>(array_ptr);
+        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
+
+        // Clone the subdoc for insertion (Doc implements Prelim)
+        let subdoc_clone = subdoc.clone();
+
+        let mut txn = doc.transact_mut();
+        array.push_back(&mut txn, subdoc_clone);
+    }
+}
+
+/// Gets a YDoc subdocument from the array at the specified index
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the parent YDoc instance
+/// - `array_ptr`: Pointer to the YArray instance
+/// - `index`: The index to get from
+///
+/// # Returns
+/// A pointer to the YDoc subdocument, or 0 if index is out of bounds or value is not a Doc
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetDoc(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    array_ptr: jlong,
+    index: jint,
+) -> jlong {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return 0;
+    }
+    if array_ptr == 0 {
+        throw_exception(&mut env, "Invalid YArray pointer");
+        return 0;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(doc_ptr);
+        let array = from_java_ptr::<ArrayRef>(array_ptr);
+        let txn = doc.transact();
+
+        match array.get(&txn, index as u32) {
+            Some(value) => {
+                // Try to cast to Doc
+                match value.cast::<Doc>() {
+                    Ok(subdoc) => to_java_ptr(subdoc.clone()),
+                    Err(_) => 0,
+                }
+            }
+            None => 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -468,5 +594,52 @@ mod tests {
         assert_eq!(array.len(&txn), 2);
         assert_eq!(array.get(&txn, 0).unwrap().to_string(&txn), "One");
         assert_eq!(array.get(&txn, 1).unwrap().to_string(&txn), "Three");
+    }
+
+    #[test]
+    fn test_array_subdocument_push() {
+        let doc = Doc::new();
+        let array = doc.get_or_insert_array("test");
+        let subdoc = Doc::new();
+
+        // Push subdocument
+        {
+            let mut txn = doc.transact_mut();
+            array.push_back(&mut txn, subdoc.clone());
+        }
+
+        // Retrieve subdocument
+        let txn = doc.transact();
+        assert_eq!(array.len(&txn), 1);
+        let retrieved = array.get(&txn, 0);
+        assert!(retrieved.is_some());
+
+        let retrieved_doc = retrieved.unwrap().cast::<Doc>();
+        assert!(retrieved_doc.is_ok());
+    }
+
+    #[test]
+    fn test_array_subdocument_insert() {
+        let doc = Doc::new();
+        let array = doc.get_or_insert_array("test");
+        let subdoc1 = Doc::new();
+        let subdoc2 = Doc::new();
+
+        // Push first subdocument, insert second at beginning
+        {
+            let mut txn = doc.transact_mut();
+            array.push_back(&mut txn, subdoc1.clone());
+            array.insert(&mut txn, 0, subdoc2.clone());
+        }
+
+        // Verify order
+        let txn = doc.transact();
+        assert_eq!(array.len(&txn), 2);
+
+        let first = array.get(&txn, 0).unwrap().cast::<Doc>();
+        assert!(first.is_ok());
+
+        let second = array.get(&txn, 1).unwrap().cast::<Doc>();
+        assert!(second.is_ok());
     }
 }

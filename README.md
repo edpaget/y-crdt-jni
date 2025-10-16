@@ -16,9 +16,10 @@ Y-CRDT is a CRDT implementation that enables real-time collaborative editing wit
 - ✅ **YText**: Collaborative text editing with Unicode support
 - ✅ **YArray**: Collaborative arrays with mixed types and JSON serialization
 - ✅ **YMap**: Collaborative maps with mixed types and JSON serialization
-- ✅ **YXmlText**: Collaborative XML text nodes
-- ✅ **YXmlElement**: Collaborative XML elements with attributes
+- ✅ **YXmlText**: Collaborative XML text nodes with rich formatting
+- ✅ **YXmlElement**: Collaborative XML elements with attributes and nesting
 - ✅ **YXmlFragment**: Hierarchical XML tree support with child node retrieval
+- ✅ **Subdocuments**: Embed YDocs within YMap and YArray for hierarchical structures
 - ✅ **Binary updates**: Efficient state synchronization
 - ✅ **Memory safe**: Proper resource management with AutoCloseable
 - ✅ **Multi-platform**: Linux, macOS, and Windows support
@@ -115,11 +116,16 @@ For more examples, see the [Example.java](src/main/java/net/carcdr/ycrdt/Example
 
 - **YDoc** - Main document class with synchronization support
 - **YText** - Collaborative text with insert, push, delete operations
-- **YArray** - Collaborative array supporting strings and doubles
-- **YMap** - Collaborative map supporting strings and doubles
-- **YXmlText** - XML text nodes with collaborative editing
-- **YXmlElement** - XML elements with attribute management
+- **YArray** - Collaborative array supporting strings, doubles, and subdocuments
+- **YMap** - Collaborative map supporting strings, doubles, and subdocuments
+- **YXmlText** - XML text nodes with rich formatting and collaborative editing
+- **YXmlElement** - XML elements with attribute management and nested structures
 - **YXmlFragment** - Hierarchical XML trees with child node access
+
+**Subdocuments**: YMap and YArray can contain nested YDoc instances, enabling:
+- Hierarchical document structures
+- Modular and composable document architecture
+- Full CRDT functionality within nested documents
 
 All types implement `AutoCloseable` for automatic resource management.
 
@@ -128,8 +134,11 @@ All types implement `AutoCloseable` for automatic resource management.
 **Current Version**: 0.1.0-SNAPSHOT
 
 **Test Coverage**:
-- 30 Rust unit tests (100% passing)
-- 147 Java integration tests (100% passing)
+- 36 Rust unit tests (100% passing)
+- 239 Java integration tests (100% passing)
+  - 198 functional tests
+  - 25 memory stress tests
+  - 16 subdocument tests
 
 **Build Status**: [![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
 

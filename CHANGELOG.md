@@ -68,6 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Parent can be YXmlElement or YXmlFragment
   - Synchronized parent references across documents
   - 19 comprehensive ancestor lookup tests (12 for YXmlElement, 7 for YXmlText)
+- Subdocument support for hierarchical document structures
+  - YMap subdocument methods: setDoc(), getDoc()
+  - YArray subdocument methods: insertDoc(), pushDoc(), getDoc()
+  - 5 new native methods (2 for YMap, 3 for YArray)
+  - Embed YDoc instances within YMap and YArray collections
+  - Full CRDT type support within subdocuments (YText, YArray, YMap, YXml*)
+  - Hierarchical document composition and modular architecture
+  - Synchronization of subdocument structures across clients
+  - Proper memory management with Closeable pattern
+  - 16 comprehensive subdocument tests
+  - Package-private YDoc constructor for wrapping native pointers
 - Memory stress tests
   - 25 comprehensive stress tests for all CRDT types
   - Create/close cycles (1,000 iterations per type)
@@ -81,9 +92,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic memory management with Closeable pattern across all types
 - Native library loader with platform detection
 - Gradle build system with Rust integration
-- Comprehensive test suite (33 Rust tests, 223 Java tests - 100% passing)
+- Comprehensive test suite (36 Rust tests, 239 Java tests - 100% passing)
   - 198 functional/integration tests
   - 25 memory stress tests
+  - 16 subdocument tests
 - Example program with 14 examples demonstrating all features
 - GitHub Actions CI/CD workflows (Quick Check, CI, Release, Javadoc)
 - Multi-platform build support (Linux, macOS, Windows)

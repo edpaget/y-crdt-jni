@@ -13,9 +13,14 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
   - Rich text formatting (insertWithAttributes, format)
   - Nested elements (childCount, insertElement, insertText, getChild, removeChild)
   - Ancestor lookup (getParent, getIndexInParent)
-- **Testing:** 256 total tests (33 Rust + 223 Java), 100% passing
+- **Subdocuments:** YDoc nesting within YMap and YArray
+  - Hierarchical document structures (embed YDocs within collections)
+  - Full CRDT type support within subdocuments
+  - Synchronization of subdocument structures
+- **Testing:** 275 total tests (36 Rust + 239 Java), 100% passing
   - 198 functional/integration tests
   - 25 memory stress tests (no leaks detected)
+  - 16 subdocument tests
 - **Documentation:** Comprehensive JavaDoc, IMPLEMENTATION.md, published to GitHub Pages
 - **Build System:** Gradle + Cargo integration, GitHub Actions CI/CD
 - **Memory Management:** Closeable pattern, proper native resource cleanup, stress tested
@@ -58,20 +63,22 @@ Implemented all core collaborative data types:
 - Examples in Example.java
 
 #### YArray (Collaborative Array)
-- 11 native methods: getArray, destroy, length, get/insert/push (String/Double), remove, toJson
-- Mixed type support (strings and doubles)
+- 14 native methods: getArray, destroy, length, get/insert/push (String/Double/Doc), remove, toJson
+- Mixed type support (strings, doubles, and subdocuments)
 - 27 comprehensive tests
 - JSON serialization
+- Subdocument support (insertDoc, pushDoc, getDoc)
 
 #### YMap (Collaborative Map)
-- 12 native methods: getMap, destroy, size, get/set (String/Double), remove, containsKey, keys, clear, toJson
-- Mixed type support (strings and doubles)
+- 14 native methods: getMap, destroy, size, get/set (String/Double/Doc), remove, containsKey, keys, clear, toJson
+- Mixed type support (strings, doubles, and subdocuments)
 - 30 comprehensive tests
 - JSON serialization
+- Subdocument support (setDoc, getDoc)
 
 **Key Achievement:** Fixed critical bug in `encodeStateAsUpdate()` - now encodes against empty state vector for correct synchronization
 
-**Build Status:** ✅ All 223 Java tests passing (198 functional + 25 stress), ✅ All 33 Rust tests passing
+**Build Status:** ✅ All 239 Java tests passing (198 functional + 25 stress + 16 subdocument), ✅ All 36 Rust tests passing
 
 ---
 
@@ -118,23 +125,67 @@ Implemented full hierarchical XML support with tree navigation:
 
 ---
 
+### Phase 3.6: Subdocuments ✅ COMPLETE
+**Completed:** 2025-10-16
+
+Implemented full subdocument support for hierarchical document structures:
+
+#### Subdocument Features
+- **YMap Subdocuments:**
+  - `setDoc(String key, YDoc subdoc)` - Insert subdocument
+  - `getDoc(String key)` - Retrieve subdocument
+  - 2 native methods
+
+- **YArray Subdocuments:**
+  - `insertDoc(int index, YDoc subdoc)` - Insert at specific index
+  - `pushDoc(YDoc subdoc)` - Append to end
+  - `getDoc(int index)` - Retrieve by index
+  - 3 native methods
+
+- **16 comprehensive tests** covering:
+  - Basic insertion and retrieval
+  - Multiple subdocuments
+  - Nested structures
+  - Synchronization
+  - Mixed content (strings, doubles, subdocuments)
+  - Stress testing (50+ subdocuments)
+
+**Key Capabilities:**
+- Hierarchical document composition
+- Full CRDT type support within subdocuments (YText, YArray, YMap, YXml*)
+- Proper memory management with Closeable pattern
+- Synchronization of subdocument structures across clients
+
+**Use Cases Enabled:**
+- Modular document architecture
+- Composable collaborative applications
+- Organized complex data structures
+- Multi-level document hierarchies
+
+**Limitations:**
+- A Doc can only be inserted as subdocument once (cannot reuse same instance)
+- Content added before insertion may not persist (recommended: add after retrieval)
+
+---
+
 ### Phase 3: Advanced Features 🚧 IN PROGRESS
 
 #### ✅ Completed
 1. **Hierarchical XML Types** - Full support (see Phase 3.5 above)
+2. **Subdocuments** - Full support (see Phase 3.6 above)
 
 #### 🔜 TODO
-2. **Advanced Update Encoding/Decoding**
+3. **Advanced Update Encoding/Decoding**
    - State vectors
    - Differential updates
    - Update merging
 
-3. **Observer/Callback Support**
+4. **Observer/Callback Support**
    - Event subscription
    - Change notifications
    - Callback lifecycle management
 
-4. **Transaction Support**
+5. **Transaction Support**
    - Transaction begin/commit/rollback
    - Batch operations
    - Transaction observers
@@ -172,16 +223,16 @@ Implemented full hierarchical XML support with tree navigation:
 
 ## Test Coverage
 
-### Rust Tests: 33 total (100% passing)
+### Rust Tests: 36 total (100% passing)
 - lib.rs + ydoc.rs: 3 tests
 - ytext.rs: 4 tests
-- yarray.rs: 4 tests
-- ymap.rs: 4 tests
+- yarray.rs: 6 tests (including 2 subdocument tests)
+- ymap.rs: 5 tests (including 1 subdocument test)
 - yxmltext.rs: 7 tests (including 3 formatting tests)
 - yxmlelement.rs: 4 tests
 - yxmlfragment.rs: 7 tests (including child retrieval)
 
-### Java Tests: 223 total (100% passing)
+### Java Tests: 239 total (100% passing)
 - YDocTest: 13 tests
 - YTextTest: 23 tests
 - YArrayTest: 27 tests
@@ -190,8 +241,9 @@ Implemented full hierarchical XML support with tree navigation:
 - YXmlElementTest: 55 tests (18 nested element + 12 ancestor lookup)
 - YXmlFragmentTest: 9 tests
 - StressTest: 25 tests (memory stress tests)
+- SubdocumentTest: 16 tests (subdocument functionality)
 
-**Functional Test Coverage:** Creation, lifecycle, synchronization, error handling, Unicode/emoji, mixed types, XML attributes, child management, rich text formatting, ancestor lookup, bidirectional sync, complex editing sequences
+**Functional Test Coverage:** Creation, lifecycle, synchronization, error handling, Unicode/emoji, mixed types, XML attributes, child management, rich text formatting, ancestor lookup, bidirectional sync, complex editing sequences, subdocument insertion/retrieval, hierarchical structures
 
 **Stress Test Coverage:**
 - Create/close cycles (1,000 iterations per type)
@@ -299,20 +351,33 @@ Implemented full hierarchical XML support with tree navigation:
 
 ### Phase 3 🚧 IN PROGRESS
 - ✅ Complete hierarchical XML API
+- ✅ Subdocument support
 - 🔜 Observer/callback support
 - 🔜 Transaction support
 
 ### Overall Target 🎯
 - ✅ All core y-crdt types accessible
+- ✅ Subdocument support for hierarchical structures
 - ✅ No memory leaks in stress tests (25 tests passing)
 - 🔜 Performance overhead < 20% vs native Rust (not yet benchmarked)
 - 🚧 Multi-platform support
-- ✅ Comprehensive test coverage (>80%) - Currently 256 tests (100% passing)
+- ✅ Comprehensive test coverage (>80%) - Currently 275 tests (100% passing)
 - ✅ Production-ready documentation
 
 ---
 
 ## Recent Achievements (2025-10-16)
+
+### Subdocument Support ✅
+- Implemented full subdocument functionality for YMap and YArray
+- YMap: `setDoc()`, `getDoc()` methods
+- YArray: `insertDoc()`, `pushDoc()`, `getDoc()` methods
+- 5 new native methods across YMap (2) and YArray (3)
+- 16 comprehensive tests covering insertion, retrieval, nesting, synchronization
+- Enables hierarchical document structures and composable architecture
+- Full CRDT type support within subdocuments
+- Proper memory management with Closeable pattern
+- **Result:** All 16 tests passing, total test count increased to 275 (36 Rust + 239 Java)
 
 ### Memory Stress Tests ✅
 - Added comprehensive stress test suite with 25 tests
@@ -324,7 +389,6 @@ Implemented full hierarchical XML support with tree navigation:
 - Complex synchronization: 100 document synchronizations
 - Combined operations: Multiple types in single document
 - **Result:** All 25 tests passing, zero memory leaks detected
-- Total test count increased to 256 (33 Rust + 223 Java)
 
 ### Ancestor Lookup for XML Nodes ✅
 - Implemented getParent() and getIndexInParent() for YXmlElement and YXmlText

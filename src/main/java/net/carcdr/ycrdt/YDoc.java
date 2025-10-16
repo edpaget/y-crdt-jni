@@ -82,6 +82,20 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Package-private constructor for wrapping an existing native pointer.
+     * Used when retrieving subdocuments from collections.
+     *
+     * @param nativePtr the native pointer to wrap
+     * @param dummy unused parameter to distinguish from public constructor
+     */
+    YDoc(long nativePtr, boolean dummy) {
+        this.nativePtr = nativePtr;
+        if (this.nativePtr == 0) {
+            throw new RuntimeException("Invalid native pointer");
+        }
+    }
+
+    /**
      * Gets the client ID of this document.
      *
      * <p>The client ID uniquely identifies this document instance in a distributed

@@ -195,6 +195,70 @@ public class YMap implements Closeable {
     }
 
     /**
+     * Sets a YDoc subdocument value in the map.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YMap map = parent.getMap("mymap")) {
+     *     map.setDoc("nested", child);
+     * }
+     * }</pre>
+     *
+     * @param key The key to set
+     * @param subdoc The YDoc subdocument to set
+     * @throws IllegalArgumentException if key or subdoc is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public void setDoc(String key, YDoc subdoc) {
+        checkClosed();
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        nativeSetDoc(doc.getNativePtr(), nativePtr, key, subdoc.getNativePtr());
+    }
+
+    /**
+     * Gets a YDoc subdocument from the map by key.
+     *
+     * <p>The returned YDoc must be closed by the caller when no longer needed.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YMap map = parent.getMap("mymap")) {
+     *     map.setDoc("nested", new YDoc());
+     *     try (YDoc retrieved = map.getDoc("nested")) {
+     *         // Use the subdocument
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param key The key to look up
+     * @return The YDoc subdocument, or null if key not found or value is not a Doc
+     * @throws IllegalArgumentException if key is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public YDoc getDoc(String key) {
+        checkClosed();
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        long subdocPtr = nativeGetDoc(doc.getNativePtr(), nativePtr, key);
+        if (subdocPtr == 0) {
+            return null;
+        }
+        return new YDoc(subdocPtr, true);
+    }
+
+    /**
      * Returns a JSON string representation of the map.
      *
      * @return A JSON string representation
@@ -271,4 +335,6 @@ public class YMap implements Closeable {
     private static native Object nativeKeys(long docPtr, long mapPtr);
     private static native void nativeClear(long docPtr, long mapPtr);
     private static native String nativeToJson(long docPtr, long mapPtr);
+    private static native void nativeSetDoc(long docPtr, long mapPtr, String key, long subdocPtr);
+    private static native long nativeGetDoc(long docPtr, long mapPtr, String key);
 }

@@ -180,6 +180,98 @@ public class YArray implements Closeable {
     }
 
     /**
+     * Inserts a YDoc subdocument at the specified index.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YArray array = parent.getArray("myarray")) {
+     *     array.insertDoc(0, child);
+     * }
+     * }</pre>
+     *
+     * @param index The position at which to insert (0-based)
+     * @param subdoc The YDoc subdocument to insert
+     * @throws IllegalArgumentException if subdoc is null
+     * @throws IllegalStateException if the array has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than the current length
+     */
+    public void insertDoc(int index, YDoc subdoc) {
+        checkClosed();
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException(
+                "Index " + index + " out of bounds for length " + length());
+        }
+        nativeInsertDoc(doc.getNativePtr(), nativePtr, index, subdoc.getNativePtr());
+    }
+
+    /**
+     * Appends a YDoc subdocument to the end of the array.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YArray array = parent.getArray("myarray")) {
+     *     array.pushDoc(child);
+     * }
+     * }</pre>
+     *
+     * @param subdoc The YDoc subdocument to append
+     * @throws IllegalArgumentException if subdoc is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public void pushDoc(YDoc subdoc) {
+        checkClosed();
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        nativePushDoc(doc.getNativePtr(), nativePtr, subdoc.getNativePtr());
+    }
+
+    /**
+     * Gets a YDoc subdocument at the specified index.
+     *
+     * <p>The returned YDoc must be closed by the caller when no longer needed.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YArray array = parent.getArray("myarray")) {
+     *     array.pushDoc(new YDoc());
+     *     try (YDoc retrieved = array.getDoc(0)) {
+     *         // Use the subdocument
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param index The index (0-based)
+     * @return The YDoc subdocument, or null if index is out of bounds or value is not a Doc
+     * @throws IllegalStateException if the array has been closed
+     */
+    public YDoc getDoc(int index) {
+        checkClosed();
+        if (index < 0) {
+            return null;
+        }
+        long subdocPtr = nativeGetDoc(doc.getNativePtr(), nativePtr, index);
+        if (subdocPtr == 0) {
+            return null;
+        }
+        return new YDoc(subdocPtr, true);
+    }
+
+    /**
      * Returns a JSON string representation of the array.
      *
      * @return A JSON string representation
@@ -257,4 +349,8 @@ public class YArray implements Closeable {
     private static native void nativePushDouble(long docPtr, long arrayPtr, double value);
     private static native void nativeRemove(long docPtr, long arrayPtr, int index, int length);
     private static native String nativeToJson(long docPtr, long arrayPtr);
+    private static native void nativeInsertDoc(long docPtr, long arrayPtr, int index,
+                                                long subdocPtr);
+    private static native void nativePushDoc(long docPtr, long arrayPtr, long subdocPtr);
+    private static native long nativeGetDoc(long docPtr, long arrayPtr, int index);
 }
