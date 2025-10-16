@@ -1,7 +1,5 @@
 package net.carcdr.yhocuspocus.core;
 
-import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.YText;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.MessageType;
@@ -15,7 +13,6 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
