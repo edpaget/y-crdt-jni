@@ -234,6 +234,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVector(
 ///
 /// # Returns
 /// A Java byte array containing the differential update
+///
+/// # Safety
+/// The `state_vector` parameter is a raw JNI pointer that must be valid
 #[no_mangle]
 pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiff(
     mut env: JNIEnv,
@@ -289,6 +292,9 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiff(
 ///
 /// # Returns
 /// A Java byte array containing the merged update
+///
+/// # Safety
+/// The `updates` parameter is a raw JNI object array pointer that must be valid
 #[no_mangle]
 pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeMergeUpdates(
     mut env: JNIEnv,
@@ -360,6 +366,9 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeMergeUpdates(
 ///
 /// # Returns
 /// A Java byte array containing the encoded state vector
+///
+/// # Safety
+/// The `update` parameter is a raw JNI pointer that must be valid
 #[no_mangle]
 pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVectorFromUpdate(
     mut env: JNIEnv,
