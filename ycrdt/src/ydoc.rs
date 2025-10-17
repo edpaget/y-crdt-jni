@@ -1,4 +1,7 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr};
+use crate::{
+    free_java_ptr, from_java_ptr, next_transaction_id, remove_transaction, store_transaction,
+    throw_exception, to_java_ptr,
+};
 use jni::objects::{JByteArray, JClass};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
@@ -403,6 +406,106 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVector
             throw_exception(&mut env, "Failed to create byte array");
             std::ptr::null_mut()
         }
+    }
+}
+
+/// Begins a new transaction for batching operations
+///
+/// # Parameters
+/// - `ptr`: Pointer to the YDoc instance
+///
+/// # Returns
+/// A transaction ID (as jlong) that can be used to reference this transaction
+///
+/// # Safety
+/// The doc pointer must be valid. The returned transaction ID must be committed
+/// or rolled back to free the transaction resources.
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeBeginTransaction(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: jlong,
+) -> jlong {
+    if ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return 0;
+    }
+
+    unsafe {
+        let doc = from_java_ptr::<Doc>(ptr);
+        let txn = doc.transact_mut();
+
+        // Generate unique ID and store transaction
+        let txn_id = next_transaction_id();
+        store_transaction(txn_id, txn);
+
+        txn_id
+    }
+}
+
+/// Commits a transaction, applying all batched operations
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance (for validation)
+/// - `txn_ptr`: Transaction ID returned from nativeBeginTransaction
+///
+/// # Safety
+/// The transaction ID must be valid and not already committed/rolled back
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeCommit(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    txn_ptr: jlong,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
+
+    unsafe {
+        // Remove transaction from storage - this will drop it and commit
+        remove_transaction(txn_ptr);
+    }
+}
+
+/// Rolls back a transaction, discarding all batched operations
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance (for validation)
+/// - `txn_ptr`: Transaction ID returned from nativeBeginTransaction
+///
+/// # Safety
+/// The transaction ID must be valid and not already committed/rolled back
+///
+/// # Note
+/// The underlying yrs library may not support true rollback. Currently,
+/// this behaves the same as commit.
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeRollback(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    txn_ptr: jlong,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
+
+    unsafe {
+        // Remove transaction from storage
+        // Note: yrs doesn't support true rollback - dropping the transaction commits it
+        // In the future, we might need to track changes and implement manual rollback
+        remove_transaction(txn_ptr);
     }
 }
 

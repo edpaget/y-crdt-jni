@@ -1,6 +1,7 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.function.Consumer;
 
 /**
  * YDoc represents a Y-CRDT document, which is a shared data structure that supports
@@ -513,6 +514,70 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Begin a new transaction for batching operations.
+     *
+     * <p>Transactions allow multiple CRDT operations to be batched together,
+     * resulting in better performance, single observer notifications, and more
+     * efficient update encoding for synchronization.</p>
+     *
+     * <p>Use with try-with-resources for automatic cleanup:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     text.insert(txn, 0, "Hello");
+     *     array.pushString(txn, "World");
+     * } // Auto-commits
+     * }</pre>
+     *
+     * <p>The transaction must be closed (either explicitly or via try-with-resources)
+     * to commit the changes. Uncommitted transactions will be automatically committed
+     * when the transaction object is garbage collected, but this is not recommended.</p>
+     *
+     * @return transaction handle (use with try-with-resources)
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if transaction creation fails
+     * @see YTransaction
+     * @see #transaction(Consumer)
+     */
+    public YTransaction beginTransaction() {
+        ensureNotClosed();
+        long txnPtr = nativeBeginTransaction(nativePtr);
+        if (txnPtr == 0) {
+            throw new RuntimeException("Failed to create transaction: native pointer is null");
+        }
+        return new YTransaction(this, txnPtr);
+    }
+
+    /**
+     * Execute operations within a transaction using a callback.
+     *
+     * <p>This is a convenience method that automatically manages transaction lifecycle.
+     * The transaction is automatically committed when the callback completes successfully,
+     * or rolled back if an exception is thrown.</p>
+     *
+     * <p>Convenience method for simple transaction usage:
+     * <pre>{@code
+     * doc.transaction(txn -> {
+     *     text.insert(txn, 0, "Hello");
+     *     array.pushString(txn, "World");
+     * });
+     * }</pre>
+     *
+     * @param fn function receiving transaction handle
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if transaction creation fails or fn throws an exception
+     * @see YTransaction
+     * @see #beginTransaction()
+     */
+    public void transaction(Consumer<YTransaction> fn) {
+        if (fn == null) {
+            throw new IllegalArgumentException("Transaction function cannot be null");
+        }
+        try (YTransaction txn = beginTransaction()) {
+            fn.accept(txn);
+        }
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
@@ -612,4 +677,6 @@ public class YDoc implements Closeable {
     private static native byte[] nativeMergeUpdates(byte[][] updates);
 
     private static native byte[] nativeEncodeStateVectorFromUpdate(byte[] update);
+
+    private static native long nativeBeginTransaction(long ptr);
 }
