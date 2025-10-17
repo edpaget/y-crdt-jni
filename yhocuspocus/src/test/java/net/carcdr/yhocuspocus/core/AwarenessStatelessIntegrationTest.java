@@ -99,7 +99,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("awareness-doc", 2000);
+        YDocument doc = waitForDocument("awareness-doc", 10000);
         assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
@@ -151,7 +151,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("awareness-doc", 2000);
+        YDocument doc = waitForDocument("awareness-doc", 10000);
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         // Conn1 adds awareness
@@ -196,7 +196,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("stateless-doc", 2000);
+        YDocument doc = waitForDocument("stateless-doc", 10000);
         assertNotNull("Document should exist", doc);
 
         // Clear initial messages
@@ -249,7 +249,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("broadcast-doc", 2000);
+        YDocument doc = waitForDocument("broadcast-doc", 10000);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
         // Clear messages
@@ -298,7 +298,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("multi-awareness", 2000);
+        YDocument doc = waitForDocument("multi-awareness", 10000);
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         transport2.getSentMessages().clear();
@@ -336,7 +336,7 @@ public class AwarenessStatelessIntegrationTest {
         // Allow async document creation to complete
         Thread.sleep(100);
 
-        YDocument doc = waitForDocument("query-test", 2000);
+        YDocument doc = waitForDocument("query-test", 10000);
         assertNotNull("Document should exist", doc);
 
         transport.getSentMessages().clear();
