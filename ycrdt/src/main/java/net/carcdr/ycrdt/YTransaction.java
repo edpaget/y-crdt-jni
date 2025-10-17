@@ -85,6 +85,7 @@ public class YTransaction implements AutoCloseable {
             synchronized (this) {
                 if (!closed) {
                     nativeCommit(doc.getNativePtr(), nativePtr);
+                    doc.clearActiveTransaction();
                     closed = true;
                 }
             }
@@ -107,6 +108,7 @@ public class YTransaction implements AutoCloseable {
             synchronized (this) {
                 if (!closed) {
                     nativeRollback(doc.getNativePtr(), nativePtr);
+                    doc.clearActiveTransaction();
                     closed = true;
                 }
             }

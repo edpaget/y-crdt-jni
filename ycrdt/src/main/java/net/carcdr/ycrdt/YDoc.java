@@ -51,6 +51,13 @@ public class YDoc implements Closeable {
     private volatile boolean closed = false;
 
     /**
+     * Thread-local storage for the currently active transaction.
+     * This allows implicit transaction methods to reuse the active transaction
+     * if one exists, preventing deadlocks from nested transaction attempts.
+     */
+    private final ThreadLocal<YTransaction> activeTransaction = new ThreadLocal<>();
+
+    /**
      * Creates a new YDoc instance with a randomly generated client ID.
      *
      * @throws RuntimeException if native initialization fails
@@ -544,7 +551,27 @@ public class YDoc implements Closeable {
         if (txnPtr == 0) {
             throw new RuntimeException("Failed to create transaction: native pointer is null");
         }
-        return new YTransaction(this, txnPtr);
+        YTransaction txn = new YTransaction(this, txnPtr);
+        activeTransaction.set(txn);
+        return txn;
+    }
+
+    /**
+     * Gets the currently active transaction for this thread, or null if none.
+     * Package-private for internal use.
+     *
+     * @return the active transaction, or null
+     */
+    YTransaction getActiveTransaction() {
+        return activeTransaction.get();
+    }
+
+    /**
+     * Clears the currently active transaction for this thread.
+     * Package-private for internal use by YTransaction.
+     */
+    void clearActiveTransaction() {
+        activeTransaction.remove();
     }
 
     /**

@@ -122,8 +122,9 @@ public class YArray implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative");
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException(
+                "Index " + index + " out of bounds for length " + length());
         }
         nativeInsertStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, value);
     }
@@ -172,8 +173,9 @@ public class YArray implements Closeable, YObservable {
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
         }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative");
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException(
+                "Index " + index + " out of bounds for length " + length());
         }
         nativeInsertDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, value);
     }
@@ -300,6 +302,12 @@ public class YArray implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                 "Index and length must be non-negative");
         }
+        int currentLength = length();
+        if (index + length > currentLength) {
+            throw new IndexOutOfBoundsException(
+                "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                + currentLength);
+        }
         nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
     }
 
@@ -357,8 +365,9 @@ public class YArray implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative");
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException(
+                "Index " + index + " out of bounds for length " + length());
         }
         nativeInsertDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index,
             subdoc.getNativePtr());

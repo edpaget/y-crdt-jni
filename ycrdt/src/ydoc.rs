@@ -1,7 +1,4 @@
-use crate::{
-    free_java_ptr, from_java_ptr, next_transaction_id, remove_transaction, store_transaction,
-    throw_exception, to_java_ptr,
-};
+use crate::{free_java_ptr, free_transaction, from_java_ptr, throw_exception, to_java_ptr};
 use jni::objects::{JByteArray, JClass};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
@@ -435,11 +432,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeBeginTransaction(
         let doc = from_java_ptr::<Doc>(ptr);
         let txn = doc.transact_mut();
 
-        // Generate unique ID and store transaction
-        let txn_id = next_transaction_id();
-        store_transaction(txn_id, txn);
-
-        txn_id
+        // Return raw transaction pointer
+        Box::into_raw(Box::new(txn)) as jlong
     }
 }
 
@@ -468,8 +462,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeCommit(
     }
 
     unsafe {
-        // Remove transaction from storage - this will drop it and commit
-        remove_transaction(txn_ptr);
+        // Free transaction - this will drop it and commit
+        free_transaction(txn_ptr);
     }
 }
 
@@ -502,10 +496,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeRollback(
     }
 
     unsafe {
-        // Remove transaction from storage
+        // Free transaction
         // Note: yrs doesn't support true rollback - dropping the transaction commits it
         // In the future, we might need to track changes and implement manual rollback
-        remove_transaction(txn_ptr);
+        free_transaction(txn_ptr);
     }
 }
 

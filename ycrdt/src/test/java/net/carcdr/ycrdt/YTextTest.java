@@ -325,13 +325,10 @@ public class YTextTest {
         try (YDoc doc = new YDoc();
              YText text = doc.getText("test")) {
             try (YTransaction txn = doc.beginTransaction()) {
-                System.err.println("HERE");
                 text.insert(txn, 0, "Hello");
-                System.err.println("HERE");
                 text.insert(txn, 5, " World");
             }
             assertEquals("Hello World", text.toString());
-                System.err.println("HERE");
             assertEquals(11, text.length());
         }
     }

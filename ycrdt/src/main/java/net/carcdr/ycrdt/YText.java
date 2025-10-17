@@ -62,7 +62,25 @@ public class YText implements Closeable, YObservable {
      */
     public int length() {
         checkClosed();
-        return nativeLength(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the length of the text.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The number of characters in the text
+     * @throws IllegalStateException if the text has been closed
+     */
+    public int length(YTransaction txn) {
+        checkClosed();
+        return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -74,7 +92,14 @@ public class YText implements Closeable, YObservable {
     @Override
     public String toString() {
         checkClosed();
-        return nativeToString(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        System.err.println(activeTxn);
+        if (activeTxn != null) {
+            return nativeToStringWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeToStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
     }
 
     /**
@@ -103,8 +128,9 @@ public class YText implements Closeable, YObservable {
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative");
+        if (index < 0 || index > length(txn)) {
+            throw new IndexOutOfBoundsException(
+                "Index " + index + " out of bounds for length " + length(txn));
         }
         nativeInsertWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
     }
@@ -123,11 +149,22 @@ public class YText implements Closeable, YObservable {
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException(
-                "Index " + index + " out of bounds for length " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " out of bounds for length " + length(activeTxn));
+            }
+            nativeInsertWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), index, chunk);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException(
+                        "Index " + index + " out of bounds for length " + length(txn));
+                }
+                nativeInsertWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
+            }
         }
-        nativeInsert(doc.getNativePtr(), nativePtr, index, chunk);
     }
 
     /**
@@ -169,7 +206,14 @@ public class YText implements Closeable, YObservable {
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        nativePush(doc.getNativePtr(), nativePtr, chunk);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativePushWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), chunk);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativePushWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
+            }
+        }
     }
 
     /**
@@ -199,6 +243,12 @@ public class YText implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                 "Index and length must be non-negative");
         }
+        int currentLength = length(txn);
+        if (index + length > currentLength) {
+            throw new IndexOutOfBoundsException(
+                "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                + currentLength);
+        }
         nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
     }
 
@@ -216,13 +266,26 @@ public class YText implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                 "Index and length must be non-negative");
         }
-        int currentLength = length();
-        if (index + length > currentLength) {
-            throw new IndexOutOfBoundsException(
-                "Range [" + index + ", " + (index + length) + ") out of bounds for length "
-                + currentLength);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            int currentLength = length(activeTxn);
+            if (index + length > currentLength) {
+                throw new IndexOutOfBoundsException(
+                    "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                    + currentLength);
+            }
+            nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), index, length);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                int currentLength = length(txn);
+                if (index + length > currentLength) {
+                    throw new IndexOutOfBoundsException(
+                        "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                        + currentLength);
+                }
+                nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
+            }
         }
-        nativeDelete(doc.getNativePtr(), nativePtr, index, length);
     }
 
     /**
@@ -350,13 +413,10 @@ public class YText implements Closeable, YObservable {
     // Native methods
     private static native long nativeGetText(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
-    private static native int nativeLength(long docPtr, long textPtr);
-    private static native String nativeToString(long docPtr, long textPtr);
-    private static native void nativeInsert(long docPtr, long textPtr, int index, String chunk);
+    private static native int nativeLengthWithTxn(long docPtr, long textPtr, long txnPtr);
+    private static native String nativeToStringWithTxn(long docPtr, long textPtr, long txnPtr);
     private static native void nativeInsertWithTxn(long docPtr, long textPtr, long txnPtr, int index, String chunk);
-    private static native void nativePush(long docPtr, long textPtr, String chunk);
     private static native void nativePushWithTxn(long docPtr, long textPtr, long txnPtr, String chunk);
-    private static native void nativeDelete(long docPtr, long textPtr, int index, int length);
     private static native void nativeDeleteWithTxn(long docPtr, long textPtr, long txnPtr, int index, int length);
     private static native void nativeObserve(long docPtr, long textPtr, long subscriptionId, YText ytextObj);
     private static native void nativeUnobserve(long docPtr, long textPtr, long subscriptionId);
