@@ -37,7 +37,7 @@ public class AwarenessStatelessIntegrationTest {
 
     @Before
     public void setUp() {
-        server = new YHocuspocus();
+        server = YHocuspocus.builder().build();
     }
 
     @After

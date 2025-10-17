@@ -39,7 +39,7 @@ public class SyncIntegrationTest {
 
     @Before
     public void setUp() {
-        server = new YHocuspocus();
+        server = YHocuspocus.builder().build();
     }
 
     @After

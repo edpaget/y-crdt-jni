@@ -1,5 +1,6 @@
 package net.carcdr.yhocuspocus.core;
 
+import net.carcdr.yhocuspocus.extension.TestWaiter;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.MessageType;
@@ -11,6 +12,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -19,37 +21,41 @@ import static org.junit.Assert.assertTrue;
 /**
  * Integration tests for connection management.
  *
- * <p><b>Note on Test Synchronization:</b> These tests use polling-based helpers
- * (waitForDocument, waitForCondition) to wait for async operations to complete.
- * This approach works well without requiring changes to the production API.</p>
+ * <p><b>Note on Test Synchronization:</b> This test class demonstrates two approaches
+ * for waiting on async operations:</p>
  *
- * <p>In Phase 5, when the hook/extension system is implemented, these tests can
- * be refactored to use CountDownLatch or CompletableFuture with hooks for more
- * precise synchronization. For example:</p>
+ * <ol>
+ *   <li><b>Polling-based (legacy tests):</b> Uses waitForDocument() and waitForCondition()
+ *       helpers that poll until a condition is met or timeout occurs. Simple but slower.</li>
+ *   <li><b>Extension-based (new tests):</b> Uses TestWaiter extension with CountDownLatch
+ *       to wait for exact lifecycle events. Faster, more deterministic, and cleaner.</li>
+ * </ol>
+ *
+ * <p>Example of extension-based synchronization:</p>
  * <pre>{@code
- * CountDownLatch latch = new CountDownLatch(1);
- * server.addHook(new ConnectionHook() {
- *     public void onDocumentConnected(String name, DocumentConnection conn) {
- *         latch.countDown();
- *     }
- * });
+ * TestWaiter waiter = new TestWaiter();
+ * YHocuspocus server = YHocuspocus.builder()
+ *     .extension(waiter)
+ *     .build();
+ *
  * connection.handleMessage(msg);
- * assertTrue(latch.await(1, TimeUnit.SECONDS));
+ * waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS);
+ * // Document is now guaranteed to be loaded
  * }</pre>
  *
- * <p>This will eliminate polling overhead and make tests even faster and more
- * deterministic. However, the current polling approach is sufficient and doesn't
- * leak async implementation details into the API.</p>
- *
- * @see <a href="https://github.com/anthropics/claude-code/issues">Phase 5: Extension System</a>
+ * <p>See testDocumentCreationWithTestWaiter() for a complete example.</p>
  */
 public class ConnectionIntegrationTest {
 
     private YHocuspocus server;
+    private TestWaiter waiter;
 
     @Before
     public void setUp() {
-        server = new YHocuspocus();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .build();
     }
 
     @After
@@ -260,5 +266,68 @@ public class ConnectionIntegrationTest {
         assertEquals("Should have 1 document", 1, server.getDocumentCount());
         assertEquals("Should have all connections",
                     numConnections, doc.getConnectionCount());
+    }
+
+    /**
+     * Demonstrates using TestWaiter extension instead of polling.
+     *
+     * <p>Compare this with testDocumentCreation above to see the difference:
+     * - No more polling loops (waitForDocument)
+     * - No arbitrary sleeps
+     * - Wait for exact event (afterLoadDocument)
+     * - Faster and more deterministic
+     */
+    @Test
+    public void testDocumentCreationWithTestWaiter() throws Exception {
+        MockTransport transport = new MockTransport();
+        ClientConnection connection = server.handleConnection(transport, Map.of());
+
+        byte[] syncPayload = SyncProtocol.encodeSyncStep2(new byte[0]);
+        OutgoingMessage msg = OutgoingMessage.sync("test-doc", syncPayload);
+
+        // Send message
+        connection.handleMessage(msg.encode());
+
+        // Wait for document to be fully loaded (no polling!)
+        assertTrue("Document should be loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Now we know for certain the document is loaded
+        YDocument doc = server.getDocument("test-doc");
+        assertNotNull("Document should be created", doc);
+        assertEquals("Document name should match", "test-doc", doc.getName());
+        assertEquals("Document should have one connection", 1, doc.getConnectionCount());
+    }
+
+    /**
+     * Demonstrates waiting for multiple connections with TestWaiter.
+     */
+    @Test
+    public void testMultipleConnectionsWithTestWaiter() throws Exception {
+        // Reset latch to wait for 2 documents
+        waiter.resetCreateDocumentLatch(2);
+
+        MockTransport transport1 = new MockTransport();
+        MockTransport transport2 = new MockTransport();
+
+        ClientConnection conn1 = server.handleConnection(transport1, Map.of());
+        ClientConnection conn2 = server.handleConnection(transport2, Map.of());
+
+        byte[] sync1 = SyncProtocol.encodeSyncStep2(new byte[0]);
+        conn1.handleMessage(OutgoingMessage.sync("doc1", sync1).encode());
+
+        byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
+        conn2.handleMessage(OutgoingMessage.sync("doc2", sync2).encode());
+
+        // Wait for both documents to be created (no polling!)
+        assertTrue("Both documents should be created",
+                waiter.awaitDocumentCreated(1, TimeUnit.SECONDS));
+
+        YDocument doc1 = server.getDocument("doc1");
+        YDocument doc2 = server.getDocument("doc2");
+
+        assertNotNull("Doc1 should exist", doc1);
+        assertNotNull("Doc2 should exist", doc2);
+        assertEquals("Should have 2 documents", 2, server.getDocumentCount());
     }
 }
