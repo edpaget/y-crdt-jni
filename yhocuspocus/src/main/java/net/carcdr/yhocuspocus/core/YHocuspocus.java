@@ -1,6 +1,9 @@
 package net.carcdr.yhocuspocus.core;
 
+import net.carcdr.ycrdt.UpdateObserver;
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.YSubscription;
+import net.carcdr.ycrdt.YTransaction;
 import net.carcdr.yhocuspocus.extension.AfterLoadDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterStoreDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterUnloadDocumentPayload;
@@ -156,6 +159,9 @@ public final class YHocuspocus implements AutoCloseable {
                 loadingDocuments.remove(name);
                 if (doc != null && error == null) {
                     documents.put(name, doc);
+                    // Run afterLoadDocument hooks
+                    AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(doc, context);
+                    runHooksSync(afterPayload, Extension::afterLoadDocument);
                 }
             });
         });
@@ -177,21 +183,25 @@ public final class YHocuspocus implements AutoCloseable {
         runHooksSync(loadPayload, Extension::onLoadDocument);
 
         // Apply loaded state if provided
+        // Wrap in transaction for atomicity and to batch observer notifications
         if (loadPayload.getState() != null && loadPayload.getState().length > 0) {
-            ydoc.applyUpdate(loadPayload.getState());
+            try (YTransaction txn = ydoc.beginTransaction()) {
+                ydoc.applyUpdate(loadPayload.getState());
+            }
         }
 
-        // Run afterLoadDocument hooks
-        AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(document, context);
-        runHooksSync(afterPayload, Extension::afterLoadDocument);
-
         // Set up change tracking for onChange and debounced save
-        // Note: This would require YDoc.observe() which will be added when observer API is complete
-        // For now, document changes won't trigger automatic saves
-        // TODO: Add observer when ycrdt observer API is available:
-        // document.observe((event) -> handleDocumentChange(document, event, context));
+        // Create a context copy for the observer closure to avoid capturing mutable reference
+        Map<String, Object> observerContext = new ConcurrentHashMap<>(context);
+        UpdateObserver observer = (update, origin) -> {
+            handleDocumentChange(document, observerContext);
+        };
+
+        YSubscription subscription = ydoc.observeUpdateV1(observer);
+        document.setUpdateSubscription(subscription);
 
         document.setState(YDocument.State.ACTIVE);
+
         return document;
     }
 

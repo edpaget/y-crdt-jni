@@ -42,11 +42,14 @@ public class ExtensionIntegrationTest {
 
     private YHocuspocus server;
     private InMemoryDatabaseExtension database;
+    private TestWaiter waiter;
 
     @Before
     public void setUp() {
+        waiter = new TestWaiter();
         database = new InMemoryDatabaseExtension();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(database)
             .debounce(Duration.ofMillis(100))
             .maxDebounce(Duration.ofMillis(500))
@@ -64,18 +67,18 @@ public class ExtensionIntegrationTest {
     }
 
     /**
-     * Helper to wait for a document to be created.
+     * Helper to wait for a condition to be true.
      */
-    private YDocument waitForDocument(String name, long timeoutMs) throws InterruptedException {
+    private void waitForCondition(java.util.function.BooleanSupplier condition,
+                                   long timeoutMs) throws InterruptedException {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeoutMs) {
-            YDocument doc = server.getDocument(name);
-            if (doc != null) {
-                return doc;
+            if (condition.getAsBoolean()) {
+                return;
             }
             Thread.sleep(10);
         }
-        return null;
+        throw new AssertionError("Timeout waiting for condition");
     }
 
     /**
@@ -101,8 +104,14 @@ public class ExtensionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
-        // Wait for document to load
-        YDocument doc = waitForDocument("test-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should be loaded", doc);
 
         // Verify content was loaded from database
@@ -131,7 +140,9 @@ public class ExtensionIntegrationTest {
 
         // Create server with tracking extension
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(database)
             .extension(changeTracker)
             .debounce(Duration.ofMillis(100))
@@ -144,7 +155,14 @@ public class ExtensionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("change-doc", sync).encode());
 
-        YDocument doc = waitForDocument("change-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("change-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("change-doc");
         assertNotNull("Document should exist", doc);
 
         // Trigger a change
@@ -182,7 +200,14 @@ public class ExtensionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("persist-doc", sync).encode());
 
-        YDocument doc = waitForDocument("persist-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("persist-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("persist-doc");
         assertNotNull("Document should exist", doc);
 
         // Make a change
@@ -248,7 +273,9 @@ public class ExtensionIntegrationTest {
 
         // Create server with extensions (add in random order)
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(lowPriority)
             .extension(highPriority)
             .extension(database) // priority 500
@@ -297,7 +324,9 @@ public class ExtensionIntegrationTest {
 
         // Create server with extensions
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(contextEnricher)
             .extension(contextReader)
             .build();
@@ -337,7 +366,9 @@ public class ExtensionIntegrationTest {
         };
 
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(authExtension)
             .build();
 
@@ -368,7 +399,9 @@ public class ExtensionIntegrationTest {
         };
 
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(ext)
             .build();
 
@@ -412,7 +445,9 @@ public class ExtensionIntegrationTest {
         };
 
         server.close();
+        waiter = new TestWaiter();
         server = YHocuspocus.builder()
+            .extension(waiter)
             .extension(ext1)
             .extension(ext2)
             .extension(ext3)
@@ -451,7 +486,14 @@ public class ExtensionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("roundtrip-doc", sync).encode());
 
-        YDocument doc = waitForDocument("roundtrip-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("roundtrip-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("roundtrip-doc");
         assertNotNull("Document should load", doc);
 
         // Verify content

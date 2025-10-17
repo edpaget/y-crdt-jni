@@ -2,6 +2,7 @@ package net.carcdr.yhocuspocus.core;
 
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YText;
+import net.carcdr.yhocuspocus.extension.TestWaiter;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.MessageType;
@@ -14,6 +15,7 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,10 +38,14 @@ import static org.junit.Assert.assertTrue;
 public class SyncIntegrationTest {
 
     private YHocuspocus server;
+    private TestWaiter waiter;
 
     @Before
     public void setUp() {
-        server = YHocuspocus.builder().build();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .build();
     }
 
     @After
@@ -47,22 +53,6 @@ public class SyncIntegrationTest {
         if (server != null) {
             server.close();
         }
-    }
-
-    /**
-     * Helper to wait for a document to be created.
-     * Polls until document exists or timeout.
-     */
-    private YDocument waitForDocument(String name, long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            YDocument doc = server.getDocument(name);
-            if (doc != null) {
-                return doc;
-            }
-            Thread.sleep(10); // Small poll interval
-        }
-        return null; // Timeout
     }
 
     /**
@@ -90,13 +80,18 @@ public class SyncIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         // Pre-populate document on server
-        YDocument serverDoc = waitForDocument("test-doc", 1000);
-        if (serverDoc == null) {
-            // Create document first
-            byte[] initialSync = SyncProtocol.encodeSyncStep2(new byte[0]);
-            connection.handleMessage(OutgoingMessage.sync("test-doc", initialSync).encode());
-            serverDoc = waitForDocument("test-doc", 1000);
-        }
+        byte[] initialSync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        connection.handleMessage(OutgoingMessage.sync("test-doc", initialSync).encode());
+
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map (happens after afterLoadDocument)
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
+
+        YDocument serverDoc = server.getDocument("test-doc");
+        assertNotNull("Document should exist", serverDoc);
 
         YText serverText = serverDoc.getDoc().getText("content");
         serverText.insert(0, "Hello World");
@@ -149,8 +144,14 @@ public class SyncIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("shared-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("shared-doc", sync).encode());
 
-        // Wait for document
-        YDocument doc = waitForDocument("shared-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("shared-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("shared-doc");
         assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
@@ -208,7 +209,14 @@ public class SyncIntegrationTest {
         conn1.handleMessage(OutgoingMessage.sync("merge-doc", sync).encode());
         conn2.handleMessage(OutgoingMessage.sync("merge-doc", sync).encode());
 
-        YDocument serverDoc = waitForDocument("merge-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("merge-doc") != null, 1000);
+
+        YDocument serverDoc = server.getDocument("merge-doc");
         assertNotNull("Document should exist", serverDoc);
         waitForCondition(() -> serverDoc.getConnectionCount() == 2, 1000);
 
@@ -268,7 +276,14 @@ public class SyncIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("readonly-doc", sync).encode());
 
-        YDocument doc = waitForDocument("readonly-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("readonly-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("readonly-doc");
         assertNotNull("Document should exist", doc);
 
         // Get the document connection and set read-only
@@ -314,7 +329,15 @@ public class SyncIntegrationTest {
         conn1.handleMessage(OutgoingMessage.sync("seq-doc", sync).encode());
         conn2.handleMessage(OutgoingMessage.sync("seq-doc", sync).encode());
 
-        YDocument doc = waitForDocument("seq-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("seq-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("seq-doc");
+        assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         // Clear initial messages
@@ -366,7 +389,14 @@ public class SyncIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("empty-doc", sync).encode());
 
-        YDocument doc = waitForDocument("empty-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("empty-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("empty-doc");
         assertNotNull("Document should exist", doc);
 
         // Send empty update (no changes)
@@ -398,7 +428,12 @@ public class SyncIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
 
-        YDocument doc = waitForDocument("broadcast-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        YDocument doc = server.getDocument("broadcast-doc");
+        assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
         // Clear messages

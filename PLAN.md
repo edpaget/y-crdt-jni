@@ -309,6 +309,7 @@ The y-crdt-jni library provides both automatic transactional semantics and expli
 
 #### Observer Integration
 - **Observer callbacks triggered after commits** - All registered observers fire after a transaction successfully commits
+- **Synchronous execution** - Observer callbacks execute synchronously on the thread that commits the transaction
 - **Single observer event per transaction** - Batched operations trigger observers only once when transaction commits
 - **Transaction origin tracking** - YEvent includes origin information for observers to identify the source of changes
 - **Ordered callback execution** - Type-specific observers, deep observers, and update callbacks execute in defined order
@@ -593,9 +594,17 @@ y-crdt-jni/
 
 ---
 
-## Recent Achievements (2025-10-16)
+## Recent Achievements
 
-### YProseMirror Module Initialization ✅
+### Synchronous Observer Execution (2025-10-17) ✅
+- Refactored yprosemirror `YProseMirrorBinding` to use synchronous observer execution
+- Removed ExecutorService and async thread execution
+- Observers now execute synchronously on the commit thread (no deadlocks after ycrdt ThreadLocal refactoring)
+- Simplified YProseMirrorBinding implementation (removed async complexity)
+- Updated test suite to remove Thread.sleep delays (no longer needed)
+- **Result:** All 22 yprosemirror tests passing with synchronous observers
+
+### YProseMirror Module Initialization (2025-10-16) ✅
 - Set up yprosemirror module with prosemirror-kotlin dependencies
 - Dependencies: model, state, transform (v1.1.13) + kotlin-stdlib (v1.9.22)
 - Created package structure: net.carcdr.yprosemirror

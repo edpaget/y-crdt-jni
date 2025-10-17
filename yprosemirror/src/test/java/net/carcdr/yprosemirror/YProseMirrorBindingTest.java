@@ -140,7 +140,7 @@ public class YProseMirrorBindingTest {
     }
 
     @Test
-    public void testMultipleCallbackInvocations() throws InterruptedException {
+    public void testMultipleCallbackInvocations() {
         try (YDoc doc = new YDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
@@ -154,12 +154,10 @@ public class YProseMirrorBindingTest {
                         callbackCount.incrementAndGet();
                     })) {
 
-                // Modify Y-CRDT to trigger observer
+                // Modify Y-CRDT to trigger observer (synchronous execution)
                 fragment.insertElement(0, "paragraph");
 
-                // Wait for asynchronous observer callback
-                Thread.sleep(100);
-
+                // Observer callback is now synchronous, so it should have fired already
                 assertTrue("Callback should be invoked at least once",
                         callbackCount.get() >= 1);
             }

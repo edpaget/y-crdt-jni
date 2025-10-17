@@ -223,6 +223,15 @@ public class TestWaiter implements Extension {
     }
 
     /**
+     * Resets after document load latch for reuse.
+     *
+     * @param count the number of events to wait for
+     */
+    public void resetAfterLoadDocumentLoatch(int count) {
+        afterLoadDocumentLatch = new CountDownLatch(count);
+    }
+
+    /**
      * Resets change latch for reuse.
      *
      * @param count the number of events to wait for

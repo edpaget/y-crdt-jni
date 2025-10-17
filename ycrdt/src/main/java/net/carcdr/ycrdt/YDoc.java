@@ -1,6 +1,8 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -33,7 +35,7 @@ import java.util.function.Consumer;
  * when no longer needed to free native resources. Use try-with-resources to ensure
  * proper cleanup.</p>
  */
-public class YDoc implements Closeable {
+public class YDoc implements Closeable, YObservable {
 
     static {
         // Load the native library
@@ -56,6 +58,16 @@ public class YDoc implements Closeable {
      * if one exists, preventing deadlocks from nested transaction attempts.
      */
     private final ThreadLocal<YTransaction> activeTransaction = new ThreadLocal<>();
+
+    /**
+     * Map of active update observers by subscription ID
+     */
+    private final ConcurrentHashMap<Long, UpdateObserver> updateObservers = new ConcurrentHashMap<>();
+
+    /**
+     * Counter for generating unique subscription IDs
+     */
+    private final AtomicLong nextSubscriptionId = new AtomicLong(1);
 
     /**
      * Creates a new YDoc instance with a randomly generated client ID.
@@ -132,7 +144,35 @@ public class YDoc implements Closeable {
     }
 
     /**
-     * Encodes the current state of the document as a binary update.
+     * Encodes the current state of the document as a binary update within an existing transaction.
+     *
+     * <p>This method captures the entire state of the document and returns it
+     * as a byte array that can be transmitted to other clients or stored for
+     * later use.</p>
+     *
+     * <p>The returned byte array can be applied to another YDoc instance using
+     * {@link #applyUpdate(byte[])} to synchronize their states.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @return a byte array containing the encoded document state
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if encoding fails
+     */
+    public byte[] encodeStateAsUpdate(YTransaction txn) {
+        ensureNotClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        byte[] result = nativeEncodeStateAsUpdateWithTxn(nativePtr, txn.getNativePtr());
+        if (result == null) {
+            throw new RuntimeException("Failed to encode state as update");
+        }
+        return result;
+    }
+
+    /**
+     * Encodes the current state of the document as a binary update (creates implicit transaction).
      *
      * <p>This method captures the entire state of the document and returns it
      * as a byte array that can be transmitted to other clients or stored for
@@ -147,15 +187,52 @@ public class YDoc implements Closeable {
      */
     public byte[] encodeStateAsUpdate() {
         ensureNotClosed();
-        byte[] result = nativeEncodeStateAsUpdate(nativePtr);
-        if (result == null) {
-            throw new RuntimeException("Failed to encode state as update");
+        YTransaction activeTxn = getActiveTransaction();
+        if (activeTxn != null) {
+            byte[] result = nativeEncodeStateAsUpdateWithTxn(nativePtr, activeTxn.getNativePtr());
+            if (result == null) {
+                throw new RuntimeException("Failed to encode state as update");
+            }
+            return result;
         }
-        return result;
+        try (YTransaction txn = beginTransaction()) {
+            byte[] result = nativeEncodeStateAsUpdateWithTxn(nativePtr, txn.getNativePtr());
+            if (result == null) {
+                throw new RuntimeException("Failed to encode state as update");
+            }
+            return result;
+        }
     }
 
     /**
-     * Applies a binary update to this document.
+     * Applies a binary update to this document within an existing transaction.
+     *
+     * <p>This method merges changes from another document into this one. The update
+     * is typically obtained by calling {@link #encodeStateAsUpdate()} on another
+     * YDoc instance.</p>
+     *
+     * <p>Updates are idempotent - applying the same update multiple times has the
+     * same effect as applying it once.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @param update the binary update to apply
+     * @throws IllegalArgumentException if txn or update is null
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if the update is invalid or cannot be applied
+     */
+    public void applyUpdate(YTransaction txn, byte[] update) {
+        ensureNotClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (update == null) {
+            throw new IllegalArgumentException("Update cannot be null");
+        }
+        nativeApplyUpdateWithTxn(nativePtr, txn.getNativePtr(), update);
+    }
+
+    /**
+     * Applies a binary update to this document (creates implicit transaction).
      *
      * <p>This method merges changes from another document into this one. The update
      * is typically obtained by calling {@link #encodeStateAsUpdate()} on another
@@ -174,11 +251,47 @@ public class YDoc implements Closeable {
         if (update == null) {
             throw new IllegalArgumentException("Update cannot be null");
         }
-        nativeApplyUpdate(nativePtr, update);
+        YTransaction activeTxn = getActiveTransaction();
+        if (activeTxn != null) {
+            nativeApplyUpdateWithTxn(nativePtr, activeTxn.getNativePtr(), update);
+        } else {
+            try (YTransaction txn = beginTransaction()) {
+                nativeApplyUpdateWithTxn(nativePtr, txn.getNativePtr(), update);
+            }
+        }
     }
 
     /**
-     * Encodes the current state vector of this document.
+     * Encodes the current state vector of this document within an existing transaction.
+     *
+     * <p>A state vector is a compact representation of all known blocks inserted and
+     * integrated into this document. It serves as a logical timestamp describing which
+     * updates this document has observed.</p>
+     *
+     * <p>State vectors are used to generate differential updates - by sending a state
+     * vector to a remote peer, they can determine which changes this document has not
+     * yet seen and send only those changes.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @return a byte array containing the encoded state vector
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if encoding fails
+     */
+    public byte[] encodeStateVector(YTransaction txn) {
+        ensureNotClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        byte[] result = nativeEncodeStateVectorWithTxn(nativePtr, txn.getNativePtr());
+        if (result == null) {
+            throw new RuntimeException("Failed to encode state vector");
+        }
+        return result;
+    }
+
+    /**
+     * Encodes the current state vector of this document (creates implicit transaction).
      *
      * <p>A state vector is a compact representation of all known blocks inserted and
      * integrated into this document. It serves as a logical timestamp describing which
@@ -189,21 +302,75 @@ public class YDoc implements Closeable {
      * yet seen and send only those changes.</p>
      *
      * @return a byte array containing the encoded state vector
-     * @throws IllegalStateException if this document has been closed
+     * @throws IllegalStateState if this document has been closed
      * @throws RuntimeException if encoding fails
      */
     public byte[] encodeStateVector() {
         ensureNotClosed();
-        byte[] result = nativeEncodeStateVector(nativePtr);
+        YTransaction activeTxn = getActiveTransaction();
+        if (activeTxn != null) {
+            byte[] result = nativeEncodeStateVectorWithTxn(nativePtr, activeTxn.getNativePtr());
+            if (result == null) {
+                throw new RuntimeException("Failed to encode state vector");
+            }
+            return result;
+        }
+        try (YTransaction txn = beginTransaction()) {
+            byte[] result = nativeEncodeStateVectorWithTxn(nativePtr, txn.getNativePtr());
+            if (result == null) {
+                throw new RuntimeException("Failed to encode state vector");
+            }
+            return result;
+        }
+    }
+
+    /**
+     * Encodes a differential update containing only changes not yet observed by the
+     * remote peer within an existing transaction.
+     *
+     * <p>This method generates an update that includes only the changes that are present
+     * in this document but not reflected in the provided state vector. This is more
+     * efficient than sending the entire document state when synchronizing with a peer
+     * that already has some of the data.</p>
+     *
+     * <p>Typical usage:</p>
+     * <pre>{@code
+     * // Remote peer sends their state vector
+     * byte[] remoteStateVector = ...;
+     *
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     // Generate differential update
+     *     byte[] diff = doc.encodeDiff(txn, remoteStateVector);
+     *     // Send diff to remote peer
+     *     // Remote peer applies it with applyUpdate(diff)
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param stateVector the state vector from the remote peer
+     * @return a byte array containing the differential update
+     * @throws IllegalArgumentException if txn or stateVector is null
+     * @throws IllegalStateException if this document has been closed
+     * @throws RuntimeException if encoding fails
+     */
+    public byte[] encodeDiff(YTransaction txn, byte[] stateVector) {
+        ensureNotClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (stateVector == null) {
+            throw new IllegalArgumentException("State vector cannot be null");
+        }
+        byte[] result = nativeEncodeDiffWithTxn(nativePtr, txn.getNativePtr(), stateVector);
         if (result == null) {
-            throw new RuntimeException("Failed to encode state vector");
+            throw new RuntimeException("Failed to encode differential update");
         }
         return result;
     }
 
     /**
      * Encodes a differential update containing only changes not yet observed by the
-     * remote peer.
+     * remote peer (creates implicit transaction).
      *
      * <p>This method generates an update that includes only the changes that are present
      * in this document but not reflected in the provided state vector. This is more
@@ -233,11 +400,21 @@ public class YDoc implements Closeable {
         if (stateVector == null) {
             throw new IllegalArgumentException("State vector cannot be null");
         }
-        byte[] result = nativeEncodeDiff(nativePtr, stateVector);
-        if (result == null) {
-            throw new RuntimeException("Failed to encode differential update");
+        YTransaction activeTxn = getActiveTransaction();
+        if (activeTxn != null) {
+            byte[] result = nativeEncodeDiffWithTxn(nativePtr, activeTxn.getNativePtr(), stateVector);
+            if (result == null) {
+                throw new RuntimeException("Failed to encode differential update");
+            }
+            return result;
         }
-        return result;
+        try (YTransaction txn = beginTransaction()) {
+            byte[] result = nativeEncodeDiffWithTxn(nativePtr, txn.getNativePtr(), stateVector);
+            if (result == null) {
+                throw new RuntimeException("Failed to encode differential update");
+            }
+            return result;
+        }
     }
 
     /**
@@ -605,6 +782,104 @@ public class YDoc implements Closeable {
     }
 
     /**
+     * Observes all updates to this document.
+     *
+     * <p>The observer will be called whenever any Y type within this document
+     * is modified, providing the binary-encoded update. This is useful for:
+     * <ul>
+     *   <li>Persisting document changes</li>
+     *   <li>Broadcasting updates to remote peers</li>
+     *   <li>Logging or auditing changes</li>
+     *   <li>Triggering side effects on document changes</li>
+     * </ul>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc()) {
+     *     UpdateObserver observer = (update, origin) -> {
+     *         System.out.println("Document updated: " + update.length + " bytes");
+     *         // Persist to database, broadcast to peers, etc.
+     *     };
+     *
+     *     try (YSubscription sub = doc.observeUpdateV1(observer)) {
+     *         try (YText text = doc.getText("mytext")) {
+     *             text.insert(0, "Hello"); // Triggers observer
+     *         }
+     *     }
+     * }
+     * }</pre>
+     *
+     * <p><b>Important:</b> The observer is called synchronously on the thread
+     * that modifies the document. Observers should perform minimal work to avoid
+     * blocking document operations. For expensive operations, schedule them
+     * asynchronously.</p>
+     *
+     * <p><b>Reentrancy Warning:</b> Observers should NOT modify the same document
+     * that triggered the callback, as this may cause undefined behavior or deadlocks.</p>
+     *
+     * @param observer the observer to register
+     * @return a subscription that can be closed to unregister the observer
+     * @throws IllegalArgumentException if observer is null
+     * @throws IllegalStateException if this document has been closed
+     * @see UpdateObserver
+     */
+    public YSubscription observeUpdateV1(UpdateObserver observer) {
+        ensureNotClosed();
+        if (observer == null) {
+            throw new IllegalArgumentException("Observer cannot be null");
+        }
+
+        long subscriptionId = nextSubscriptionId.getAndIncrement();
+        updateObservers.put(subscriptionId, observer);
+
+        // Register with native layer
+        nativeObserveUpdateV1(nativePtr, subscriptionId, this);
+
+        return new YSubscription(subscriptionId, null, this);
+    }
+
+    /**
+     * Unregisters an update observer by subscription ID.
+     *
+     * <p>This is called automatically when a YSubscription is closed.
+     * You typically don't need to call this directly.</p>
+     *
+     * @param subscriptionId the subscription ID to remove
+     */
+    @Override
+    public void unobserveById(long subscriptionId) {
+        if (updateObservers.remove(subscriptionId) != null) {
+            if (!closed && nativePtr != 0) {
+                nativeUnobserveUpdateV1(nativePtr, subscriptionId);
+            }
+        }
+    }
+
+    /**
+     * Called from native code when an update occurs.
+     *
+     * <p>This method is invoked by the native layer and dispatches the update
+     * to all registered observers.</p>
+     *
+     * @param subscriptionId the subscription ID (currently unused, may be used for filtering)
+     * @param update the binary-encoded update
+     * @param origin optional origin string, may be null
+     */
+    @SuppressWarnings("unused") // Called from native code
+    private void onUpdateCallback(long subscriptionId, byte[] update, String origin) {
+        // Call all registered observers
+        for (UpdateObserver observer : updateObservers.values()) {
+            try {
+                observer.onUpdate(update, origin);
+            } catch (Exception e) {
+                // Log but don't propagate - observers should not break each other
+                System.err.println("Error in update observer: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Closes this document and frees its native resources.
      *
      * <p>After calling this method, any further operations on this document
@@ -693,17 +968,21 @@ public class YDoc implements Closeable {
 
     private static native String nativeGetGuid(long ptr);
 
-    private static native byte[] nativeEncodeStateAsUpdate(long ptr);
+    private static native byte[] nativeEncodeStateAsUpdateWithTxn(long ptr, long txnPtr);
 
-    private static native void nativeApplyUpdate(long ptr, byte[] update);
+    private static native void nativeApplyUpdateWithTxn(long ptr, long txnPtr, byte[] update);
 
-    private static native byte[] nativeEncodeStateVector(long ptr);
+    private static native byte[] nativeEncodeStateVectorWithTxn(long ptr, long txnPtr);
 
-    private static native byte[] nativeEncodeDiff(long ptr, byte[] stateVector);
+    private static native byte[] nativeEncodeDiffWithTxn(long ptr, long txnPtr, byte[] stateVector);
 
     private static native byte[] nativeMergeUpdates(byte[][] updates);
 
     private static native byte[] nativeEncodeStateVectorFromUpdate(byte[] update);
 
     private static native long nativeBeginTransaction(long ptr);
+
+    private static native void nativeObserveUpdateV1(long ptr, long subscriptionId, YDoc ydocObj);
+
+    private static native void nativeUnobserveUpdateV1(long ptr, long subscriptionId);
 }

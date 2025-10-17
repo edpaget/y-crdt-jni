@@ -1,6 +1,7 @@
 package net.carcdr.yhocuspocus.core;
 
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.YSubscription;
 import net.carcdr.yhocuspocus.protocol.Awareness;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -43,6 +44,7 @@ public class YDocument implements AutoCloseable {
 
     private final ConcurrentHashMap<String, DocumentConnection> connections;
     private volatile State state;
+    private YSubscription updateSubscription;
 
     /**
      * Creates a new YDocument wrapper.
@@ -59,6 +61,15 @@ public class YDocument implements AutoCloseable {
         this.saveLock = new ReentrantLock();
         this.connections = new ConcurrentHashMap<>();
         this.state = State.ACTIVE;
+    }
+
+    /**
+     * Sets the update subscription for this document.
+     *
+     * @param subscription the subscription to set
+     */
+    void setUpdateSubscription(YSubscription subscription) {
+        this.updateSubscription = subscription;
     }
 
     /**
@@ -210,6 +221,11 @@ public class YDocument implements AutoCloseable {
         // Close all connections
         connections.values().forEach(DocumentConnection::close);
         connections.clear();
+
+        // Close update subscription
+        if (updateSubscription != null) {
+            updateSubscription.close();
+        }
 
         // Close the underlying YDoc
         doc.close();

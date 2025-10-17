@@ -1,5 +1,6 @@
 package net.carcdr.yhocuspocus.core;
 
+import net.carcdr.yhocuspocus.extension.TestWaiter;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.MessageType;
@@ -13,6 +14,7 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -34,10 +36,14 @@ import static org.junit.Assert.assertTrue;
 public class AwarenessStatelessIntegrationTest {
 
     private YHocuspocus server;
+    private TestWaiter waiter;
 
     @Before
     public void setUp() {
-        server = YHocuspocus.builder().build();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .build();
     }
 
     @After
@@ -45,21 +51,6 @@ public class AwarenessStatelessIntegrationTest {
         if (server != null) {
             server.close();
         }
-    }
-
-    /**
-     * Helper to wait for a document to be created.
-     */
-    private YDocument waitForDocument(String name, long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            YDocument doc = server.getDocument(name);
-            if (doc != null) {
-                return doc;
-            }
-            Thread.sleep(10);
-        }
-        return null;
     }
 
     /**
@@ -96,10 +87,14 @@ public class AwarenessStatelessIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded (longer timeout for test suite)
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(5, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("awareness-doc", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("awareness-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("awareness-doc");
         assertNotNull("Document should exist", doc);
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
@@ -145,13 +140,17 @@ public class AwarenessStatelessIntegrationTest {
 
         // Both connect
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
+        conn1.handleMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
+        conn2.handleMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded (longer timeout for test suite)
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(5, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("awareness-doc", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("disconnect-awareness-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("disconnect-awareness-doc");
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         // Conn1 adds awareness
@@ -161,7 +160,7 @@ public class AwarenessStatelessIntegrationTest {
         awarenessWriter.writeVarInt(1);
         awarenessWriter.writeVarString("{\"user\":{\"name\":\"Alice\"}}");
 
-        conn1.handleMessage(OutgoingMessage.awareness("awareness-doc",
+        conn1.handleMessage(OutgoingMessage.awareness("disconnect-awareness-doc",
                 awarenessWriter.toByteArray()).encode());
 
         // Wait for awareness to propagate
@@ -193,10 +192,14 @@ public class AwarenessStatelessIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("stateless-doc", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("stateless-doc", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("stateless-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("stateless-doc");
         assertNotNull("Document should exist", doc);
 
         // Clear initial messages
@@ -246,10 +249,14 @@ public class AwarenessStatelessIntegrationTest {
         conn2.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
         conn3.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("broadcast-doc", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("broadcast-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("broadcast-doc");
         waitForCondition(() -> doc.getConnectionCount() == 3, 1000);
 
         // Clear messages
@@ -295,10 +302,14 @@ public class AwarenessStatelessIntegrationTest {
         conn1.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
         conn2.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("multi-awareness", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("multi-awareness") != null, 1000);
+
+        YDocument doc = server.getDocument("multi-awareness");
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
 
         transport2.getSentMessages().clear();
@@ -333,10 +344,14 @@ public class AwarenessStatelessIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("query-test", sync).encode());
 
-        // Allow async document creation to complete
-        Thread.sleep(100);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
 
-        YDocument doc = waitForDocument("query-test", 10000);
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("query-test") != null, 1000);
+
+        YDocument doc = server.getDocument("query-test");
         assertNotNull("Document should exist", doc);
 
         transport.getSentMessages().clear();

@@ -89,27 +89,17 @@ public class ConnectionIntegrationTest {
         // Send message
         connection.handleMessage(msg.encode());
 
-        // Wait for document to be created (poll with timeout)
-        YDocument doc = waitForDocument("test-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should be created", doc);
         assertEquals("Document name should match", "test-doc", doc.getName());
         assertEquals("Document should have one connection", 1, doc.getConnectionCount());
-    }
-
-    /**
-     * Helper to wait for a document to be created.
-     * Polls until document exists or timeout.
-     */
-    private YDocument waitForDocument(String name, long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            YDocument doc = server.getDocument(name);
-            if (doc != null) {
-                return doc;
-            }
-            Thread.sleep(10); // Small poll interval
-        }
-        return null; // Timeout
     }
 
     /**
@@ -130,6 +120,9 @@ public class ConnectionIntegrationTest {
 
     @Test
     public void testMultipleDocumentsPerConnection() throws Exception {
+        // Reset latch to wait for 2 documents
+        waiter.resetAfterLoadDocumentLoatch(2);
+
         MockTransport transport = new MockTransport();
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
@@ -140,9 +133,16 @@ public class ConnectionIntegrationTest {
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("doc2", sync2).encode());
 
-        // Wait for both documents to be created
-        assertNotNull("Doc1 should exist", waitForDocument("doc1", 1000));
-        assertNotNull("Doc2 should exist", waitForDocument("doc2", 1000));
+        // Wait for both documents to be loaded
+        assertTrue("Both documents should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for both documents to be added to server's map
+        waitForCondition(() -> server.getDocument("doc1") != null, 1000);
+        waitForCondition(() -> server.getDocument("doc2") != null, 1000);
+
+        assertNotNull("Doc1 should exist", server.getDocument("doc1"));
+        assertNotNull("Doc2 should exist", server.getDocument("doc2"));
         assertEquals("Should have 2 documents", 2, server.getDocumentCount());
     }
 
@@ -155,8 +155,12 @@ public class ConnectionIntegrationTest {
         byte[] syncPayload = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("test-doc", syncPayload).encode());
 
-        // Wait for document and messages to be sent
-        waitForDocument("test-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map and messages to be sent
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
         waitForCondition(() -> transport.getSentMessages().size() >= 2, 1000);
 
         // Should have received messages (initial sync + sync status)
@@ -184,8 +188,14 @@ public class ConnectionIntegrationTest {
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
         conn2.handleMessage(OutgoingMessage.sync("shared-doc", sync2).encode());
 
-        // Wait for document to have both connections
-        YDocument doc = waitForDocument("shared-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("shared-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("shared-doc");
         assertNotNull("Document should exist", doc);
 
         waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
@@ -201,7 +211,14 @@ public class ConnectionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
-        YDocument doc = waitForDocument("test-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("test-doc");
         assertEquals("Should have 1 connection", 1, doc.getConnectionCount());
 
         // Close connection
@@ -220,8 +237,14 @@ public class ConnectionIntegrationTest {
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
-        // Wait for document creation
-        YDocument doc = waitForDocument("test-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should exist before close", doc);
         assertEquals("Document should have 1 connection", 1, doc.getConnectionCount());
 
@@ -255,8 +278,14 @@ public class ConnectionIntegrationTest {
             connections[i].handleMessage(OutgoingMessage.sync("concurrent-doc", sync).encode());
         }
 
-        // Wait for document and all connections to be registered
-        YDocument doc = waitForDocument("concurrent-doc", 1000);
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+
+        // Wait for document to be added to server's map
+        waitForCondition(() -> server.getDocument("concurrent-doc") != null, 1000);
+
+        YDocument doc = server.getDocument("concurrent-doc");
         assertNotNull("Document should exist", doc);
 
         final int expectedCount = numConnections;
@@ -305,7 +334,7 @@ public class ConnectionIntegrationTest {
     @Test
     public void testMultipleConnectionsWithTestWaiter() throws Exception {
         // Reset latch to wait for 2 documents
-        waiter.resetCreateDocumentLatch(2);
+        waiter.resetAfterLoadDocumentLoatch(2);
 
         MockTransport transport1 = new MockTransport();
         MockTransport transport2 = new MockTransport();
@@ -321,7 +350,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for both documents to be created (no polling!)
         assertTrue("Both documents should be created",
-                waiter.awaitDocumentCreated(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         YDocument doc1 = server.getDocument("doc1");
         YDocument doc2 = server.getDocument("doc2");

@@ -1,6 +1,7 @@
 package net.carcdr.yhocuspocus.protocol;
 
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.YTransaction;
 
 /**
  * Y.js sync protocol implementation.
@@ -101,7 +102,9 @@ public final class SyncProtocol {
     /**
      * Handles Update (incremental changes).
      *
-     * <p>Client sends incremental changes to apply to the document.</p>
+     * <p>Client sends incremental changes to apply to the document.
+     * Updates are applied within a transaction for atomicity and performance.
+     * This ensures observers fire only once per update batch.</p>
      *
      * @param doc the document
      * @param reader the payload reader positioned after sync type
@@ -109,7 +112,10 @@ public final class SyncProtocol {
     private static void handleUpdate(YDoc doc, VarIntReader reader) {
         byte[] update = reader.remaining();
         if (update.length > 0) {
-            doc.applyUpdate(update);
+            // Wrap in transaction for atomicity and to batch observer notifications
+            try (YTransaction txn = doc.beginTransaction()) {
+                doc.applyUpdate(update);
+            }
         }
     }
 

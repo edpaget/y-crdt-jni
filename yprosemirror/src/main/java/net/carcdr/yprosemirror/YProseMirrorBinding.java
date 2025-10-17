@@ -3,9 +3,6 @@ package net.carcdr.yprosemirror;
 import com.atlassian.prosemirror.model.Node;
 import com.atlassian.prosemirror.model.Schema;
 import java.io.Closeable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import net.carcdr.ycrdt.YEvent;
@@ -50,9 +47,8 @@ import net.carcdr.ycrdt.YXmlFragment;
  * }</pre>
  *
  * <p><strong>Thread Safety:</strong> This class is NOT thread-safe. All method calls
- * should be made from the same thread (typically the UI thread). However, the
- * onUpdate callback is invoked asynchronously on a background thread to prevent
- * reentrancy issues with native code.
+ * should be made from the same thread (typically the UI thread). The onUpdate
+ * callback is invoked synchronously on the same thread that triggered the Y-CRDT change.
  *
  * <p><strong>Change Loop Prevention:</strong> The binding automatically prevents
  * infinite update loops by tracking whether changes originated locally or remotely.
@@ -71,7 +67,6 @@ public class YProseMirrorBinding implements Closeable {
     private final Consumer<Node> onUpdate;
     private final YSubscription subscription;
     private final AtomicBoolean isApplyingRemoteChange = new AtomicBoolean(false);
-    private final ExecutorService executorService;
     private volatile boolean closed = false;
 
     /**
@@ -108,11 +103,6 @@ public class YProseMirrorBinding implements Closeable {
         this.yFragment = yFragment;
         this.schema = schema;
         this.onUpdate = onUpdate;
-        this.executorService = Executors.newSingleThreadExecutor(r -> {
-            Thread thread = new Thread(r, "YProseMirrorBinding-Observer");
-            thread.setDaemon(true);
-            return thread;
-        });
 
         // Set up Y-CRDT observer to listen for remote changes
         this.subscription = yFragment.observe(new YCrdtObserver());
@@ -211,15 +201,6 @@ public class YProseMirrorBinding implements Closeable {
             if (subscription != null) {
                 subscription.close();
             }
-            executorService.shutdown();
-            try {
-                if (!executorService.awaitTermination(1, TimeUnit.SECONDS)) {
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executorService.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
             closed = true;
         }
     }
@@ -276,25 +257,14 @@ public class YProseMirrorBinding implements Closeable {
      * Observer for Y-CRDT changes.
      *
      * <p>This observer listens for changes to the Y-CRDT document and applies
-     * them to ProseMirror via the onUpdate callback.
-     *
-     * <p>The observer processes events asynchronously to avoid reentrancy issues
-     * where the native code calls the observer while the transaction is still active.
+     * them to ProseMirror via the onUpdate callback synchronously.
      */
     private final class YCrdtObserver implements YObserver {
         @Override
         public void onChange(YEvent event) {
-            if (closed) {
-                return;
+            if (!closed) {
+                applyYCrdtChangeToProseMirror();
             }
-
-            // Submit the event processing to the executor service to avoid
-            // reentrancy deadlock (native code calls observer during transaction commit)
-            executorService.submit(() -> {
-                if (!closed) {
-                    applyYCrdtChangeToProseMirror();
-                }
-            });
         }
     }
 }
