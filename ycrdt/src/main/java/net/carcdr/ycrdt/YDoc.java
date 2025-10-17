@@ -302,7 +302,7 @@ public class YDoc implements Closeable, YObservable {
      * yet seen and send only those changes.</p>
      *
      * @return a byte array containing the encoded state vector
-     * @throws IllegalStateState if this document has been closed
+     * @throws IllegalStateException if this document has been closed
      * @throws RuntimeException if encoding fails
      */
     public byte[] encodeStateVector() {
