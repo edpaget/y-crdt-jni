@@ -88,7 +88,29 @@ public class YXmlFragment implements Closeable, YObservable {
      */
     public int length() {
         checkClosed();
-        return nativeLength(doc.getNativeHandle(), nativeHandle);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeLengthWithTxn(doc.getNativeHandle(), nativeHandle, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeLengthWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the number of children in this fragment using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return the number of child nodes
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     */
+    public int length(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeLengthWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr());
     }
 
     /**
@@ -105,10 +127,22 @@ public class YXmlFragment implements Closeable, YObservable {
         if (tag == null) {
             throw new IllegalArgumentException("Tag cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(activeTxn));
+            }
+            nativeInsertElementWithTxn(doc.getNativeHandle(), nativeHandle, activeTxn.getNativePtr(),
+                index, tag);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(txn));
+                }
+                nativeInsertElementWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(),
+                    index, tag);
+            }
         }
-        nativeInsertElement(doc.getNativeHandle(), nativeHandle, 0, index, tag);
     }
 
     /**
@@ -137,10 +171,10 @@ public class YXmlFragment implements Closeable, YObservable {
         if (tag == null) {
             throw new IllegalArgumentException("Tag cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        if (index < 0 || index > length(txn)) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(txn));
         }
-        nativeInsertElement(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, tag);
+        nativeInsertElementWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, tag);
     }
 
     /**
@@ -157,10 +191,22 @@ public class YXmlFragment implements Closeable, YObservable {
         if (content == null) {
             throw new IllegalArgumentException("Content cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(activeTxn));
+            }
+            nativeInsertTextWithTxn(doc.getNativeHandle(), nativeHandle, activeTxn.getNativePtr(),
+                index, content);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(txn));
+                }
+                nativeInsertTextWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(),
+                    index, content);
+            }
         }
-        nativeInsertText(doc.getNativeHandle(), nativeHandle, 0, index, content);
     }
 
     /**
@@ -189,10 +235,10 @@ public class YXmlFragment implements Closeable, YObservable {
         if (content == null) {
             throw new IllegalArgumentException("Content cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        if (index < 0 || index > length(txn)) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length(txn));
         }
-        nativeInsertText(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, content);
+        nativeInsertTextWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, content);
     }
 
     /**
@@ -209,13 +255,28 @@ public class YXmlFragment implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                     "Index and length must be non-negative: index=" + index + ", length=" + length);
         }
-        int fragmentLength = length();
-        if (index + length > fragmentLength) {
-            throw new IndexOutOfBoundsException(
-                    "Range [" + index + ", " + (index + length)
-                            + ") exceeds fragment length " + fragmentLength);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            int fragmentLength = length(activeTxn);
+            if (index + length > fragmentLength) {
+                throw new IndexOutOfBoundsException(
+                        "Range [" + index + ", " + (index + length)
+                                + ") exceeds fragment length " + fragmentLength);
+            }
+            nativeRemoveWithTxn(doc.getNativeHandle(), nativeHandle, activeTxn.getNativePtr(),
+                index, length);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                int fragmentLength = length(txn);
+                if (index + length > fragmentLength) {
+                    throw new IndexOutOfBoundsException(
+                            "Range [" + index + ", " + (index + length)
+                                    + ") exceeds fragment length " + fragmentLength);
+                }
+                nativeRemoveWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(),
+                    index, length);
+            }
         }
-        nativeRemove(doc.getNativeHandle(), nativeHandle, 0, index, length);
     }
 
     /**
@@ -245,13 +306,13 @@ public class YXmlFragment implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                     "Index and length must be non-negative: index=" + index + ", length=" + length);
         }
-        int fragmentLength = length();
+        int fragmentLength = length(txn);
         if (index + length > fragmentLength) {
             throw new IndexOutOfBoundsException(
                     "Range [" + index + ", " + (index + length)
                             + ") exceeds fragment length " + fragmentLength);
         }
-        nativeRemove(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, length);
+        nativeRemoveWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, length);
     }
 
     /**
@@ -263,7 +324,41 @@ public class YXmlFragment implements Closeable, YObservable {
      */
     public YXmlNode.NodeType getNodeType(int index) {
         checkClosed();
-        int type = nativeGetNodeType(doc.getNativeHandle(), nativeHandle, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        int type;
+        if (activeTxn != null) {
+            type = nativeGetNodeTypeWithTxn(doc.getNativeHandle(), nativeHandle,
+                activeTxn.getNativePtr(), index);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                type = nativeGetNodeTypeWithTxn(doc.getNativeHandle(), nativeHandle,
+                    txn.getNativePtr(), index);
+            }
+        }
+        if (type == 0) {
+            return YXmlNode.NodeType.ELEMENT;
+        } else if (type == 1) {
+            return YXmlNode.NodeType.TEXT;
+        }
+        return null;
+    }
+
+    /**
+     * Gets the type of the child node at the specified index using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param index the index of the child (0-based)
+     * @return the node type, or null if index is out of bounds
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     */
+    public YXmlNode.NodeType getNodeType(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        int type = nativeGetNodeTypeWithTxn(doc.getNativeHandle(), nativeHandle,
+            txn.getNativePtr(), index);
         if (type == 0) {
             return YXmlNode.NodeType.ELEMENT;
         } else if (type == 1) {
@@ -357,7 +452,44 @@ public class YXmlFragment implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long elementPtr = nativeGetElement(doc.getNativeHandle(), nativeHandle, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        long elementPtr;
+        if (activeTxn != null) {
+            elementPtr = nativeGetElementWithTxn(doc.getNativeHandle(), nativeHandle,
+                activeTxn.getNativePtr(), index);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                elementPtr = nativeGetElementWithTxn(doc.getNativeHandle(), nativeHandle,
+                    txn.getNativePtr(), index);
+            }
+        }
+        if (elementPtr == 0) {
+            return null;
+        }
+        return new YXmlElement(doc, elementPtr);
+    }
+
+    /**
+     * Retrieves a child element at the specified index using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param index the index of the child element (0-based)
+     * @return a YXmlElement wrapping the child element, or null if the child at
+     *         the given index is not an element or the index is out of bounds
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public YXmlElement getElement(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long elementPtr = nativeGetElementWithTxn(doc.getNativeHandle(), nativeHandle,
+            txn.getNativePtr(), index);
         if (elementPtr == 0) {
             return null;
         }
@@ -396,7 +528,44 @@ public class YXmlFragment implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long textPtr = nativeGetText(doc.getNativeHandle(), nativeHandle, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        long textPtr;
+        if (activeTxn != null) {
+            textPtr = nativeGetTextWithTxn(doc.getNativeHandle(), nativeHandle,
+                activeTxn.getNativePtr(), index);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                textPtr = nativeGetTextWithTxn(doc.getNativeHandle(), nativeHandle,
+                    txn.getNativePtr(), index);
+            }
+        }
+        if (textPtr == 0) {
+            return null;
+        }
+        return new YXmlText(doc, textPtr);
+    }
+
+    /**
+     * Retrieves a child text node at the specified index using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param index the index of the child text node (0-based)
+     * @return a YXmlText wrapping the child text node, or null if the child at
+     *         the given index is not a text node or the index is out of bounds
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public YXmlText getText(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long textPtr = nativeGetTextWithTxn(doc.getNativeHandle(), nativeHandle,
+            txn.getNativePtr(), index);
         if (textPtr == 0) {
             return null;
         }
@@ -412,7 +581,30 @@ public class YXmlFragment implements Closeable, YObservable {
      */
     public String toXmlString() {
         checkClosed();
-        return nativeToXmlString(doc.getNativeHandle(), nativeHandle);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeToXmlStringWithTxn(doc.getNativeHandle(), nativeHandle,
+                activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeToXmlStringWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the XML string representation of this fragment using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return the XML string
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     */
+    public String toXmlString(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeToXmlStringWithTxn(doc.getNativeHandle(), nativeHandle, txn.getNativePtr());
     }
 
     /**
@@ -557,23 +749,27 @@ public class YXmlFragment implements Closeable, YObservable {
 
     private static native void nativeDestroy(long ptr);
 
-    private static native int nativeLength(long docPtr, long fragmentPtr);
+    private static native int nativeLengthWithTxn(long docPtr, long fragmentPtr, long txnPtr);
 
-    private static native void nativeInsertElement(long docPtr, long fragmentPtr, long txnPtr, int index,
-            String tag);
+    private static native void nativeInsertElementWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index, String tag);
 
-    private static native void nativeInsertText(long docPtr, long fragmentPtr, long txnPtr, int index,
-            String content);
+    private static native void nativeInsertTextWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index, String content);
 
-    private static native void nativeRemove(long docPtr, long fragmentPtr, long txnPtr, int index, int length);
+    private static native void nativeRemoveWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index, int length);
 
-    private static native int nativeGetNodeType(long docPtr, long fragmentPtr, int index);
+    private static native int nativeGetNodeTypeWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index);
 
-    private static native long nativeGetElement(long docPtr, long fragmentPtr, int index);
+    private static native long nativeGetElementWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index);
 
-    private static native long nativeGetText(long docPtr, long fragmentPtr, int index);
+    private static native long nativeGetTextWithTxn(long docPtr, long fragmentPtr, long txnPtr,
+            int index);
 
-    private static native String nativeToXmlString(long docPtr, long fragmentPtr);
+    private static native String nativeToXmlStringWithTxn(long docPtr, long fragmentPtr, long txnPtr);
 
     private static native void nativeObserve(long docPtr, long fragmentPtr, long subscriptionId,
                                               YXmlFragment fragmentObj);

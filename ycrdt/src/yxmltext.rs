@@ -1,4 +1,6 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
+use crate::{
+    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
+};
 use jni::objects::{GlobalRef, JClass, JMap, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
 use jni::{AttachGuard, JNIEnv};
@@ -96,20 +98,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDestroy(
     }
 }
 
-/// Gets the length of the XML text (number of characters)
+/// Gets the length of the XML text (number of characters) using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// The length of the text as jint
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeLength(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeLengthWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jint {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -119,30 +123,39 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeLength(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return 0;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return 0;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let txn = doc.transact();
-
-        text.len(&txn) as jint
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => text.len(txn) as jint,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                0
+            }
+        }
     }
 }
 
-/// Returns the string representation of the XML text
+/// Returns the string representation of the XML text using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A Java string containing the text content
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeToString(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeToStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jstring {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -152,27 +165,36 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeToString(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return std::ptr::null_mut();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return std::ptr::null_mut();
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let txn = doc.transact();
-
-        let string = text.get_string(&txn);
-        to_jstring(&mut env, &string)
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                let string = text.get_string(txn);
+                to_jstring(&mut env, &string)
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                std::ptr::null_mut()
+            }
+        }
     }
 }
 
-/// Inserts text at the specified index
+/// Inserts text at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index at which to insert the text
 /// - `chunk`: The text to insert
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -189,6 +211,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert chunk to Rust string
     let chunk_str: String = match env.get_string(&chunk) {
@@ -200,33 +226,29 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            text.insert(&mut txn, index as u32, &chunk_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        // Use existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 text.insert(txn, index as u32, &chunk_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Appends text to the end
+/// Appends text to the end using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `chunk`: The text to append
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePushWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -242,6 +264,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert chunk to Rust string
     let chunk_str: String = match env.get_string(&chunk) {
@@ -253,34 +279,30 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            text.push(&mut txn, &chunk_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        // Use existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 text.push(txn, &chunk_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Deletes a range of text
+/// Deletes a range of text using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The starting index of the deletion
 /// - `length`: The number of characters to delete
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDeleteWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -297,32 +319,32 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            text.remove_range(&mut txn, index as u32, length as u32);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        // Use existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 text.remove_range(txn, index as u32, length as u32);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Inserts text with formatting attributes at the specified index
+/// Inserts text with formatting attributes at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index at which to insert the text
 /// - `chunk`: The text to insert
 /// - `attributes`: A Java Map<String, Object> of formatting attributes
@@ -330,7 +352,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
 /// # Safety
 /// The `attributes` parameter is a raw JNI pointer that must be valid
 #[no_mangle]
-pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAttributes(
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAttributesWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -346,6 +368,10 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
     }
     if xml_text_ptr == 0 {
         throw_exception(&mut env, "Invalid YXmlText pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return;
     }
 
@@ -368,30 +394,26 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            text.insert_with_attributes(&mut txn, index as u32, &chunk_str, attrs);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        // Use existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 text.insert_with_attributes(txn, index as u32, &chunk_str, attrs);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Formats a range of text with the specified attributes
+/// Formats a range of text with the specified attributes using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The starting index of the range to format
 /// - `length`: The length of the range to format
 /// - `attributes`: A Java Map<String, Object> of formatting attributes.
@@ -400,7 +422,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
 /// # Safety
 /// The `attributes` parameter is a raw JNI pointer that must be valid
 #[no_mangle]
-pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormat(
+pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormatWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -418,6 +440,10 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormat(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert Java Map to Rust HashMap<Arc<str>, Any>
     let attrs = match convert_java_map_to_attrs(&mut env, &attributes) {
@@ -429,19 +455,15 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormat(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            text.format(&mut txn, index as u32, length as u32, attrs);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        // Use existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 text.format(txn, index as u32, length as u32, attrs);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
@@ -556,11 +578,12 @@ fn convert_java_map_to_attrs(
     Ok(attrs)
 }
 
-/// Gets the parent of this XML text node
+/// Gets the parent of this XML text node using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 ///
@@ -570,11 +593,12 @@ fn convert_java_map_to_attrs(
 ///
 /// Returns null if this node has no parent
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetParent<'a>(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetParentWithTxn<'a>(
     mut env: JNIEnv<'a>,
     _class: JClass<'a>,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    _txn_ptr: jlong,
 ) -> JObject<'a> {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -656,21 +680,23 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetParent<'a>(
     }
 }
 
-/// Gets the index of this XML text node within its parent
+/// Gets the index of this XML text node within its parent using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// The 0-based index of this node within its parent's children,
 /// or -1 if this node has no parent or the index could not be determined
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParent(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParentWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jni::sys::jint {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -680,11 +706,21 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParent(
         throw_exception(&mut env, "Invalid YXmlText pointer");
         return -1;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return -1;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let txn = doc.transact();
+
+        let txn = match get_transaction_mut(txn_ptr) {
+            Some(t) => t,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                return -1;
+            }
+        };
 
         match text.parent() {
             Some(parent) => {
@@ -697,8 +733,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParent(
                 match parent {
                     XmlOut::Element(elem) => {
                         // Iterate through parent's children to find our index
-                        for index in 0..elem.len(&txn) {
-                            if let Some(child) = elem.get(&txn, index) {
+                        for index in 0..elem.len(txn) {
+                            if let Some(child) = elem.get(txn, index) {
                                 let child_id = child.as_ptr().id();
                                 if child_id == my_id {
                                     return index as jni::sys::jint;
@@ -709,8 +745,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetIndexInParent(
                     }
                     XmlOut::Fragment(frag) => {
                         // Iterate through parent's children to find our index
-                        for index in 0..frag.len(&txn) {
-                            if let Some(child) = frag.get(&txn, index) {
+                        for index in 0..frag.len(txn) {
+                            if let Some(child) = frag.get(txn, index) {
                                 let child_id = child.as_ptr().id();
                                 if child_id == my_id {
                                     return index as jni::sys::jint;

@@ -62,7 +62,29 @@ public class YMap implements Closeable, YObservable {
      */
     public int size() {
         checkClosed();
-        return (int) nativeSize(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return (int) nativeSizeWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return (int) nativeSizeWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the number of entries in the map using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The size of the map
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public int size(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return (int) nativeSizeWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -88,7 +110,34 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        return nativeGetString(doc.getNativePtr(), nativePtr, key);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), key);
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
+        }
+    }
+
+    /**
+     * Gets a string value by key using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param key The key to look up
+     * @return The string value, or null if key not found or value is not a string
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public String getString(YTransaction txn, String key) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
     }
 
     /**
@@ -104,7 +153,34 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        return nativeGetDouble(doc.getNativePtr(), nativePtr, key);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), key);
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
+        }
+    }
+
+    /**
+     * Gets a double value by key using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param key The key to look up
+     * @return The double value, or 0.0 if key not found or value is not a number
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public double getDouble(YTransaction txn, String key) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
     }
 
     /**
@@ -123,7 +199,16 @@ public class YMap implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetString(doc.getNativePtr(), nativePtr, 0, key, value);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeSetStringWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                key, value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeSetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    key, value);
+            }
+        }
     }
 
     /**
@@ -154,7 +239,7 @@ public class YMap implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetString(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
+        nativeSetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
     }
 
     /**
@@ -170,7 +255,16 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeSetDouble(doc.getNativePtr(), nativePtr, 0, key, value);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeSetDoubleWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                key, value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeSetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    key, value);
+            }
+        }
     }
 
     /**
@@ -198,7 +292,7 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeSetDouble(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
+        nativeSetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
     }
 
     /**
@@ -213,7 +307,14 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeRemove(doc.getNativePtr(), nativePtr, 0, key);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), key);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
+            }
+        }
     }
 
     /**
@@ -240,7 +341,7 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeRemove(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
+        nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
     }
 
     /**
@@ -256,7 +357,34 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        return nativeContainsKey(doc.getNativePtr(), nativePtr, key);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeContainsKeyWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), key);
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeContainsKeyWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
+        }
+    }
+
+    /**
+     * Checks if a key exists in the map using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param key The key to check
+     * @return true if the key exists, false otherwise
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public boolean containsKey(YTransaction txn, String key) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        return nativeContainsKeyWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
     }
 
     /**
@@ -267,7 +395,35 @@ public class YMap implements Closeable, YObservable {
      */
     public String[] keys() {
         checkClosed();
-        Object result = nativeKeys(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        Object result;
+        if (activeTxn != null) {
+            result = nativeKeysWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                result = nativeKeysWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+            }
+        }
+        if (result == null) {
+            return new String[0];
+        }
+        return (String[]) result;
+    }
+
+    /**
+     * Gets all keys from the map using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return An array of all keys in the map
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public String[] keys(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        Object result = nativeKeysWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         if (result == null) {
             return new String[0];
         }
@@ -281,7 +437,14 @@ public class YMap implements Closeable, YObservable {
      */
     public void clear() {
         checkClosed();
-        nativeClear(doc.getNativePtr(), nativePtr, 0);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeClearWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeClearWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+            }
+        }
     }
 
     /**
@@ -304,7 +467,7 @@ public class YMap implements Closeable, YObservable {
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
         }
-        nativeClear(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        nativeClearWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -335,7 +498,16 @@ public class YMap implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        nativeSetDoc(doc.getNativePtr(), nativePtr, 0, key, subdoc.getNativePtr());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeSetDocWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                key, subdoc.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeSetDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    key, subdoc.getNativePtr());
+            }
+        }
     }
 
     /**
@@ -372,7 +544,8 @@ public class YMap implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        nativeSetDoc(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, subdoc.getNativePtr());
+        nativeSetDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key,
+            subdoc.getNativePtr());
     }
 
     /**
@@ -401,7 +574,43 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        long subdocPtr = nativeGetDoc(doc.getNativePtr(), nativePtr, key);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        long subdocPtr;
+        if (activeTxn != null) {
+            subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), key);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr,
+                    txn.getNativePtr(), key);
+            }
+        }
+        if (subdocPtr == 0) {
+            return null;
+        }
+        return new YDoc(subdocPtr, true);
+    }
+
+    /**
+     * Gets a YDoc subdocument from the map by key using an existing transaction.
+     *
+     * <p>The returned YDoc must be closed by the caller when no longer needed.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @param key The key to look up
+     * @return The YDoc subdocument, or null if key not found or value is not a Doc
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public YDoc getDoc(YTransaction txn, String key) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        long subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
         if (subdocPtr == 0) {
             return null;
         }
@@ -416,7 +625,29 @@ public class YMap implements Closeable, YObservable {
      */
     public String toJson() {
         checkClosed();
-        return nativeToJson(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns a JSON string representation of the map using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return A JSON string representation
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the map has been closed
+     */
+    public String toJson(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -559,21 +790,26 @@ public class YMap implements Closeable, YObservable {
     // Native methods
     private static native long nativeGetMap(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
-    private static native long nativeSize(long docPtr, long mapPtr);
-    private static native String nativeGetString(long docPtr, long mapPtr, String key);
-    private static native double nativeGetDouble(long docPtr, long mapPtr, String key);
-    private static native void nativeSetString(long docPtr, long mapPtr, long txnPtr,
-                                               String key, String value);
-    private static native void nativeSetDouble(long docPtr, long mapPtr, long txnPtr,
-                                               String key, double value);
-    private static native void nativeRemove(long docPtr, long mapPtr, long txnPtr, String key);
-    private static native boolean nativeContainsKey(long docPtr, long mapPtr, String key);
-    private static native Object nativeKeys(long docPtr, long mapPtr);
-    private static native void nativeClear(long docPtr, long mapPtr, long txnPtr);
-    private static native String nativeToJson(long docPtr, long mapPtr);
-    private static native void nativeSetDoc(long docPtr, long mapPtr, long txnPtr,
-                                            String key, long subdocPtr);
-    private static native long nativeGetDoc(long docPtr, long mapPtr, String key);
+    private static native long nativeSizeWithTxn(long docPtr, long mapPtr, long txnPtr);
+    private static native String nativeGetStringWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                         String key);
+    private static native double nativeGetDoubleWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                         String key);
+    private static native void nativeSetStringWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                       String key, String value);
+    private static native void nativeSetDoubleWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                       String key, double value);
+    private static native void nativeRemoveWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                    String key);
+    private static native boolean nativeContainsKeyWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                            String key);
+    private static native Object nativeKeysWithTxn(long docPtr, long mapPtr, long txnPtr);
+    private static native void nativeClearWithTxn(long docPtr, long mapPtr, long txnPtr);
+    private static native String nativeToJsonWithTxn(long docPtr, long mapPtr, long txnPtr);
+    private static native void nativeSetDocWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                    String key, long subdocPtr);
+    private static native long nativeGetDocWithTxn(long docPtr, long mapPtr, long txnPtr,
+                                                    String key);
     private static native void nativeObserve(long docPtr, long mapPtr, long subscriptionId,
                                               YMap ymapObj);
     private static native void nativeUnobserve(long docPtr, long mapPtr, long subscriptionId);

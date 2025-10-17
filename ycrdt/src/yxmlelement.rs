@@ -1,4 +1,6 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
+use crate::{
+    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
+};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
 use jni::{AttachGuard, JNIEnv};
@@ -106,16 +108,17 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeDestroy(
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
-/// - `xml_element_ptr`: Pointer to the YXmlElement instance (can be XmlElementRef or XmlFragmentRef)
+/// - `xml_element_ptr`: Pointer to the YXmlElement instance
 ///
 /// # Returns
 /// A Java string containing the tag name
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetTag(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetTagWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jstring {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -125,32 +128,35 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetTag(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return std::ptr::null_mut();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return std::ptr::null_mut();
+    }
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(doc_ptr);
-
-        // Try as XmlElementRef first (new pattern)
         let element_ref = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         let tag = element_ref.tag();
         to_jstring(&mut env, tag.as_ref())
     }
 }
 
-/// Gets an attribute value by name
+/// Gets an attribute value by name using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `name`: The attribute name
 ///
 /// # Returns
 /// The attribute value as a Java string, or null if not found
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttribute(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
     name: JString,
 ) -> jstring {
     if doc_ptr == 0 {
@@ -159,6 +165,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttribute(
     }
     if xml_element_ptr == 0 {
         throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return std::ptr::null_mut();
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return std::ptr::null_mut();
     }
 
@@ -178,27 +188,30 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttribute(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
-
-        match element.get_attribute(&txn, &name_str) {
-            Some(value) => to_jstring(&mut env, &value),
-            None => std::ptr::null_mut(),
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => match element.get_attribute(txn, &name_str) {
+                Some(value) => to_jstring(&mut env, &value),
+                None => std::ptr::null_mut(),
+            },
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                std::ptr::null_mut()
+            }
         }
     }
 }
 
-/// Sets an attribute value
+/// Sets an attribute value using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `name`: The attribute name
 /// - `value`: The attribute value
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttribute(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttributeWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -213,6 +226,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttribute(
     }
     if xml_element_ptr == 0 {
         throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return;
     }
 
@@ -235,33 +252,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttribute(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            element.insert_attribute(&mut txn, name_str, value_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 element.insert_attribute(txn, name_str, value_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Removes an attribute
+/// Removes an attribute using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `name`: The attribute name to remove
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttribute(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttributeWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -277,6 +288,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttribute(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert name to Rust string
     let name_str: String = match env.get_string(&name) {
@@ -288,38 +303,34 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttribute(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            element.remove_attribute(&mut txn, &name_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 element.remove_attribute(txn, &name_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Gets all attribute names
+/// Gets all attribute names using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A Java String[] array containing all attribute names
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNames<'a>(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNamesWithTxn<'a>(
     mut env: JNIEnv<'a>,
     _class: JClass<'a>,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> JObject<'a> {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -329,14 +340,24 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNames
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return JObject::null();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return JObject::null();
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
+
+        let txn = match get_transaction_mut(txn_ptr) {
+            Some(t) => t,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                return JObject::null();
+            }
+        };
 
         let names: Vec<String> = element
-            .attributes(&txn)
+            .attributes(txn)
             .map(|(k, _)| k.to_string())
             .collect();
 
@@ -379,20 +400,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNames
     }
 }
 
-/// Returns the XML string representation of the element
+/// Returns the XML string representation of the element using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A Java string containing the XML representation
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeToString(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeToStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jstring {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -402,31 +425,42 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeToString(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return std::ptr::null_mut();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return std::ptr::null_mut();
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
-
-        let xml_string = element.get_string(&txn);
-        to_jstring(&mut env, &xml_string)
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                let xml_string = element.get_string(txn);
+                to_jstring(&mut env, &xml_string)
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                std::ptr::null_mut()
+            }
+        }
     }
 }
 
-/// Gets the number of child nodes in this element
+/// Gets the number of child nodes in this element using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// The number of child nodes
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeChildCount(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeChildCountWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jni::sys::jint {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -436,29 +470,36 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeChildCount(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return 0;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return 0;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
-
-        element.len(&txn) as jni::sys::jint
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => element.len(txn) as jni::sys::jint,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                0
+            }
+        }
     }
 }
 
-/// Inserts an XML element child at the specified index
+/// Inserts an XML element child at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index at which to insert the child
 /// - `tag`: The tag name for the new element
 ///
 /// # Returns
 /// A pointer to the new YXmlElement child
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElement(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElementWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -473,6 +514,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElement(
     }
     if xml_element_ptr == 0 {
         throw_exception(&mut env, "Invalid YXmlElement pointer");
+        return 0;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return 0;
     }
     if index < 0 {
@@ -496,44 +541,33 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElement(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            let new_element = element.insert(
-                &mut txn,
-                index as u32,
-                XmlElementPrelim::empty(tag_str.as_str()),
-            );
-            to_java_ptr(new_element)
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 let new_element =
                     element.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
                 to_java_ptr(new_element)
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
                 0
             }
         }
     }
 }
 
-/// Inserts an XML text child at the specified index
+/// Inserts an XML text child at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index at which to insert the child
 ///
 /// # Returns
 /// A pointer to the new YXmlText child
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertText(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertTextWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -549,50 +583,49 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertText(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return 0;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return 0;
+    }
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return 0;
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
         use yrs::XmlTextPrelim;
 
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            let new_text = element.insert(&mut txn, index as u32, XmlTextPrelim::new(""));
-            to_java_ptr(new_text)
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 let new_text = element.insert(txn, index as u32, XmlTextPrelim::new(""));
                 to_java_ptr(new_text)
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
                 0
             }
         }
     }
 }
 
-/// Gets the child node at the specified index
+/// Gets the child node at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index of the child to retrieve
 ///
 /// # Returns
 /// A Java Object array [type, pointer] where type is 0 for Element, 1 for Text, or null if not found
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetChild<'a>(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetChildWithTxn<'a>(
     mut env: JNIEnv<'a>,
     _class: JClass<'a>,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
     index: jni::sys::jint,
 ) -> JObject<'a> {
     if doc_ptr == 0 {
@@ -603,17 +636,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetChild<'a>(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return JObject::null();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return JObject::null();
+    }
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return JObject::null();
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
 
-        match element.get(&txn, index as u32) {
+        let txn = match get_transaction_mut(txn_ptr) {
+            Some(t) => t,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                return JObject::null();
+            }
+        };
+
+        match element.get(txn, index as u32) {
             Some(child) => {
                 use yrs::XmlOut;
 
@@ -699,15 +742,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetChild<'a>(
     }
 }
 
-/// Removes the child node at the specified index
+/// Removes the child node at the specified index using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
+/// - `txn_ptr`: Pointer to the transaction
 /// - `index`: The index of the child to remove
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveChild(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveChildWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -723,44 +766,44 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveChild(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return;
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
-        if txn_ptr == 0 {
-            // Create implicit transaction
-            let mut txn = doc.transact_mut();
-            element.remove(&mut txn, index as u32);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 element.remove(txn, index as u32);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Gets the parent node of this element
+/// Gets the parent node of this element using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A Java Object array [type, pointer] where type is 0 for Element, 1 for Fragment, or null if no parent
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParent<'a>(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParentWithTxn<'a>(
     mut env: JNIEnv<'a>,
     _class: JClass<'a>,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> JObject<'a> {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -770,9 +813,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParent<'a>(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return JObject::null();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return JObject::null();
+    }
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
 
         match element.parent() {
@@ -861,20 +907,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParent<'a>(
     }
 }
 
-/// Gets the index of this element within its parent's children
+/// Gets the index of this element within its parent's children using an existing transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// The index within parent, or -1 if no parent or not found
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParentWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     xml_element_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jni::sys::jint {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -884,11 +932,21 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
         throw_exception(&mut env, "Invalid YXmlElement pointer");
         return -1;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return -1;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let txn = doc.transact();
+
+        let txn = match get_transaction_mut(txn_ptr) {
+            Some(t) => t,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                return -1;
+            }
+        };
 
         // Get parent and iterate through children to find index
         match element.parent() {
@@ -902,8 +960,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
                 match parent {
                     XmlOut::Element(elem) => {
                         // Iterate through parent's children to find our index
-                        for index in 0..elem.len(&txn) {
-                            if let Some(child) = elem.get(&txn, index) {
+                        for index in 0..elem.len(txn) {
+                            if let Some(child) = elem.get(txn, index) {
                                 let child_id = child.as_ptr().id();
                                 if child_id == my_id {
                                     return index as jni::sys::jint;
@@ -914,8 +972,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParent(
                     }
                     XmlOut::Fragment(frag) => {
                         // Iterate through parent's children to find our index
-                        for index in 0..frag.len(&txn) {
-                            if let Some(child) = frag.get(&txn, index) {
+                        for index in 0..frag.len(txn) {
+                            if let Some(child) = frag.get(txn, index) {
                                 let child_id = child.as_ptr().id();
                                 if child_id == my_id {
                                     return index as jni::sys::jint;

@@ -81,7 +81,29 @@ public class YXmlElement implements Closeable, YObservable {
      */
     public String getTag() {
         checkClosed();
-        String result = nativeGetTag(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getTag(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getTag(autoTxn);
+        }
+    }
+
+    /**
+     * Returns the tag name of this XML element using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @return The tag name
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public String getTag(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        String result = nativeGetTagWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         return result != null ? result : "";
     }
 
@@ -98,7 +120,33 @@ public class YXmlElement implements Closeable, YObservable {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        return nativeGetAttribute(doc.getNativePtr(), nativePtr, name);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getAttribute(txn, name);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getAttribute(autoTxn, name);
+        }
+    }
+
+    /**
+     * Gets an attribute value by name using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @param name The attribute name
+     * @return The attribute value, or null if not found
+     * @throws IllegalArgumentException if txn or name is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public String getAttribute(YTransaction txn, String name) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        return nativeGetAttributeWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name);
     }
 
     /**
@@ -117,7 +165,14 @@ public class YXmlElement implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetAttribute(doc.getNativePtr(), nativePtr, 0, name, value);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            setAttribute(txn, name, value);
+            return;
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            setAttribute(autoTxn, name, value);
+        }
     }
 
     /**
@@ -148,7 +203,7 @@ public class YXmlElement implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetAttribute(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name, value);
+        nativeSetAttributeWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name, value);
     }
 
     /**
@@ -163,7 +218,14 @@ public class YXmlElement implements Closeable, YObservable {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        nativeRemoveAttribute(doc.getNativePtr(), nativePtr, 0, name);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            removeAttribute(txn, name);
+            return;
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            removeAttribute(autoTxn, name);
+        }
     }
 
     /**
@@ -190,7 +252,7 @@ public class YXmlElement implements Closeable, YObservable {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        nativeRemoveAttribute(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name);
+        nativeRemoveAttributeWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name);
     }
 
     /**
@@ -201,7 +263,29 @@ public class YXmlElement implements Closeable, YObservable {
      */
     public String[] getAttributeNames() {
         checkClosed();
-        Object result = nativeGetAttributeNames(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getAttributeNames(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getAttributeNames(autoTxn);
+        }
+    }
+
+    /**
+     * Gets all attribute names using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @return An array of all attribute names
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public String[] getAttributeNames(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        Object result = nativeGetAttributeNamesWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         if (result == null) {
             return new String[0];
         }
@@ -217,7 +301,29 @@ public class YXmlElement implements Closeable, YObservable {
     @Override
     public String toString() {
         checkClosed();
-        String result = nativeToString(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return toString(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return toString(autoTxn);
+        }
+    }
+
+    /**
+     * Returns the XML string representation of this element using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @return The XML string representation
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public String toString(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        String result = nativeToStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         return result != null ? result : "";
     }
 
@@ -229,7 +335,29 @@ public class YXmlElement implements Closeable, YObservable {
      */
     public int childCount() {
         checkClosed();
-        return nativeChildCount(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return childCount(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return childCount(autoTxn);
+        }
+    }
+
+    /**
+     * Gets the number of child nodes in this element using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @return The number of child nodes
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public int childCount(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeChildCountWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -250,11 +378,13 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, 0, index, tag);
-        if (childPtr == 0) {
-            throw new RuntimeException("Failed to insert element child");
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return insertElement(txn, index, tag);
         }
-        return new YXmlElement(doc, childPtr);
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return insertElement(autoTxn, index, tag);
+        }
     }
 
     /**
@@ -287,7 +417,7 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, tag);
+        long childPtr = nativeInsertElementWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, tag);
         if (childPtr == 0) {
             throw new RuntimeException("Failed to insert element child");
         }
@@ -307,11 +437,13 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, 0, index);
-        if (childPtr == 0) {
-            throw new RuntimeException("Failed to insert text child");
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return insertText(txn, index);
         }
-        return new YXmlText(doc, childPtr);
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return insertText(autoTxn, index);
+        }
     }
 
     /**
@@ -340,7 +472,7 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
+        long childPtr = nativeInsertTextWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
         if (childPtr == 0) {
             throw new RuntimeException("Failed to insert text child");
         }
@@ -361,7 +493,35 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        Object result = nativeGetChild(doc.getNativePtr(), nativePtr, index);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getChild(txn, index);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getChild(autoTxn, index);
+        }
+    }
+
+    /**
+     * Gets the child node at the specified index using an existing transaction.
+     * The returned object can be either YXmlElement or YXmlText.
+     *
+     * @param txn Transaction handle
+     * @param index The index of the child to retrieve
+     * @return The child node, or null if not found
+     * @throws IllegalArgumentException if txn is null
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public Object getChild(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        Object result = nativeGetChildWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
         if (result == null) {
             return null;
         }
@@ -394,7 +554,14 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeRemoveChild(doc.getNativePtr(), nativePtr, 0, index);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            removeChild(txn, index);
+            return;
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            removeChild(autoTxn, index);
+        }
     }
 
     /**
@@ -422,7 +589,7 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeRemoveChild(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
+        nativeRemoveChildWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
     }
 
     /**
@@ -434,7 +601,30 @@ public class YXmlElement implements Closeable, YObservable {
      */
     public Object getParent() {
         checkClosed();
-        Object result = nativeGetParent(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getParent(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getParent(autoTxn);
+        }
+    }
+
+    /**
+     * Gets the parent of this XML element using an existing transaction.
+     * The parent can be either a YXmlElement or YXmlFragment.
+     *
+     * @param txn Transaction handle
+     * @return The parent node (YXmlElement or YXmlFragment), or null if this element has no parent
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public Object getParent(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        Object result = nativeGetParentWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         if (result == null) {
             return null;
         }
@@ -463,7 +653,29 @@ public class YXmlElement implements Closeable, YObservable {
      */
     public int getIndexInParent() {
         checkClosed();
-        return nativeGetIndexInParent(doc.getNativePtr(), nativePtr);
+        YTransaction txn = doc.getActiveTransaction();
+        if (txn != null) {
+            return getIndexInParent(txn);
+        }
+        try (YTransaction autoTxn = doc.beginTransaction()) {
+            return getIndexInParent(autoTxn);
+        }
+    }
+
+    /**
+     * Gets the index of this element within its parent's children using an existing transaction.
+     *
+     * @param txn Transaction handle
+     * @return The 0-based index within parent, or -1 if this element has no parent
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public int getIndexInParent(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeGetIndexInParentWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -606,21 +818,22 @@ public class YXmlElement implements Closeable, YObservable {
     // Native methods
     private static native long nativeGetXmlElement(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
-    private static native String nativeGetTag(long docPtr, long xmlElementPtr);
-    private static native String nativeGetAttribute(long docPtr, long xmlElementPtr, String name);
-    private static native void nativeSetAttribute(
+    private static native String nativeGetTagWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
+    private static native String nativeGetAttributeWithTxn(long docPtr, long xmlElementPtr, long txnPtr, String name);
+    private static native void nativeSetAttributeWithTxn(
             long docPtr, long xmlElementPtr, long txnPtr, String name, String value);
-    private static native void nativeRemoveAttribute(
+    private static native void nativeRemoveAttributeWithTxn(
             long docPtr, long xmlElementPtr, long txnPtr, String name);
-    private static native Object nativeGetAttributeNames(long docPtr, long xmlElementPtr);
-    private static native String nativeToString(long docPtr, long xmlElementPtr);
-    private static native int nativeChildCount(long docPtr, long xmlElementPtr);
-    private static native long nativeInsertElement(long docPtr, long xmlElementPtr, long txnPtr, int index, String tag);
-    private static native long nativeInsertText(long docPtr, long xmlElementPtr, long txnPtr, int index);
-    private static native Object nativeGetChild(long docPtr, long xmlElementPtr, int index);
-    private static native void nativeRemoveChild(long docPtr, long xmlElementPtr, long txnPtr, int index);
-    private static native Object nativeGetParent(long docPtr, long xmlElementPtr);
-    private static native int nativeGetIndexInParent(long docPtr, long xmlElementPtr);
+    private static native Object nativeGetAttributeNamesWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
+    private static native String nativeToStringWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
+    private static native int nativeChildCountWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
+    private static native long nativeInsertElementWithTxn(
+            long docPtr, long xmlElementPtr, long txnPtr, int index, String tag);
+    private static native long nativeInsertTextWithTxn(long docPtr, long xmlElementPtr, long txnPtr, int index);
+    private static native Object nativeGetChildWithTxn(long docPtr, long xmlElementPtr, long txnPtr, int index);
+    private static native void nativeRemoveChildWithTxn(long docPtr, long xmlElementPtr, long txnPtr, int index);
+    private static native Object nativeGetParentWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
+    private static native int nativeGetIndexInParentWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
     private static native void nativeObserve(long docPtr, long xmlElementPtr, long subscriptionId,
                                               YXmlElement xmlElementObj);
     private static native void nativeUnobserve(long docPtr, long xmlElementPtr, long subscriptionId);

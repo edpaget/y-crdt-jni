@@ -81,7 +81,29 @@ public class YXmlText implements Closeable, YObservable {
      */
     public int length() {
         checkClosed();
-        return nativeLength(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the length of the text in characters using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The text length
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public int length(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -93,28 +115,34 @@ public class YXmlText implements Closeable, YObservable {
     @Override
     public String toString() {
         checkClosed();
-        String result = nativeToString(doc.getNativePtr(), nativePtr);
-        return result != null ? result : "";
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            String result = nativeToStringWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr());
+            return result != null ? result : "";
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            String result = nativeToStringWithTxn(doc.getNativePtr(), nativePtr,
+                txn.getNativePtr());
+            return result != null ? result : "";
+        }
     }
 
     /**
-     * Inserts text at the specified index.
+     * Returns the string representation of the XML text content using an existing transaction.
      *
-     * @param index The index at which to insert the text (0-based)
-     * @param chunk The text to insert
-     * @throws IllegalArgumentException if chunk is null
+     * @param txn The transaction to use for this operation
+     * @return The text content as a string
+     * @throws IllegalArgumentException if txn is null
      * @throws IllegalStateException if the XML text has been closed
-     * @throws IndexOutOfBoundsException if index is negative
      */
-    public void insert(int index, String chunk) {
+    public String toString(YTransaction txn) {
         checkClosed();
-        if (chunk == null) {
-            throw new IllegalArgumentException("Chunk cannot be null");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
         }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
-        }
-        nativeInsert(doc.getNativePtr(), nativePtr, 0, index, chunk);
+        String result = nativeToStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        return result != null ? result : "";
     }
 
     /**
@@ -146,22 +174,36 @@ public class YXmlText implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeInsert(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
+        nativeInsertWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
     }
 
     /**
-     * Appends text to the end of the XML text.
+     * Inserts text at the specified index.
      *
-     * @param chunk The text to append
+     * @param index The index at which to insert the text (0-based)
+     * @param chunk The text to insert
      * @throws IllegalArgumentException if chunk is null
      * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index is negative
      */
-    public void push(String chunk) {
+    public void insert(int index, String chunk) {
         checkClosed();
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        nativePush(doc.getNativePtr(), nativePtr, 0, chunk);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeInsertWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, chunk);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeInsertWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, chunk);
+            }
+        }
     }
 
     /**
@@ -188,26 +230,29 @@ public class YXmlText implements Closeable, YObservable {
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        nativePush(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
+        nativePushWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
     }
 
     /**
-     * Deletes a range of text.
+     * Appends text to the end of the XML text.
      *
-     * @param index The starting index of the deletion (0-based)
-     * @param length The number of characters to delete
+     * @param chunk The text to append
+     * @throws IllegalArgumentException if chunk is null
      * @throws IllegalStateException if the XML text has been closed
-     * @throws IndexOutOfBoundsException if index or length is negative
      */
-    public void delete(int index, int length) {
+    public void push(String chunk) {
         checkClosed();
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
         }
-        if (length < 0) {
-            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativePushWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), chunk);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativePushWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
+            }
         }
-        nativeDelete(doc.getNativePtr(), nativePtr, 0, index, length);
     }
 
     /**
@@ -239,7 +284,74 @@ public class YXmlText implements Closeable, YObservable {
         if (length < 0) {
             throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
         }
-        nativeDelete(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
+        nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
+    }
+
+    /**
+     * Deletes a range of text.
+     *
+     * @param index The starting index of the deletion (0-based)
+     * @param length The number of characters to delete
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index or length is negative
+     */
+    public void delete(int index, int length) {
+        checkClosed();
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        }
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, length);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, length);
+            }
+        }
+    }
+
+    /**
+     * Inserts text with formatting attributes at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     Map<String, Object> bold = Map.of("b", true);
+     *     xmlText.insertWithAttributes(txn, 0, "Hello", bold);
+     *     xmlText.insertWithAttributes(txn, 5, " World", bold);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index at which to insert the text (0-based)
+     * @param chunk The text to insert
+     * @param attributes A map of formatting attributes to apply to the text
+     * @throws IllegalArgumentException if txn, chunk or attributes is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public void insertWithAttributes(YTransaction txn, int index, String chunk,
+                                      Map<String, Object> attributes) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        if (attributes == null) {
+            throw new IllegalArgumentException("Attributes cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeInsertWithAttributesWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+            index, chunk, attributes);
     }
 
     /**
@@ -277,36 +389,42 @@ public class YXmlText implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, 0, index, chunk, attributes);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeInsertWithAttributesWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), index, chunk, attributes);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeInsertWithAttributesWithTxn(doc.getNativePtr(), nativePtr,
+                    txn.getNativePtr(), index, chunk, attributes);
+            }
+        }
     }
 
     /**
-     * Inserts text with formatting attributes at the specified index within an existing transaction.
+     * Formats a range of text with the specified attributes within an existing transaction.
      *
      * <p>Use this method to batch multiple operations:
      * <pre>{@code
      * try (YTransaction txn = doc.beginTransaction()) {
      *     Map<String, Object> bold = Map.of("b", true);
-     *     xmlText.insertWithAttributes(txn, 0, "Hello", bold);
-     *     xmlText.insertWithAttributes(txn, 5, " World", bold);
+     *     xmlText.format(txn, 0, 5, bold);
+     *     xmlText.format(txn, 6, 5, bold);
      * }
      * }</pre>
      *
      * @param txn Transaction handle
-     * @param index The index at which to insert the text (0-based)
-     * @param chunk The text to insert
-     * @param attributes A map of formatting attributes to apply to the text
-     * @throws IllegalArgumentException if txn, chunk or attributes is null
+     * @param index The starting index of the range to format (0-based)
+     * @param length The number of characters to format
+     * @param attributes A map of formatting attributes to apply
+     * @throws IllegalArgumentException if txn or attributes is null
      * @throws IllegalStateException if the XML text has been closed
-     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IndexOutOfBoundsException if index or length is negative
      */
-    public void insertWithAttributes(YTransaction txn, int index, String chunk, Map<String, Object> attributes) {
+    public void format(YTransaction txn, int index, int length, Map<String, Object> attributes) {
         checkClosed();
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
-        }
-        if (chunk == null) {
-            throw new IllegalArgumentException("Chunk cannot be null");
         }
         if (attributes == null) {
             throw new IllegalArgumentException("Attributes cannot be null");
@@ -314,7 +432,11 @@ public class YXmlText implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk, attributes);
+        if (length < 0) {
+            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        }
+        nativeFormatWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length,
+            attributes);
     }
 
     /**
@@ -359,44 +481,16 @@ public class YXmlText implements Closeable, YObservable {
         if (length < 0) {
             throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
         }
-        nativeFormat(doc.getNativePtr(), nativePtr, 0, index, length, attributes);
-    }
-
-    /**
-     * Formats a range of text with the specified attributes within an existing transaction.
-     *
-     * <p>Use this method to batch multiple operations:
-     * <pre>{@code
-     * try (YTransaction txn = doc.beginTransaction()) {
-     *     Map<String, Object> bold = Map.of("b", true);
-     *     xmlText.format(txn, 0, 5, bold);
-     *     xmlText.format(txn, 6, 5, bold);
-     * }
-     * }</pre>
-     *
-     * @param txn Transaction handle
-     * @param index The starting index of the range to format (0-based)
-     * @param length The number of characters to format
-     * @param attributes A map of formatting attributes to apply
-     * @throws IllegalArgumentException if txn or attributes is null
-     * @throws IllegalStateException if the XML text has been closed
-     * @throws IndexOutOfBoundsException if index or length is negative
-     */
-    public void format(YTransaction txn, int index, int length, Map<String, Object> attributes) {
-        checkClosed();
-        if (txn == null) {
-            throw new IllegalArgumentException("Transaction cannot be null");
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativeFormatWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, length, attributes);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativeFormatWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, length, attributes);
+            }
         }
-        if (attributes == null) {
-            throw new IllegalArgumentException("Attributes cannot be null");
-        }
-        if (index < 0) {
-            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
-        }
-        if (length < 0) {
-            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
-        }
-        nativeFormat(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length, attributes);
     }
 
     /**
@@ -408,7 +502,52 @@ public class YXmlText implements Closeable, YObservable {
      */
     public Object getParent() {
         checkClosed();
-        Object result = nativeGetParent(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        Object result;
+        if (activeTxn != null) {
+            result = nativeGetParentWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                result = nativeGetParentWithTxn(doc.getNativePtr(), nativePtr,
+                    txn.getNativePtr());
+            }
+        }
+        if (result == null) {
+            return null;
+        }
+
+        // Result is Object[2] where [0] = Integer type, [1] = Long pointer
+        Object[] array = (Object[]) result;
+        int type = ((Integer) array[0]).intValue();
+        long pointer = ((Long) array[1]).longValue();
+
+        if (type == 0) {
+            // Element
+            return new YXmlElement(doc, pointer);
+        } else if (type == 1) {
+            // Fragment
+            return new YXmlFragment(doc, pointer);
+        } else {
+            throw new RuntimeException("Unknown parent type: " + type);
+        }
+    }
+
+    /**
+     * Gets the parent of this XML text node using an existing transaction.
+     * The parent can be either a YXmlElement or YXmlFragment.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The parent node (YXmlElement or YXmlFragment), or null if this text node has no parent
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public Object getParent(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        Object result = nativeGetParentWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
         if (result == null) {
             return null;
         }
@@ -437,7 +576,31 @@ public class YXmlText implements Closeable, YObservable {
      */
     public int getIndexInParent() {
         checkClosed();
-        return nativeGetIndexInParent(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetIndexInParentWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetIndexInParentWithTxn(doc.getNativePtr(), nativePtr,
+                txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Gets the index of this text node within its parent's children using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The 0-based index within parent, or -1 if this text node has no parent
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public int getIndexInParent(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeGetIndexInParentWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -570,17 +733,24 @@ public class YXmlText implements Closeable, YObservable {
     // Native methods
     private static native long nativeGetXmlText(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
-    private static native int nativeLength(long docPtr, long xmlTextPtr);
-    private static native String nativeToString(long docPtr, long xmlTextPtr);
-    private static native void nativeInsert(long docPtr, long xmlTextPtr, long txnPtr, int index, String chunk);
-    private static native void nativePush(long docPtr, long xmlTextPtr, long txnPtr, String chunk);
-    private static native void nativeDelete(long docPtr, long xmlTextPtr, long txnPtr, int index, int length);
-    private static native void nativeInsertWithAttributes(
-            long docPtr, long xmlTextPtr, long txnPtr, int index, String chunk, Map<String, Object> attributes);
-    private static native void nativeFormat(
-            long docPtr, long xmlTextPtr, long txnPtr, int index, int length, Map<String, Object> attributes);
-    private static native Object nativeGetParent(long docPtr, long xmlTextPtr);
-    private static native int nativeGetIndexInParent(long docPtr, long xmlTextPtr);
-    private static native void nativeObserve(long docPtr, long xmlTextPtr, long subscriptionId, YXmlText yxmlTextObj);
+    private static native int nativeLengthWithTxn(long docPtr, long xmlTextPtr, long txnPtr);
+    private static native String nativeToStringWithTxn(long docPtr, long xmlTextPtr, long txnPtr);
+    private static native void nativeInsertWithTxn(long docPtr, long xmlTextPtr, long txnPtr,
+                                                     int index, String chunk);
+    private static native void nativePushWithTxn(long docPtr, long xmlTextPtr, long txnPtr,
+                                                   String chunk);
+    private static native void nativeDeleteWithTxn(long docPtr, long xmlTextPtr, long txnPtr,
+                                                     int index, int length);
+    private static native void nativeInsertWithAttributesWithTxn(
+            long docPtr, long xmlTextPtr, long txnPtr, int index, String chunk,
+            Map<String, Object> attributes);
+    private static native void nativeFormatWithTxn(
+            long docPtr, long xmlTextPtr, long txnPtr, int index, int length,
+            Map<String, Object> attributes);
+    private static native Object nativeGetParentWithTxn(long docPtr, long xmlTextPtr, long txnPtr);
+    private static native int nativeGetIndexInParentWithTxn(long docPtr, long xmlTextPtr,
+                                                             long txnPtr);
+    private static native void nativeObserve(long docPtr, long xmlTextPtr, long subscriptionId,
+                                              YXmlText yxmlTextObj);
     private static native void nativeUnobserve(long docPtr, long xmlTextPtr, long subscriptionId);
 }

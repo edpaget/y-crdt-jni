@@ -93,29 +93,6 @@ public class YTransaction implements AutoCloseable {
     }
 
     /**
-     * Rolls back the transaction, discarding all changes.
-     *
-     * <p><b>Note:</b> The underlying yrs library may not support true rollback.
-     * This method is reserved for future use and currently behaves the same as
-     * commit. Check the implementation before relying on rollback semantics.</p>
-     *
-     * <p>This method is idempotent - calling it multiple times is safe.</p>
-     *
-     * @throws IllegalStateException if transaction already closed
-     */
-    public void rollback() {
-        if (!closed) {
-            synchronized (this) {
-                if (!closed) {
-                    nativeRollback(doc.getNativePtr(), nativePtr);
-                    doc.clearActiveTransaction();
-                    closed = true;
-                }
-            }
-        }
-    }
-
-    /**
      * Closes the transaction, committing all batched operations.
      *
      * <p>This method is called automatically when using try-with-resources.</p>

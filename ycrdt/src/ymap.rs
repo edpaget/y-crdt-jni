@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::map::MapEvent;
 use yrs::types::{EntryChange, ToJson};
-use yrs::{Doc, Map, MapRef, Observable, Out, Transact, TransactionMut};
+use yrs::{Doc, Map, MapRef, Observable, Out, TransactionMut};
 
 // Global storage for Java YMap objects (needed for callbacks)
 lazy_static::lazy_static! {
@@ -76,20 +76,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeDestroy(
     }
 }
 
-/// Gets the size of the map (number of entries)
+/// Gets the size of the map (number of entries) with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// The size of the map as jlong
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSize(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSizeWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jlong {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -99,30 +101,40 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSize(
         throw_exception(&mut env, "Invalid YMap pointer");
         return 0;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return 0;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-        map.len(&txn) as jlong
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => map.len(txn) as jlong,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                0
+            }
+        }
     }
 }
 
-/// Gets a string value from the map by key
+/// Gets a string value from the map by key with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `key`: The key to look up
 ///
 /// # Returns
 /// A Java string, or null if key not found or value is not a string
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetString(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
 ) -> jstring {
     if doc_ptr == 0 {
@@ -131,6 +143,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetString(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return std::ptr::null_mut();
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return std::ptr::null_mut();
     }
 
@@ -150,35 +166,40 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetString(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-
-        match map.get(&txn, &key_str) {
-            Some(value) => {
-                let s = value.to_string(&txn);
-                to_jstring(&mut env, &s)
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => match map.get(txn, &key_str) {
+                Some(value) => {
+                    let s = value.to_string(txn);
+                    to_jstring(&mut env, &s)
+                }
+                None => std::ptr::null_mut(),
+            },
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                std::ptr::null_mut()
             }
-            None => std::ptr::null_mut(),
         }
     }
 }
 
-/// Gets a double value from the map by key
+/// Gets a double value from the map by key with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `key`: The key to look up
 ///
 /// # Returns
 /// The double value, or 0.0 if key not found or value is not a number
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDouble(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoubleWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
 ) -> jdouble {
     if doc_ptr == 0 {
@@ -187,6 +208,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDouble(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return 0.0;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return 0.0;
     }
 
@@ -206,27 +231,30 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDouble(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-
-        match map.get(&txn, &key_str) {
-            Some(value) => value.cast::<f64>().unwrap_or(0.0),
-            None => 0.0,
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => match map.get(txn, &key_str) {
+                Some(value) => value.cast::<f64>().unwrap_or(0.0),
+                None => 0.0,
+            },
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                0.0
+            }
         }
     }
 }
 
-/// Sets a string value in the map
+/// Sets a string value in the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
+/// - `txn_ptr`: Pointer to transaction
 /// - `key`: The key to set
 /// - `value`: The string value to set
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -241,6 +269,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return;
     }
 
@@ -263,34 +295,28 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-
-        if txn_ptr == 0 {
-            // Legacy behavior: create implicit transaction
-            let mut txn = doc.transact_mut();
-            map.insert(&mut txn, key_str, value_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 map.insert(txn, key_str, value_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Sets a double value in the map
+/// Sets a double value in the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
+/// - `txn_ptr`: Pointer to transaction
 /// - `key`: The key to set
 /// - `value`: The double value to set
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoubleWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -307,6 +333,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
         throw_exception(&mut env, "Invalid YMap pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -318,33 +348,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-
-        if txn_ptr == 0 {
-            // Legacy behavior: create implicit transaction
-            let mut txn = doc.transact_mut();
-            map.insert(&mut txn, key_str, value);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 map.insert(txn, key_str, value);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Removes a key from the map
+/// Removes a key from the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
+/// - `txn_ptr`: Pointer to transaction
 /// - `key`: The key to remove
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemoveWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -360,6 +384,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
         throw_exception(&mut env, "Invalid YMap pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -371,39 +399,35 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-
-        if txn_ptr == 0 {
-            // Legacy behavior: create implicit transaction
-            let mut txn = doc.transact_mut();
-            map.remove(&mut txn, &key_str);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 map.remove(txn, &key_str);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Checks if a key exists in the map
+/// Checks if a key exists in the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `key`: The key to check
 ///
 /// # Returns
 /// true if the key exists, false otherwise
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKey(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKeyWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
 ) -> bool {
     if doc_ptr == 0 {
@@ -412,6 +436,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKey(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return false;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return false;
     }
 
@@ -431,27 +459,33 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKey(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-        map.contains_key(&txn, &key_str)
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => map.contains_key(txn, &key_str),
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                false
+            }
+        }
     }
 }
 
-/// Gets all keys from the map as a Java array
+/// Gets all keys from the map as a Java array with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A Java String[] array containing all keys
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeKeys<'a>(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeKeysWithTxn<'a>(
     mut env: JNIEnv<'a>,
     _class: JClass<'a>,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
 ) -> JObject<'a> {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -461,62 +495,72 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeKeys<'a>(
         throw_exception(&mut env, "Invalid YMap pointer");
         return JObject::null();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return JObject::null();
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                // Collect all keys
+                let keys: Vec<String> = map.keys(txn).map(|k| k.to_string()).collect();
 
-        // Collect all keys
-        let keys: Vec<String> = map.keys(&txn).map(|k| k.to_string()).collect();
+                // Create Java String array
+                let string_class = match env.find_class("java/lang/String") {
+                    Ok(cls) => cls,
+                    Err(_) => {
+                        throw_exception(&mut env, "Failed to find String class");
+                        return JObject::null();
+                    }
+                };
 
-        // Create Java String array
-        let string_class = match env.find_class("java/lang/String") {
-            Ok(cls) => cls,
-            Err(_) => {
-                throw_exception(&mut env, "Failed to find String class");
-                return JObject::null();
-            }
-        };
+                let array =
+                    match env.new_object_array(keys.len() as i32, string_class, JObject::null()) {
+                        Ok(arr) => arr,
+                        Err(_) => {
+                            throw_exception(&mut env, "Failed to create String array");
+                            return JObject::null();
+                        }
+                    };
 
-        let array = match env.new_object_array(keys.len() as i32, string_class, JObject::null()) {
-            Ok(arr) => arr,
-            Err(_) => {
-                throw_exception(&mut env, "Failed to create String array");
-                return JObject::null();
-            }
-        };
-
-        // Fill the array
-        for (i, key) in keys.iter().enumerate() {
-            let jkey = match env.new_string(key) {
-                Ok(s) => s,
-                Err(_) => {
-                    throw_exception(&mut env, "Failed to create Java string");
-                    return JObject::null();
+                // Fill the array
+                for (i, key) in keys.iter().enumerate() {
+                    let jkey = match env.new_string(key) {
+                        Ok(s) => s,
+                        Err(_) => {
+                            throw_exception(&mut env, "Failed to create Java string");
+                            return JObject::null();
+                        }
+                    };
+                    if env
+                        .set_object_array_element(&array, i as i32, &jkey)
+                        .is_err()
+                    {
+                        throw_exception(&mut env, "Failed to set array element");
+                        return JObject::null();
+                    }
                 }
-            };
-            if env
-                .set_object_array_element(&array, i as i32, &jkey)
-                .is_err()
-            {
-                throw_exception(&mut env, "Failed to set array element");
-                return JObject::null();
+
+                JObject::from(array)
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                JObject::null()
             }
         }
-
-        JObject::from(array)
     }
 }
 
-/// Clears all entries from the map
+/// Clears all entries from the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
+/// - `txn_ptr`: Pointer to transaction
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClear(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClearWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -531,40 +575,40 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClear(
         throw_exception(&mut env, "Invalid YMap pointer");
         return;
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-
-        if txn_ptr == 0 {
-            // Legacy behavior: create implicit transaction
-            let mut txn = doc.transact_mut();
-            map.clear(&mut txn);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 map.clear(txn);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Converts the map to a JSON string representation
+/// Converts the map to a JSON string representation with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 ///
 /// # Returns
 /// A JSON string representation of the map
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJson(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJsonWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
 ) -> jstring {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -574,26 +618,36 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJson(
         throw_exception(&mut env, "Invalid YMap pointer");
         return std::ptr::null_mut();
     }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return std::ptr::null_mut();
+    }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-        let json = map.to_json(&txn).to_string();
-        to_jstring(&mut env, &json)
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                let json = map.to_json(txn).to_string();
+                to_jstring(&mut env, &json)
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                std::ptr::null_mut()
+            }
+        }
     }
 }
 
-/// Sets a YDoc subdocument value in the map
+/// Sets a YDoc subdocument value in the map with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the parent YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
-/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
+/// - `txn_ptr`: Pointer to transaction
 /// - `key`: The key to set
 /// - `subdoc_ptr`: Pointer to the YDoc subdocument to insert
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDocWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
@@ -608,6 +662,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return;
     }
     if subdoc_ptr == 0 {
@@ -625,43 +683,40 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
         let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
 
         // Clone the subdoc for insertion (Doc implements Prelim)
         let subdoc_clone = subdoc.clone();
 
-        if txn_ptr == 0 {
-            // Legacy behavior: create implicit transaction
-            let mut txn = doc.transact_mut();
-            map.insert(&mut txn, key_str, subdoc_clone);
-        } else {
-            // Use existing transaction
-            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => {
                 map.insert(txn, key_str, subdoc_clone);
-            } else {
-                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
             }
         }
     }
 }
 
-/// Gets a YDoc subdocument value from the map by key
+/// Gets a YDoc subdocument value from the map by key with transaction
 ///
 /// # Parameters
 /// - `doc_ptr`: Pointer to the parent YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to the transaction
 /// - `key`: The key to look up
 ///
 /// # Returns
 /// A pointer to the YDoc subdocument, or 0 if key not found or value is not a Doc
 #[no_mangle]
-pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoc(
+pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDocWithTxn(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
 ) -> jlong {
     if doc_ptr == 0 {
@@ -670,6 +725,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoc(
     }
     if map_ptr == 0 {
         throw_exception(&mut env, "Invalid YMap pointer");
+        return 0;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
         return 0;
     }
 
@@ -689,19 +748,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoc(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let txn = doc.transact();
-
-        match map.get(&txn, &key_str) {
-            Some(value) => {
-                // Try to cast to Doc
-                match value.cast::<Doc>() {
-                    Ok(subdoc) => to_java_ptr(subdoc.clone()),
-                    Err(_) => 0,
+        match crate::get_transaction_mut(txn_ptr) {
+            Some(txn) => match map.get(txn, &key_str) {
+                Some(value) => {
+                    // Try to cast to Doc
+                    match value.cast::<Doc>() {
+                        Ok(subdoc) => to_java_ptr(subdoc.clone()),
+                        Err(_) => 0,
+                    }
                 }
+                None => 0,
+            },
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                0
             }
-            None => 0,
         }
     }
 }
