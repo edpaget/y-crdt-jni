@@ -22,7 +22,9 @@ javadoc {
     options.version = true
     options.links = [
         'https://docs.oracle.com/en/java/javase/21/docs/api/',
-        'https://carcdr.net/y-crdt-jni/'
+        'https://carcdr.net/y-crdt-jni/ycrdt',
+        'https://carcdr.net/y-crdt-jni/yprosemirror',
+        'https://carcdr.net/y-crdt-jni/yhocuspocus',
     ]
     if (JavaVersion.current().isJava9Compatible()) {
         options.addBooleanOption('html5', true)
