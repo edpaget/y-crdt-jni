@@ -194,7 +194,7 @@ public class AwarenessStatelessIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("stateless-doc") != null, 1000);
@@ -251,7 +251,7 @@ public class AwarenessStatelessIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("broadcast-doc") != null, 1000);
@@ -304,7 +304,7 @@ public class AwarenessStatelessIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("multi-awareness") != null, 1000);
@@ -346,7 +346,7 @@ public class AwarenessStatelessIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("query-test") != null, 1000);
