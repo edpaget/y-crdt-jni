@@ -97,7 +97,39 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Inserts a string value at the specified index.
+     * Inserts a string value at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     array.insertString(txn, 0, "First");
+     *     array.insertString(txn, 1, "Second");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The position at which to insert (0-based)
+     * @param value The string value to insert
+     * @throws IllegalArgumentException if txn or value is null
+     * @throws IllegalStateException if the array has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than the current length
+     */
+    public void insertString(YTransaction txn, int index, String value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("Value cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative");
+        }
+        nativeInsertStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, value);
+    }
+
+    /**
+     * Inserts a string value at the specified index (creates implicit transaction).
      *
      * @param index The position at which to insert (0-based)
      * @param value The string value to insert
@@ -118,7 +150,36 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Inserts a double value at the specified index.
+     * Inserts a double value at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     array.insertDouble(txn, 0, 1.0);
+     *     array.insertDouble(txn, 1, 2.0);
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The position at which to insert (0-based)
+     * @param value The double value to insert
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than the current length
+     */
+    public void insertDouble(YTransaction txn, int index, double value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative");
+        }
+        nativeInsertDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, value);
+    }
+
+    /**
+     * Inserts a double value at the specified index (creates implicit transaction).
      *
      * @param index The position at which to insert (0-based)
      * @param value The double value to insert
@@ -135,7 +196,34 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Appends a string value to the end of the array.
+     * Appends a string value to the end of the array within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     array.pushString(txn, "First");
+     *     array.pushString(txn, "Second");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param value The string value to append
+     * @throws IllegalArgumentException if txn or value is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public void pushString(YTransaction txn, String value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("Value cannot be null");
+        }
+        nativePushStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), value);
+    }
+
+    /**
+     * Appends a string value to the end of the array (creates implicit transaction).
      *
      * @param value The string value to append
      * @throws IllegalArgumentException if value is null
@@ -150,7 +238,31 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Appends a double value to the end of the array.
+     * Appends a double value to the end of the array within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     array.pushDouble(txn, 1.0);
+     *     array.pushDouble(txn, 2.0);
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param value The double value to append
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public void pushDouble(YTransaction txn, double value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        nativePushDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), value);
+    }
+
+    /**
+     * Appends a double value to the end of the array (creates implicit transaction).
      *
      * @param value The double value to append
      * @throws IllegalStateException if the array has been closed
@@ -161,7 +273,38 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Removes a range of elements from the array.
+     * Removes a range of elements from the array within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     array.pushString(txn, "A");
+     *     array.pushString(txn, "B");
+     *     array.remove(txn, 0, 1); // Remove "A"
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The starting position (0-based)
+     * @param length The number of elements to remove
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     * @throws IndexOutOfBoundsException if the range is invalid
+     */
+    public void remove(YTransaction txn, int index, int length) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0 || length < 0) {
+            throw new IndexOutOfBoundsException(
+                "Index and length must be non-negative");
+        }
+        nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
+    }
+
+    /**
+     * Removes a range of elements from the array (creates implicit transaction).
      *
      * @param index The starting position (0-based)
      * @param length The number of elements to remove
@@ -184,7 +327,45 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Inserts a YDoc subdocument at the specified index.
+     * Inserts a YDoc subdocument at the specified index within an existing transaction.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YArray array = parent.getArray("myarray");
+     *      YTransaction txn = parent.beginTransaction()) {
+     *     array.insertDoc(txn, 0, child);
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The position at which to insert (0-based)
+     * @param subdoc The YDoc subdocument to insert
+     * @throws IllegalArgumentException if txn or subdoc is null
+     * @throws IllegalStateException if the array has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than the current length
+     */
+    public void insertDoc(YTransaction txn, int index, YDoc subdoc) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative");
+        }
+        nativeInsertDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index,
+            subdoc.getNativePtr());
+    }
+
+    /**
+     * Inserts a YDoc subdocument at the specified index (creates implicit transaction).
      *
      * <p>This allows embedding one YDoc inside another, enabling hierarchical
      * document structures and composition.</p>
@@ -217,7 +398,40 @@ public class YArray implements Closeable, YObservable {
     }
 
     /**
-     * Appends a YDoc subdocument to the end of the array.
+     * Appends a YDoc subdocument to the end of the array within an existing transaction.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Example:</p>
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YArray array = parent.getArray("myarray");
+     *      YTransaction txn = parent.beginTransaction()) {
+     *     array.pushDoc(txn, child);
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param subdoc The YDoc subdocument to append
+     * @throws IllegalArgumentException if txn or subdoc is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public void pushDoc(YTransaction txn, YDoc subdoc) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        nativePushDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+            subdoc.getNativePtr());
+    }
+
+    /**
+     * Appends a YDoc subdocument to the end of the array (creates implicit transaction).
      *
      * <p>This allows embedding one YDoc inside another, enabling hierarchical
      * document structures and composition.</p>
@@ -431,15 +645,29 @@ public class YArray implements Closeable, YObservable {
     private static native double nativeGetDouble(long docPtr, long arrayPtr, int index);
     private static native void nativeInsertString(long docPtr, long arrayPtr, int index,
                                                    String value);
+    private static native void nativeInsertStringWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                          int index, String value);
     private static native void nativeInsertDouble(long docPtr, long arrayPtr, int index,
                                                    double value);
+    private static native void nativeInsertDoubleWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                          int index, double value);
     private static native void nativePushString(long docPtr, long arrayPtr, String value);
+    private static native void nativePushStringWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                        String value);
     private static native void nativePushDouble(long docPtr, long arrayPtr, double value);
+    private static native void nativePushDoubleWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                        double value);
     private static native void nativeRemove(long docPtr, long arrayPtr, int index, int length);
+    private static native void nativeRemoveWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                    int index, int length);
     private static native String nativeToJson(long docPtr, long arrayPtr);
     private static native void nativeInsertDoc(long docPtr, long arrayPtr, int index,
                                                 long subdocPtr);
+    private static native void nativeInsertDocWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                       int index, long subdocPtr);
     private static native void nativePushDoc(long docPtr, long arrayPtr, long subdocPtr);
+    private static native void nativePushDocWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                     long subdocPtr);
     private static native long nativeGetDoc(long docPtr, long arrayPtr, int index);
     private static native void nativeObserve(long docPtr, long arrayPtr, long subscriptionId,
                                               YArray yarrayObj);

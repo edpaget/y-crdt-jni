@@ -986,4 +986,110 @@ public class YXmlElementTest {
             }
         }
     }
+
+    // Transaction-based tests
+
+    @Test
+    public void testSetAttributeWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlElement element = doc.getXmlElement("div")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                element.setAttribute(txn, "class", "container");
+                element.setAttribute(txn, "id", "main");
+                element.setAttribute(txn, "style", "color: red");
+            }
+            assertEquals("container", element.getAttribute("class"));
+            assertEquals("main", element.getAttribute("id"));
+            assertEquals("color: red", element.getAttribute("style"));
+        }
+    }
+
+    @Test
+    public void testRemoveAttributeWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlElement element = doc.getXmlElement("div")) {
+            element.setAttribute("class", "container");
+            element.setAttribute("id", "main");
+            element.setAttribute("style", "color: red");
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                element.removeAttribute(txn, "class");
+                element.removeAttribute(txn, "style");
+            }
+
+            assertNull(element.getAttribute("class"));
+            assertEquals("main", element.getAttribute("id"));
+            assertNull(element.getAttribute("style"));
+        }
+    }
+
+    @Test
+    public void testInsertElementWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                YXmlElement span1 = div.insertElement(txn, 0, "span");
+                YXmlElement span2 = div.insertElement(txn, 1, "p");
+                YXmlElement span3 = div.insertElement(txn, 2, "h1");
+                span1.close();
+                span2.close();
+                span3.close();
+            }
+            assertEquals(3, div.childCount());
+        }
+    }
+
+    @Test
+    public void testInsertTextWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                YXmlText text1 = div.insertText(txn, 0);
+                YXmlText text2 = div.insertText(txn, 1);
+                text1.close();
+                text2.close();
+            }
+            assertEquals(2, div.childCount());
+        }
+    }
+
+    @Test
+    public void testRemoveChildWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            YXmlElement span1 = div.insertElement(0, "span");
+            YXmlElement span2 = div.insertElement(1, "p");
+            YXmlElement span3 = div.insertElement(2, "h1");
+            span1.close();
+            span2.close();
+            span3.close();
+
+            assertEquals(3, div.childCount());
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                div.removeChild(txn, 1);
+                div.removeChild(txn, 0);
+            }
+
+            assertEquals(1, div.childCount());
+        }
+    }
+
+    @Test
+    public void testTransactionBatchingPerformance() {
+        try (YDoc doc = new YDoc();
+             YXmlElement div = doc.getXmlElement("div")) {
+            // Using transaction should batch all operations
+            try (YTransaction txn = doc.beginTransaction()) {
+                for (int i = 0; i < 100; i++) {
+                    div.setAttribute(txn, "attr" + i, "value" + i);
+                }
+            }
+
+            assertEquals("value0", div.getAttribute("attr0"));
+            assertEquals("value50", div.getAttribute("attr50"));
+            assertEquals("value99", div.getAttribute("attr99"));
+            assertEquals(100, div.getAttributeNames().length);
+        }
+    }
 }

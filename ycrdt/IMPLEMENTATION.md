@@ -33,6 +33,15 @@ Helper functions for JNI operations:
 - `from_java_ptr<T>()` - Converts Java pointers to Rust references
 - `free_java_ptr<T>()` - Frees Rust objects
 
+Transaction management infrastructure:
+- `TransactionPtr` - Send-safe wrapper for transaction pointers
+- `ACTIVE_TRANSACTIONS` - Global HashMap storing active transactions by ID
+- `TRANSACTION_COUNTER` - Atomic counter for unique transaction IDs
+- `next_transaction_id()` - Generates unique transaction identifiers
+- `store_transaction()` - Stores transaction with unique ID
+- `get_transaction_mut()` - Retrieves mutable transaction reference (lock-free)
+- `remove_transaction()` - Removes and commits/drops transaction
+
 ### Native Bindings
 
 Each Y-CRDT type has a corresponding Rust module with JNI bindings:

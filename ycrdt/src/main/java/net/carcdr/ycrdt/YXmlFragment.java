@@ -108,7 +108,39 @@ public class YXmlFragment implements Closeable, YObservable {
         if (index < 0 || index > length()) {
             throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
         }
-        nativeInsertElement(doc.getNativeHandle(), nativeHandle, index, tag);
+        nativeInsertElement(doc.getNativeHandle(), nativeHandle, 0, index, tag);
+    }
+
+    /**
+     * Inserts an XML element as a child at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     fragment.insertElement(txn, 0, "div");
+     *     fragment.insertElement(txn, 1, "span");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index the index at which to insert (0-based)
+     * @param tag the tag name for the element (e.g., "div", "span")
+     * @throws IllegalArgumentException if txn or tag is null
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than length()
+     */
+    public void insertElement(YTransaction txn, int index, String tag) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (tag == null) {
+            throw new IllegalArgumentException("Tag cannot be null");
+        }
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        }
+        nativeInsertElement(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, tag);
     }
 
     /**
@@ -128,7 +160,39 @@ public class YXmlFragment implements Closeable, YObservable {
         if (index < 0 || index > length()) {
             throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
         }
-        nativeInsertText(doc.getNativeHandle(), nativeHandle, index, content);
+        nativeInsertText(doc.getNativeHandle(), nativeHandle, 0, index, content);
+    }
+
+    /**
+     * Inserts an XML text node as a child at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     fragment.insertText(txn, 0, "Hello");
+     *     fragment.insertText(txn, 1, "World");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index the index at which to insert (0-based)
+     * @param content the text content
+     * @throws IllegalArgumentException if txn or content is null
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than length()
+     */
+    public void insertText(YTransaction txn, int index, String content) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (content == null) {
+            throw new IllegalArgumentException("Content cannot be null");
+        }
+        if (index < 0 || index > length()) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Length: " + length());
+        }
+        nativeInsertText(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, content);
     }
 
     /**
@@ -151,7 +215,43 @@ public class YXmlFragment implements Closeable, YObservable {
                     "Range [" + index + ", " + (index + length)
                             + ") exceeds fragment length " + fragmentLength);
         }
-        nativeRemove(doc.getNativeHandle(), nativeHandle, index, length);
+        nativeRemove(doc.getNativeHandle(), nativeHandle, 0, index, length);
+    }
+
+    /**
+     * Removes children from this fragment within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     fragment.remove(txn, 0, 1);
+     *     fragment.remove(txn, 0, 1);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index the starting index (0-based)
+     * @param length the number of children to remove
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if this fragment has been closed
+     * @throws IndexOutOfBoundsException if the range is invalid
+     */
+    public void remove(YTransaction txn, int index, int length) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0 || length < 0) {
+            throw new IndexOutOfBoundsException(
+                    "Index and length must be non-negative: index=" + index + ", length=" + length);
+        }
+        int fragmentLength = length();
+        if (index + length > fragmentLength) {
+            throw new IndexOutOfBoundsException(
+                    "Range [" + index + ", " + (index + length)
+                            + ") exceeds fragment length " + fragmentLength);
+        }
+        nativeRemove(doc.getNativeHandle(), nativeHandle, txn.getNativePtr(), index, length);
     }
 
     /**
@@ -459,13 +559,13 @@ public class YXmlFragment implements Closeable, YObservable {
 
     private static native int nativeLength(long docPtr, long fragmentPtr);
 
-    private static native void nativeInsertElement(long docPtr, long fragmentPtr, int index,
+    private static native void nativeInsertElement(long docPtr, long fragmentPtr, long txnPtr, int index,
             String tag);
 
-    private static native void nativeInsertText(long docPtr, long fragmentPtr, int index,
+    private static native void nativeInsertText(long docPtr, long fragmentPtr, long txnPtr, int index,
             String content);
 
-    private static native void nativeRemove(long docPtr, long fragmentPtr, int index, int length);
+    private static native void nativeRemove(long docPtr, long fragmentPtr, long txnPtr, int index, int length);
 
     private static native int nativeGetNodeType(long docPtr, long fragmentPtr, int index);
 

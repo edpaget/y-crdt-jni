@@ -123,7 +123,38 @@ public class YMap implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetString(doc.getNativePtr(), nativePtr, key, value);
+        nativeSetString(doc.getNativePtr(), nativePtr, 0, key, value);
+    }
+
+    /**
+     * Sets a string value in the map within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     map.setString(txn, "name", "Alice");
+     *     map.setString(txn, "city", "NYC");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use
+     * @param key The key to set
+     * @param value The string value to set
+     * @throws IllegalArgumentException if txn, key, or value is null
+     * @throws IllegalStateException if the map or transaction has been closed
+     */
+    public void setString(YTransaction txn, String key, String value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("Value cannot be null");
+        }
+        nativeSetString(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
     }
 
     /**
@@ -139,7 +170,35 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeSetDouble(doc.getNativePtr(), nativePtr, key, value);
+        nativeSetDouble(doc.getNativePtr(), nativePtr, 0, key, value);
+    }
+
+    /**
+     * Sets a double value in the map within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     map.setDouble(txn, "age", 30.0);
+     *     map.setDouble(txn, "height", 165.5);
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use
+     * @param key The key to set
+     * @param value The double value to set
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map or transaction has been closed
+     */
+    public void setDouble(YTransaction txn, String key, double value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        nativeSetDouble(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, value);
     }
 
     /**
@@ -154,7 +213,34 @@ public class YMap implements Closeable, YObservable {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        nativeRemove(doc.getNativePtr(), nativePtr, key);
+        nativeRemove(doc.getNativePtr(), nativePtr, 0, key);
+    }
+
+    /**
+     * Removes a key from the map within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     map.remove(txn, "key1");
+     *     map.remove(txn, "key2");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use
+     * @param key The key to remove
+     * @throws IllegalArgumentException if txn or key is null
+     * @throws IllegalStateException if the map or transaction has been closed
+     */
+    public void remove(YTransaction txn, String key) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        nativeRemove(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key);
     }
 
     /**
@@ -195,7 +281,30 @@ public class YMap implements Closeable, YObservable {
      */
     public void clear() {
         checkClosed();
-        nativeClear(doc.getNativePtr(), nativePtr);
+        nativeClear(doc.getNativePtr(), nativePtr, 0);
+    }
+
+    /**
+     * Removes all entries from the map within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     map.clear(txn);
+     *     map.setString(txn, "reset", "true");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the map or transaction has been closed
+     */
+    public void clear(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        nativeClear(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -226,7 +335,44 @@ public class YMap implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        nativeSetDoc(doc.getNativePtr(), nativePtr, key, subdoc.getNativePtr());
+        nativeSetDoc(doc.getNativePtr(), nativePtr, 0, key, subdoc.getNativePtr());
+    }
+
+    /**
+     * Sets a YDoc subdocument value in the map within an existing transaction.
+     *
+     * <p>This allows embedding one YDoc inside another, enabling hierarchical
+     * document structures and composition.</p>
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YDoc parent = new YDoc();
+     *      YDoc child = new YDoc();
+     *      YMap map = parent.getMap("mymap");
+     *      YTransaction txn = parent.beginTransaction()) {
+     *     map.setDoc(txn, "nested", child);
+     *     map.setString(txn, "type", "subdocument");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use
+     * @param key The key to set
+     * @param subdoc The YDoc subdocument to set
+     * @throws IllegalArgumentException if txn, key, or subdoc is null
+     * @throws IllegalStateException if the map or transaction has been closed
+     */
+    public void setDoc(YTransaction txn, String key, YDoc subdoc) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+        if (subdoc == null) {
+            throw new IllegalArgumentException("Subdocument cannot be null");
+        }
+        nativeSetDoc(doc.getNativePtr(), nativePtr, txn.getNativePtr(), key, subdoc.getNativePtr());
     }
 
     /**
@@ -416,14 +562,17 @@ public class YMap implements Closeable, YObservable {
     private static native long nativeSize(long docPtr, long mapPtr);
     private static native String nativeGetString(long docPtr, long mapPtr, String key);
     private static native double nativeGetDouble(long docPtr, long mapPtr, String key);
-    private static native void nativeSetString(long docPtr, long mapPtr, String key, String value);
-    private static native void nativeSetDouble(long docPtr, long mapPtr, String key, double value);
-    private static native void nativeRemove(long docPtr, long mapPtr, String key);
+    private static native void nativeSetString(long docPtr, long mapPtr, long txnPtr,
+                                               String key, String value);
+    private static native void nativeSetDouble(long docPtr, long mapPtr, long txnPtr,
+                                               String key, double value);
+    private static native void nativeRemove(long docPtr, long mapPtr, long txnPtr, String key);
     private static native boolean nativeContainsKey(long docPtr, long mapPtr, String key);
     private static native Object nativeKeys(long docPtr, long mapPtr);
-    private static native void nativeClear(long docPtr, long mapPtr);
+    private static native void nativeClear(long docPtr, long mapPtr, long txnPtr);
     private static native String nativeToJson(long docPtr, long mapPtr);
-    private static native void nativeSetDoc(long docPtr, long mapPtr, String key, long subdocPtr);
+    private static native void nativeSetDoc(long docPtr, long mapPtr, long txnPtr,
+                                            String key, long subdocPtr);
     private static native long nativeGetDoc(long docPtr, long mapPtr, String key);
     private static native void nativeObserve(long docPtr, long mapPtr, long subscriptionId,
                                               YMap ymapObj);

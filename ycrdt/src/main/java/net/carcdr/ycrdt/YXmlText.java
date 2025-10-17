@@ -114,7 +114,39 @@ public class YXmlText implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeInsert(doc.getNativePtr(), nativePtr, index, chunk);
+        nativeInsert(doc.getNativePtr(), nativePtr, 0, index, chunk);
+    }
+
+    /**
+     * Inserts text at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     xmlText.insert(txn, 0, "Hello");
+     *     xmlText.insert(txn, 5, " World");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index at which to insert the text (0-based)
+     * @param chunk The text to insert
+     * @throws IllegalArgumentException if txn or chunk is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public void insert(YTransaction txn, int index, String chunk) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeInsert(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
     }
 
     /**
@@ -129,7 +161,34 @@ public class YXmlText implements Closeable, YObservable {
         if (chunk == null) {
             throw new IllegalArgumentException("Chunk cannot be null");
         }
-        nativePush(doc.getNativePtr(), nativePtr, chunk);
+        nativePush(doc.getNativePtr(), nativePtr, 0, chunk);
+    }
+
+    /**
+     * Appends text to the end of the XML text within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     xmlText.push(txn, "Hello");
+     *     xmlText.push(txn, " World");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param chunk The text to append
+     * @throws IllegalArgumentException if txn or chunk is null
+     * @throws IllegalStateException if the XML text has been closed
+     */
+    public void push(YTransaction txn, String chunk) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        nativePush(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
     }
 
     /**
@@ -148,7 +207,39 @@ public class YXmlText implements Closeable, YObservable {
         if (length < 0) {
             throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
         }
-        nativeDelete(doc.getNativePtr(), nativePtr, index, length);
+        nativeDelete(doc.getNativePtr(), nativePtr, 0, index, length);
+    }
+
+    /**
+     * Deletes a range of text within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     xmlText.delete(txn, 0, 5);
+     *     xmlText.delete(txn, 0, 3);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The starting index of the deletion (0-based)
+     * @param length The number of characters to delete
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index or length is negative
+     */
+    public void delete(YTransaction txn, int index, int length) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        }
+        nativeDelete(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
     }
 
     /**
@@ -186,7 +277,44 @@ public class YXmlText implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, index, chunk, attributes);
+        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, 0, index, chunk, attributes);
+    }
+
+    /**
+     * Inserts text with formatting attributes at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     Map<String, Object> bold = Map.of("b", true);
+     *     xmlText.insertWithAttributes(txn, 0, "Hello", bold);
+     *     xmlText.insertWithAttributes(txn, 5, " World", bold);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index at which to insert the text (0-based)
+     * @param chunk The text to insert
+     * @param attributes A map of formatting attributes to apply to the text
+     * @throws IllegalArgumentException if txn, chunk or attributes is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index is negative
+     */
+    public void insertWithAttributes(YTransaction txn, int index, String chunk, Map<String, Object> attributes) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        if (attributes == null) {
+            throw new IllegalArgumentException("Attributes cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeInsertWithAttributes(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk, attributes);
     }
 
     /**
@@ -231,7 +359,44 @@ public class YXmlText implements Closeable, YObservable {
         if (length < 0) {
             throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
         }
-        nativeFormat(doc.getNativePtr(), nativePtr, index, length, attributes);
+        nativeFormat(doc.getNativePtr(), nativePtr, 0, index, length, attributes);
+    }
+
+    /**
+     * Formats a range of text with the specified attributes within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     Map<String, Object> bold = Map.of("b", true);
+     *     xmlText.format(txn, 0, 5, bold);
+     *     xmlText.format(txn, 6, 5, bold);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The starting index of the range to format (0-based)
+     * @param length The number of characters to format
+     * @param attributes A map of formatting attributes to apply
+     * @throws IllegalArgumentException if txn or attributes is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @throws IndexOutOfBoundsException if index or length is negative
+     */
+    public void format(YTransaction txn, int index, int length, Map<String, Object> attributes) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (attributes == null) {
+            throw new IllegalArgumentException("Attributes cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IndexOutOfBoundsException("Length cannot be negative: " + length);
+        }
+        nativeFormat(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length, attributes);
     }
 
     /**
@@ -407,13 +572,13 @@ public class YXmlText implements Closeable, YObservable {
     private static native void nativeDestroy(long ptr);
     private static native int nativeLength(long docPtr, long xmlTextPtr);
     private static native String nativeToString(long docPtr, long xmlTextPtr);
-    private static native void nativeInsert(long docPtr, long xmlTextPtr, int index, String chunk);
-    private static native void nativePush(long docPtr, long xmlTextPtr, String chunk);
-    private static native void nativeDelete(long docPtr, long xmlTextPtr, int index, int length);
+    private static native void nativeInsert(long docPtr, long xmlTextPtr, long txnPtr, int index, String chunk);
+    private static native void nativePush(long docPtr, long xmlTextPtr, long txnPtr, String chunk);
+    private static native void nativeDelete(long docPtr, long xmlTextPtr, long txnPtr, int index, int length);
     private static native void nativeInsertWithAttributes(
-            long docPtr, long xmlTextPtr, int index, String chunk, Map<String, Object> attributes);
+            long docPtr, long xmlTextPtr, long txnPtr, int index, String chunk, Map<String, Object> attributes);
     private static native void nativeFormat(
-            long docPtr, long xmlTextPtr, int index, int length, Map<String, Object> attributes);
+            long docPtr, long xmlTextPtr, long txnPtr, int index, int length, Map<String, Object> attributes);
     private static native Object nativeGetParent(long docPtr, long xmlTextPtr);
     private static native int nativeGetIndexInParent(long docPtr, long xmlTextPtr);
     private static native void nativeObserve(long docPtr, long xmlTextPtr, long subscriptionId, YXmlText yxmlTextObj);

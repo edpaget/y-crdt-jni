@@ -317,4 +317,191 @@ public class YTextTest {
             }
         }
     }
+
+    // Transaction-based tests
+
+    @Test
+    public void testInsertWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                System.err.println("HERE");
+                text.insert(txn, 0, "Hello");
+                System.err.println("HERE");
+                text.insert(txn, 5, " World");
+            }
+            assertEquals("Hello World", text.toString());
+                System.err.println("HERE");
+            assertEquals(11, text.length());
+        }
+    }
+
+    @Test
+    public void testPushWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.push(txn, "Hello");
+                text.push(txn, " ");
+                text.push(txn, "World");
+            }
+            assertEquals("Hello World", text.toString());
+            assertEquals(11, text.length());
+        }
+    }
+
+    @Test
+    public void testDeleteWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            text.push("Hello World");
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.delete(txn, 5, 6); // Delete " World"
+            }
+            assertEquals("Hello", text.toString());
+            assertEquals(5, text.length());
+        }
+    }
+
+    @Test
+    public void testBatchedOperationsInTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.insert(txn, 0, "Hello World");
+                text.delete(txn, 5, 6); // Delete " World"
+                text.push(txn, " Universe");
+            }
+            assertEquals("Hello Universe", text.toString());
+        }
+    }
+
+    @Test
+    public void testComplexTransactionSequence() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.push(txn, "First");
+                text.push(txn, " ");
+                text.push(txn, "Second");
+                text.insert(txn, 6, "Middle ");
+                text.delete(txn, 0, 6); // Delete "First "
+            }
+            assertEquals("Middle Second", text.toString());
+        }
+    }
+
+    @Test
+    public void testMixedTransactionAndImplicitOperations() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            // Implicit transaction
+            text.push("Hello");
+
+            // Explicit transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.push(txn, " ");
+                text.push(txn, "World");
+            }
+
+            // Another implicit transaction
+            text.push("!");
+
+            assertEquals("Hello World!", text.toString());
+        }
+    }
+
+    @Test
+    public void testMultipleTransactionsSequential() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            // First transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.push(txn, "Hello");
+            }
+
+            // Second transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                text.push(txn, " World");
+            }
+
+            assertEquals("Hello World", text.toString());
+        }
+    }
+
+    @Test
+    public void testTransactionWithObserver() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            final int[] changeCount = {0};
+            final String[] lastContent = {""};
+
+            try (YSubscription sub = text.observe(event -> {
+                changeCount[0]++;
+                lastContent[0] = text.toString();
+            })) {
+                // Multiple operations in one transaction should trigger one observer event
+                try (YTransaction txn = doc.beginTransaction()) {
+                    text.push(txn, "Hello");
+                    text.push(txn, " ");
+                    text.push(txn, "World");
+                }
+
+                // Observer should have been called once
+                assertEquals(1, changeCount[0]);
+                assertEquals("Hello World", lastContent[0]);
+            }
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInsertWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            text.insert(null, 0, "Hello");
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testPushWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            text.push(null, "Hello");
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testDeleteWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            text.push("Hello");
+            text.delete(null, 0, 5);
+        }
+    }
+
+    @Test
+    public void testTransactionCommitExplicit() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            YTransaction txn = doc.beginTransaction();
+            text.push(txn, "Hello");
+            txn.commit();
+
+            assertEquals("Hello", text.toString());
+            assertTrue(txn.isClosed());
+        }
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testUseTransactionAfterClose() {
+        try (YDoc doc = new YDoc();
+             YText text = doc.getText("test")) {
+            YTransaction txn = doc.beginTransaction();
+            txn.close();
+
+            // Should throw IllegalStateException
+            text.push(txn, "Hello");
+        }
+    }
 }

@@ -416,4 +416,229 @@ public class YMapTest {
             assertTrue(json.contains("active"));
         }
     }
+
+    // Transaction-based tests
+
+    @Test
+    public void testSetStringWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "name", "Alice");
+                map.setString(txn, "city", "NYC");
+            }
+
+            assertEquals(2, map.size());
+            assertEquals("Alice", map.getString("name"));
+            assertEquals("NYC", map.getString("city"));
+        }
+    }
+
+    @Test
+    public void testSetDoubleWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setDouble(txn, "age", 30.0);
+                map.setDouble(txn, "height", 165.5);
+            }
+
+            assertEquals(2, map.size());
+            assertEquals(30.0, map.getDouble("age"), 0.001);
+            assertEquals(165.5, map.getDouble("height"), 0.001);
+        }
+    }
+
+    @Test
+    public void testRemoveWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // Setup data
+            map.setString("key1", "value1");
+            map.setString("key2", "value2");
+            map.setString("key3", "value3");
+            assertEquals(3, map.size());
+
+            // Remove multiple keys in one transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.remove(txn, "key1");
+                map.remove(txn, "key3");
+            }
+
+            assertEquals(1, map.size());
+            assertEquals("value2", map.getString("key2"));
+            assertNull(map.getString("key1"));
+            assertNull(map.getString("key3"));
+        }
+    }
+
+    @Test
+    public void testClearWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // Setup data
+            map.setString("key1", "value1");
+            map.setString("key2", "value2");
+            map.setDouble("key3", 42.0);
+            assertEquals(3, map.size());
+
+            // Clear in transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.clear(txn);
+            }
+
+            assertEquals(0, map.size());
+            assertTrue(map.isEmpty());
+        }
+    }
+
+    @Test
+    public void testSetDocWithTransaction() {
+        try (YDoc parent = new YDoc();
+             YDoc child = new YDoc();
+             YMap map = parent.getMap("test")) {
+            try (YTransaction txn = parent.beginTransaction()) {
+                map.setDoc(txn, "nested", child);
+                map.setString(txn, "type", "subdocument");
+            }
+
+            assertEquals(2, map.size());
+            assertEquals("subdocument", map.getString("type"));
+
+            try (YDoc retrieved = map.getDoc("nested")) {
+                assertNotNull(retrieved);
+            }
+        }
+    }
+
+    @Test
+    public void testBatchMultipleOperationsInTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // Batch multiple different operations in one transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "name", "Bob");
+                map.setDouble(txn, "age", 25.0);
+                map.setString(txn, "city", "NYC");
+                map.setDouble(txn, "score", 95.5);
+            }
+
+            assertEquals(4, map.size());
+            assertEquals("Bob", map.getString("name"));
+            assertEquals(25.0, map.getDouble("age"), 0.001);
+            assertEquals("NYC", map.getString("city"));
+            assertEquals(95.5, map.getDouble("score"), 0.001);
+        }
+    }
+
+    @Test
+    public void testTransactionWithMixedOperations() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // Setup initial data
+            map.setString("key1", "value1");
+            map.setString("key2", "value2");
+            map.setDouble("score", 50.0);
+
+            // Perform mixed operations in transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "key1", "updated");
+                map.remove(txn, "key2");
+                map.setDouble(txn, "score", 100.0);
+                map.setString(txn, "key3", "new");
+            }
+
+            assertEquals(3, map.size());
+            assertEquals("updated", map.getString("key1"));
+            assertNull(map.getString("key2"));
+            assertEquals(100.0, map.getDouble("score"), 0.001);
+            assertEquals("new", map.getString("key3"));
+        }
+    }
+
+    @Test
+    public void testTransactionCommitBehavior() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // Changes should not be visible until transaction commits
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "key", "value");
+            } // Commits here
+
+            // Now visible
+            assertEquals(1, map.size());
+            assertEquals("value", map.getString("key"));
+        }
+    }
+
+    @Test
+    public void testMultipleSequentialTransactions() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            // First transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "key1", "value1");
+            }
+
+            assertEquals(1, map.size());
+
+            // Second transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setString(txn, "key2", "value2");
+            }
+
+            assertEquals(2, map.size());
+
+            // Third transaction
+            try (YTransaction txn = doc.beginTransaction()) {
+                map.setDouble(txn, "key3", 42.0);
+            }
+
+            assertEquals(3, map.size());
+            assertEquals("value1", map.getString("key1"));
+            assertEquals("value2", map.getString("key2"));
+            assertEquals(42.0, map.getDouble("key3"), 0.001);
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetStringWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            map.setString(null, "key", "value");
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetDoubleWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            map.setDouble(null, "key", 42.0);
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRemoveWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            map.remove(null, "key");
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testClearWithNullTransaction() {
+        try (YDoc doc = new YDoc();
+             YMap map = doc.getMap("test")) {
+            map.clear(null);
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetDocWithNullTransaction() {
+        try (YDoc parent = new YDoc();
+             YDoc child = new YDoc();
+             YMap map = parent.getMap("test")) {
+            map.setDoc(null, "key", child);
+        }
+    }
 }

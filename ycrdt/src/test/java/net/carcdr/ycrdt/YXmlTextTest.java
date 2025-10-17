@@ -669,4 +669,104 @@ public class YXmlTextTest {
             }
         }
     }
+
+    // Transaction-based tests
+
+    @Test
+    public void testInsertWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                xmlText.insert(txn, 0, "Hello");
+                xmlText.insert(txn, 5, " World");
+            }
+            assertEquals("Hello World", xmlText.toString());
+            assertEquals(11, xmlText.length());
+        }
+    }
+
+    @Test
+    public void testPushWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                xmlText.push(txn, "Hello");
+                xmlText.push(txn, " ");
+                xmlText.push(txn, "World");
+            }
+            assertEquals("Hello World", xmlText.toString());
+            assertEquals(11, xmlText.length());
+        }
+    }
+
+    @Test
+    public void testDeleteWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.push("Hello Beautiful World");
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                xmlText.delete(txn, 6, 10); // Remove "Beautiful "
+                xmlText.delete(txn, 5, 1);  // Remove " "
+            }
+            assertEquals("HelloWorld", xmlText.toString());
+        }
+    }
+
+    @Test
+    public void testFormatWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            xmlText.insert(0, "hello world");
+
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                xmlText.format(txn, 0, 5, bold);
+                xmlText.format(txn, 6, 5, bold);
+            }
+
+            String result = xmlText.toString();
+            assertTrue(result.contains("<b>hello</b>"));
+            assertTrue(result.contains("<b>world</b>"));
+        }
+    }
+
+    @Test
+    public void testInsertWithAttributesAndTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            Map<String, Object> italic = new HashMap<>();
+            italic.put("i", true);
+
+            Map<String, Object> bold = new HashMap<>();
+            bold.put("b", true);
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                xmlText.insertWithAttributes(txn, 0, "hello ", italic);
+                xmlText.insertWithAttributes(txn, 6, "world", bold);
+            }
+
+            String result = xmlText.toString();
+            assertTrue(result.contains("<i>hello"));
+            assertTrue(result.contains("<b>world</b>"));
+        }
+    }
+
+    @Test
+    public void testTransactionBatchingPerformance() {
+        try (YDoc doc = new YDoc();
+             YXmlText xmlText = doc.getXmlText("test")) {
+            // Using transaction should batch all operations
+            try (YTransaction txn = doc.beginTransaction()) {
+                for (int i = 0; i < 100; i++) {
+                    xmlText.push(txn, "x");
+                }
+            }
+
+            assertEquals(100, xmlText.length());
+            assertTrue(xmlText.toString().startsWith("x"));
+        }
+    }
 }

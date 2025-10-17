@@ -13,6 +13,7 @@ Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) Rust library, p
 - **YXmlFragment**: Hierarchical XML tree support
 - **Subdocuments**: Embed YDocs within YMap and YArray
 - **Observer API**: Real-time change notifications for all types
+- **Transaction API**: Batch multiple operations for better performance
 - **Advanced Sync**: State vectors, differential updates, update merging
 - **Memory Safe**: Proper resource management with AutoCloseable
 - **Multi-platform**: Linux, macOS, Windows support
@@ -172,6 +173,42 @@ try (YDoc doc = new YDoc()) {
 }
 ```
 
+### Transactions
+
+Batch multiple operations for better performance and single observer notifications:
+
+```java
+try (YDoc doc = new YDoc()) {
+    try (YText text = doc.getText("article")) {
+        // Batch multiple operations in a single transaction
+        try (YTransaction txn = doc.beginTransaction()) {
+            text.insert(txn, 0, "Title\n\n");
+            text.insert(txn, 7, "This is the introduction. ");
+            text.insert(txn, 33, "This is the conclusion.");
+            // All changes committed together when transaction closes
+            // Observers receive a single notification with combined changes
+        }
+    }
+
+    // Alternative: callback-based transaction
+    doc.transaction(txn -> {
+        try (YMap map = doc.getMap("metadata")) {
+            map.setString(txn, "author", "Alice");
+            map.setString(txn, "title", "My Article");
+            map.setDouble(txn, "timestamp", System.currentTimeMillis());
+        }
+    });
+}
+```
+
+**Benefits:**
+- Better performance (fewer JNI calls)
+- Single observer notification per transaction
+- More efficient update encoding for synchronization
+- Clearer semantic grouping of related changes
+
+**Note:** Nested transactions are not supported. Only one transaction can be active per document at a time.
+
 ### Advanced Synchronization
 
 ```java
@@ -217,11 +254,12 @@ cd ycrdt && cargo test
 ## Test Coverage
 
 - 36 Rust unit tests (100% passing)
-- 306 Java integration tests (100% passing)
+- 323 Java integration tests (100% passing)
   - 214 functional tests
   - 25 memory stress tests
   - 16 subdocument tests
   - 51 observer tests
+  - 17 transaction tests
   - 16 advanced sync tests
 
 ## Development

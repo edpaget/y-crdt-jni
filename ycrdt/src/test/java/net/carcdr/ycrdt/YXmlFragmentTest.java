@@ -377,4 +377,118 @@ public class YXmlFragmentTest {
             }
         }
     }
+
+    // Transaction-based tests
+
+    @Test
+    public void testInsertElementWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                fragment.insertElement(txn, 0, "div");
+                fragment.insertElement(txn, 1, "span");
+                fragment.insertElement(txn, 2, "p");
+            }
+            assertEquals(3, fragment.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(0));
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(1));
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(2));
+        }
+    }
+
+    @Test
+    public void testInsertTextWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                fragment.insertText(txn, 0, "Hello");
+                fragment.insertText(txn, 1, "World");
+            }
+            assertEquals(2, fragment.length());
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(0));
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(1));
+        }
+    }
+
+    @Test
+    public void testRemoveWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            fragment.insertElement(0, "div");
+            fragment.insertText(1, "Hello");
+            fragment.insertElement(2, "span");
+            fragment.insertText(3, "World");
+            assertEquals(4, fragment.length());
+
+            try (YTransaction txn = doc.beginTransaction()) {
+                fragment.remove(txn, 1, 1);
+                fragment.remove(txn, 1, 1);
+            }
+
+            assertEquals(2, fragment.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(0));
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(1));
+        }
+    }
+
+    @Test
+    public void testMixedInsertionsWithTransaction() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            try (YTransaction txn = doc.beginTransaction()) {
+                fragment.insertElement(txn, 0, "div");
+                fragment.insertText(txn, 1, "Hello");
+                fragment.insertElement(txn, 2, "span");
+                fragment.insertText(txn, 3, "World");
+            }
+            assertEquals(4, fragment.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(0));
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(1));
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(2));
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(3));
+        }
+    }
+
+    @Test
+    public void testTransactionBatchingPerformance() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            // Using transaction should batch all operations
+            try (YTransaction txn = doc.beginTransaction()) {
+                for (int i = 0; i < 100; i++) {
+                    if (i % 2 == 0) {
+                        fragment.insertElement(txn, i, "div");
+                    } else {
+                        fragment.insertText(txn, i, "text" + i);
+                    }
+                }
+            }
+
+            assertEquals(100, fragment.length());
+        }
+    }
+
+    @Test
+    public void testComplexTransactionOperations() {
+        try (YDoc doc = new YDoc();
+             YXmlFragment fragment = doc.getXmlFragment("test")) {
+            // First add some initial content
+            fragment.insertElement(0, "div");
+            fragment.insertText(1, "Hello");
+            fragment.insertElement(2, "span");
+
+            // Use transaction to modify
+            try (YTransaction txn = doc.beginTransaction()) {
+                fragment.insertText(txn, 1, "Start");
+                fragment.insertElement(txn, 4, "p");
+                fragment.remove(txn, 2, 1); // Remove "Hello"
+            }
+
+            assertEquals(4, fragment.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(0)); // div
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(1));    // Start
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(2)); // span
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(3)); // p
+        }
+    }
 }

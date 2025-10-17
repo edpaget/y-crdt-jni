@@ -116,6 +116,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeLength(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `fragment_ptr`: Pointer to the YXmlFragment instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The index at which to insert the element
 /// - `tag`: The tag name for the element
 #[no_mangle]
@@ -124,6 +125,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElement(
     _class: JClass,
     doc_ptr: jlong,
     fragment_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     tag: JString,
 ) {
@@ -148,7 +150,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElement(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        {
+
+        if txn_ptr == 0 {
+            // Create implicit transaction
             let mut txn = doc.transact_mut();
             fragment.insert(
                 &mut txn,
@@ -156,8 +160,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElement(
                 XmlElementPrelim::empty(tag_str.as_str()),
             );
             // Transaction drops here, observers are triggered
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                fragment.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
         }
-        // Observers have completed by this point, safe to return
     }
 }
 
@@ -166,6 +176,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElement(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `fragment_ptr`: Pointer to the YXmlFragment instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The index at which to insert the text
 /// - `content`: The text content
 #[no_mangle]
@@ -174,6 +185,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertText(
     _class: JClass,
     doc_ptr: jlong,
     fragment_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     content: JString,
 ) {
@@ -198,7 +210,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertText(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        {
+
+        if txn_ptr == 0 {
+            // Create implicit transaction
             let mut txn = doc.transact_mut();
             fragment.insert(
                 &mut txn,
@@ -206,8 +220,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertText(
                 XmlTextPrelim::new(content_str.as_str()),
             );
             // Transaction drops here, observers are triggered
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                fragment.insert(txn, index as u32, XmlTextPrelim::new(content_str.as_str()));
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
         }
-        // Observers have completed by this point, safe to return
     }
 }
 
@@ -216,6 +236,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertText(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `fragment_ptr`: Pointer to the YXmlFragment instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The starting index
 /// - `length`: The number of children to remove
 #[no_mangle]
@@ -224,6 +245,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeRemove(
     _class: JClass,
     doc_ptr: jlong,
     fragment_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     length: jint,
 ) {
@@ -239,12 +261,20 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeRemove(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        {
+
+        if txn_ptr == 0 {
+            // Create implicit transaction
             let mut txn = doc.transact_mut();
             fragment.remove_range(&mut txn, index as u32, length as u32);
             // Transaction drops here, observers are triggered
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                fragment.remove_range(txn, index as u32, length as u32);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
         }
-        // Observers have completed by this point, safe to return
     }
 }
 

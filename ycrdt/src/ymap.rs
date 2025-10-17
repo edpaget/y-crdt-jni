@@ -222,6 +222,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDouble(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
 /// - `key`: The key to set
 /// - `value`: The string value to set
 #[no_mangle]
@@ -230,6 +231,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
     value: JString,
 ) {
@@ -263,8 +265,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let mut txn = doc.transact_mut();
-        map.insert(&mut txn, key_str, value_str);
+
+        if txn_ptr == 0 {
+            // Legacy behavior: create implicit transaction
+            let mut txn = doc.transact_mut();
+            map.insert(&mut txn, key_str, value_str);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                map.insert(txn, key_str, value_str);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -273,6 +286,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetString(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
 /// - `key`: The key to set
 /// - `value`: The double value to set
 #[no_mangle]
@@ -281,6 +295,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
     value: jdouble,
 ) {
@@ -305,8 +320,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let mut txn = doc.transact_mut();
-        map.insert(&mut txn, key_str, value);
+
+        if txn_ptr == 0 {
+            // Legacy behavior: create implicit transaction
+            let mut txn = doc.transact_mut();
+            map.insert(&mut txn, key_str, value);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                map.insert(txn, key_str, value);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -315,6 +341,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDouble(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
 /// - `key`: The key to remove
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
@@ -322,6 +349,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
 ) {
     if doc_ptr == 0 {
@@ -345,8 +373,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemove(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let mut txn = doc.transact_mut();
-        map.remove(&mut txn, &key_str);
+
+        if txn_ptr == 0 {
+            // Legacy behavior: create implicit transaction
+            let mut txn = doc.transact_mut();
+            map.remove(&mut txn, &key_str);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                map.remove(txn, &key_str);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -475,12 +514,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeKeys<'a>(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClear(
     mut env: JNIEnv,
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
 ) {
     if doc_ptr == 0 {
         throw_exception(&mut env, "Invalid YDoc pointer");
@@ -494,8 +535,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClear(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
-        let mut txn = doc.transact_mut();
-        map.clear(&mut txn);
+
+        if txn_ptr == 0 {
+            // Legacy behavior: create implicit transaction
+            let mut txn = doc.transact_mut();
+            map.clear(&mut txn);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                map.clear(txn);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -537,6 +589,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJson(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the parent YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit transaction)
 /// - `key`: The key to set
 /// - `subdoc_ptr`: Pointer to the YDoc subdocument to insert
 #[no_mangle]
@@ -545,6 +598,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
     _class: JClass,
     doc_ptr: jlong,
     map_ptr: jlong,
+    txn_ptr: jlong,
     key: JString,
     subdoc_ptr: jlong,
 ) {
@@ -578,8 +632,18 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoc(
         // Clone the subdoc for insertion (Doc implements Prelim)
         let subdoc_clone = subdoc.clone();
 
-        let mut txn = doc.transact_mut();
-        map.insert(&mut txn, key_str, subdoc_clone);
+        if txn_ptr == 0 {
+            // Legacy behavior: create implicit transaction
+            let mut txn = doc.transact_mut();
+            map.insert(&mut txn, key_str, subdoc_clone);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                map.insert(txn, key_str, subdoc_clone);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 

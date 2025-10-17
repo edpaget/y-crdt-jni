@@ -78,7 +78,39 @@ public class YText implements Closeable, YObservable {
     }
 
     /**
-     * Inserts text at the specified index.
+     * Inserts text at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     text.insert(txn, 0, "Hello");
+     *     text.insert(txn, 5, " World");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The position at which to insert the text (0-based)
+     * @param chunk The text to insert
+     * @throws IllegalArgumentException if txn or chunk is null
+     * @throws IllegalStateException if the text has been closed
+     * @throws IndexOutOfBoundsException if index is negative or greater than the current length
+     */
+    public void insert(YTransaction txn, int index, String chunk) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative");
+        }
+        nativeInsertWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, chunk);
+    }
+
+    /**
+     * Inserts text at the specified index (creates implicit transaction).
      *
      * @param index The position at which to insert the text (0-based)
      * @param chunk The text to insert
@@ -99,7 +131,34 @@ public class YText implements Closeable, YObservable {
     }
 
     /**
-     * Appends text to the end.
+     * Appends text to the end within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     text.push(txn, "Hello");
+     *     text.push(txn, " World");
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param chunk The text to append
+     * @throws IllegalArgumentException if txn or chunk is null
+     * @throws IllegalStateException if the text has been closed
+     */
+    public void push(YTransaction txn, String chunk) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (chunk == null) {
+            throw new IllegalArgumentException("Chunk cannot be null");
+        }
+        nativePushWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), chunk);
+    }
+
+    /**
+     * Appends text to the end (creates implicit transaction).
      *
      * @param chunk The text to append
      * @throws IllegalArgumentException if chunk is null
@@ -114,7 +173,37 @@ public class YText implements Closeable, YObservable {
     }
 
     /**
-     * Deletes a range of text.
+     * Deletes a range of text within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     text.insert(txn, 0, "Hello World");
+     *     text.delete(txn, 5, 6); // Delete " World"
+     * }
+     * }</pre>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The starting position (0-based)
+     * @param length The number of characters to delete
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the text has been closed
+     * @throws IndexOutOfBoundsException if the range is invalid
+     */
+    public void delete(YTransaction txn, int index, int length) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0 || length < 0) {
+            throw new IndexOutOfBoundsException(
+                "Index and length must be non-negative");
+        }
+        nativeDeleteWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, length);
+    }
+
+    /**
+     * Deletes a range of text (creates implicit transaction).
      *
      * @param index The starting position (0-based)
      * @param length The number of characters to delete
@@ -264,8 +353,11 @@ public class YText implements Closeable, YObservable {
     private static native int nativeLength(long docPtr, long textPtr);
     private static native String nativeToString(long docPtr, long textPtr);
     private static native void nativeInsert(long docPtr, long textPtr, int index, String chunk);
+    private static native void nativeInsertWithTxn(long docPtr, long textPtr, long txnPtr, int index, String chunk);
     private static native void nativePush(long docPtr, long textPtr, String chunk);
+    private static native void nativePushWithTxn(long docPtr, long textPtr, long txnPtr, String chunk);
     private static native void nativeDelete(long docPtr, long textPtr, int index, int length);
+    private static native void nativeDeleteWithTxn(long docPtr, long textPtr, long txnPtr, int index, int length);
     private static native void nativeObserve(long docPtr, long textPtr, long subscriptionId, YText ytextObj);
     private static native void nativeUnobserve(long docPtr, long textPtr, long subscriptionId);
 }

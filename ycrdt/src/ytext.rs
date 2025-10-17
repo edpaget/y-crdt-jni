@@ -1,4 +1,6 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
+use crate::{
+    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
+};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
 use jni::{AttachGuard, JNIEnv};
@@ -184,6 +186,62 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeInsert(
     }
 }
 
+/// Inserts text at the specified index using an existing transaction
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `text_ptr`: Pointer to the YText instance
+/// - `txn_ptr`: Pointer to the transaction ID
+/// - `index`: The index at which to insert the text
+/// - `chunk`: The text to insert
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeInsertWithTxn(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    text_ptr: jlong,
+    txn_ptr: jlong,
+    index: jint,
+    chunk: JString,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YText pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
+
+    // Convert Java string to Rust string
+    let chunk_jstring = match env.get_string(&chunk) {
+        Ok(s) => s,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to get chunk string");
+            return;
+        }
+    };
+    let chunk_str: String = chunk_jstring.into();
+
+    unsafe {
+        let text = from_java_ptr::<TextRef>(text_ptr);
+
+        // Retrieve existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                text.insert(txn, index as u32, &chunk_str);
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+            }
+        }
+    }
+}
+
 /// Appends text to the end
 ///
 /// # Parameters
@@ -226,6 +284,60 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativePush(
     }
 }
 
+/// Appends text to the end using an existing transaction
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `text_ptr`: Pointer to the YText instance
+/// - `txn_ptr`: Pointer to the transaction ID
+/// - `chunk`: The text to append
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativePushWithTxn(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    text_ptr: jlong,
+    txn_ptr: jlong,
+    chunk: JString,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YText pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
+
+    // Convert Java string to Rust string
+    let chunk_jstring = match env.get_string(&chunk) {
+        Ok(s) => s,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to get chunk string");
+            return;
+        }
+    };
+    let chunk_str: String = chunk_jstring.into();
+
+    unsafe {
+        let text = from_java_ptr::<TextRef>(text_ptr);
+
+        // Retrieve existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                text.push(txn, &chunk_str);
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+            }
+        }
+    }
+}
+
 /// Deletes a range of text
 ///
 /// # Parameters
@@ -256,6 +368,52 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeDelete(
         let text = from_java_ptr::<TextRef>(text_ptr);
         let mut txn = doc.transact_mut();
         text.remove_range(&mut txn, index as u32, length as u32);
+    }
+}
+
+/// Deletes a range of text using an existing transaction
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `text_ptr`: Pointer to the YText instance
+/// - `txn_ptr`: Pointer to the transaction ID
+/// - `index`: The starting index
+/// - `length`: The number of characters to delete
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeDeleteWithTxn(
+    mut env: JNIEnv,
+    _class: JClass,
+    doc_ptr: jlong,
+    text_ptr: jlong,
+    txn_ptr: jlong,
+    index: jint,
+    length: jint,
+) {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+    if text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YText pointer");
+        return;
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return;
+    }
+
+    unsafe {
+        let text = from_java_ptr::<TextRef>(text_ptr);
+
+        // Retrieve existing transaction
+        match get_transaction_mut(txn_ptr) {
+            Some(txn) => {
+                text.remove_range(txn, index as u32, length as u32);
+            }
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+            }
+        }
     }
 }
 

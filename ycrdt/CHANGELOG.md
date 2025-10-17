@@ -91,13 +91,18 @@ All notable changes to the ycrdt module.
   - Complex synchronization scenarios
   - Combined multi-type stress tests
   - All tests passing with no memory leaks detected
-- Automatic Transaction Semantics
-  - All CRDT operations are automatically transactional (atomic)
-  - Each operation creates, executes, and commits a transaction transparently
-  - Observer callbacks fire after transaction commits
-  - Transaction origin tracking in YEvent for observer context
-  - No manual transaction management needed
-  - Aligns with CRDT best practices and yrs library design
+- Transaction API for batching operations (Phase 1 - Core Infrastructure)
+  - YTransaction class implementing AutoCloseable for automatic resource management
+  - YDoc.beginTransaction() - create explicit transactions
+  - YDoc.transaction(Consumer) - callback-based transaction execution
+  - YTransaction.commit() and rollback() methods
+  - Thread-safe transaction storage using global HashMap with unique IDs
+  - Proper transaction lifecycle management (create, use, commit/rollback)
+  - 17 comprehensive transaction tests covering all lifecycle scenarios
+  - Automatic transaction semantics still available (each operation creates implicit transaction)
+  - Documented limitation: nested transactions not supported (yrs TransactionMut constraint)
+  - Performance benefits: fewer JNI calls, single observer notification, efficient update encoding
+  - Phase 2 (YText integration) ready for implementation
 - Native library loader with platform detection
 - Multi-platform build support (Linux, macOS, Windows)
 - Example program with 14 examples demonstrating all features

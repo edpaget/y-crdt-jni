@@ -117,7 +117,38 @@ public class YXmlElement implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativeSetAttribute(doc.getNativePtr(), nativePtr, name, value);
+        nativeSetAttribute(doc.getNativePtr(), nativePtr, 0, name, value);
+    }
+
+    /**
+     * Sets an attribute value within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     element.setAttribute(txn, "class", "container");
+     *     element.setAttribute(txn, "id", "main");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param name The attribute name
+     * @param value The attribute value
+     * @throws IllegalArgumentException if txn, name or value is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public void setAttribute(YTransaction txn, String name, String value) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("Value cannot be null");
+        }
+        nativeSetAttribute(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name, value);
     }
 
     /**
@@ -132,7 +163,34 @@ public class YXmlElement implements Closeable, YObservable {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        nativeRemoveAttribute(doc.getNativePtr(), nativePtr, name);
+        nativeRemoveAttribute(doc.getNativePtr(), nativePtr, 0, name);
+    }
+
+    /**
+     * Removes an attribute within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     element.removeAttribute(txn, "class");
+     *     element.removeAttribute(txn, "id");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param name The attribute name to remove
+     * @throws IllegalArgumentException if txn or name is null
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public void removeAttribute(YTransaction txn, String name) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        nativeRemoveAttribute(doc.getNativePtr(), nativePtr, txn.getNativePtr(), name);
     }
 
     /**
@@ -192,7 +250,44 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, index, tag);
+        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, 0, index, tag);
+        if (childPtr == 0) {
+            throw new RuntimeException("Failed to insert element child");
+        }
+        return new YXmlElement(doc, childPtr);
+    }
+
+    /**
+     * Inserts an XML element child at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     element.insertElement(txn, 0, "div");
+     *     element.insertElement(txn, 1, "span");
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index at which to insert the child
+     * @param tag The tag name for the new element
+     * @return The new child element
+     * @throws IllegalArgumentException if txn or tag is null
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public YXmlElement insertElement(YTransaction txn, int index, String tag) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (tag == null) {
+            throw new IllegalArgumentException("Tag cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long childPtr = nativeInsertElement(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index, tag);
         if (childPtr == 0) {
             throw new RuntimeException("Failed to insert element child");
         }
@@ -212,7 +307,40 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, index);
+        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, 0, index);
+        if (childPtr == 0) {
+            throw new RuntimeException("Failed to insert text child");
+        }
+        return new YXmlText(doc, childPtr);
+    }
+
+    /**
+     * Inserts an XML text child at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     element.insertText(txn, 0);
+     *     element.insertText(txn, 1);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index at which to insert the child
+     * @return The new child text node
+     * @throws IllegalArgumentException if txn is null
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public YXmlText insertText(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        long childPtr = nativeInsertText(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
         if (childPtr == 0) {
             throw new RuntimeException("Failed to insert text child");
         }
@@ -266,7 +394,35 @@ public class YXmlElement implements Closeable, YObservable {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        nativeRemoveChild(doc.getNativePtr(), nativePtr, index);
+        nativeRemoveChild(doc.getNativePtr(), nativePtr, 0, index);
+    }
+
+    /**
+     * Removes the child node at the specified index within an existing transaction.
+     *
+     * <p>Use this method to batch multiple operations:
+     * <pre>{@code
+     * try (YTransaction txn = doc.beginTransaction()) {
+     *     element.removeChild(txn, 0);
+     *     element.removeChild(txn, 0);
+     * }
+     * }</pre>
+     *
+     * @param txn Transaction handle
+     * @param index The index of the child to remove
+     * @throws IllegalArgumentException if txn is null
+     * @throws IndexOutOfBoundsException if index is negative
+     * @throws IllegalStateException if the XML element has been closed
+     */
+    public void removeChild(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        nativeRemoveChild(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
     }
 
     /**
@@ -453,16 +609,16 @@ public class YXmlElement implements Closeable, YObservable {
     private static native String nativeGetTag(long docPtr, long xmlElementPtr);
     private static native String nativeGetAttribute(long docPtr, long xmlElementPtr, String name);
     private static native void nativeSetAttribute(
-            long docPtr, long xmlElementPtr, String name, String value);
+            long docPtr, long xmlElementPtr, long txnPtr, String name, String value);
     private static native void nativeRemoveAttribute(
-            long docPtr, long xmlElementPtr, String name);
+            long docPtr, long xmlElementPtr, long txnPtr, String name);
     private static native Object nativeGetAttributeNames(long docPtr, long xmlElementPtr);
     private static native String nativeToString(long docPtr, long xmlElementPtr);
     private static native int nativeChildCount(long docPtr, long xmlElementPtr);
-    private static native long nativeInsertElement(long docPtr, long xmlElementPtr, int index, String tag);
-    private static native long nativeInsertText(long docPtr, long xmlElementPtr, int index);
+    private static native long nativeInsertElement(long docPtr, long xmlElementPtr, long txnPtr, int index, String tag);
+    private static native long nativeInsertText(long docPtr, long xmlElementPtr, long txnPtr, int index);
     private static native Object nativeGetChild(long docPtr, long xmlElementPtr, int index);
-    private static native void nativeRemoveChild(long docPtr, long xmlElementPtr, int index);
+    private static native void nativeRemoveChild(long docPtr, long xmlElementPtr, long txnPtr, int index);
     private static native Object nativeGetParent(long docPtr, long xmlElementPtr);
     private static native int nativeGetIndexInParent(long docPtr, long xmlElementPtr);
     private static native void nativeObserve(long docPtr, long xmlElementPtr, long subscriptionId,

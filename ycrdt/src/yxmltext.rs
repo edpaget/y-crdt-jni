@@ -168,6 +168,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeToString(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The index at which to insert the text
 /// - `chunk`: The text to insert
 #[no_mangle]
@@ -176,6 +177,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     chunk: JString,
 ) {
@@ -200,9 +202,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let mut txn = doc.transact_mut();
 
-        text.insert(&mut txn, index as u32, &chunk_str);
+        if txn_ptr == 0 {
+            // Create implicit transaction
+            let mut txn = doc.transact_mut();
+            text.insert(&mut txn, index as u32, &chunk_str);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                text.insert(txn, index as u32, &chunk_str);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -211,6 +223,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsert(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `chunk`: The text to append
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
@@ -218,6 +231,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
     chunk: JString,
 ) {
     if doc_ptr == 0 {
@@ -241,9 +255,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let mut txn = doc.transact_mut();
 
-        text.push(&mut txn, &chunk_str);
+        if txn_ptr == 0 {
+            // Create implicit transaction
+            let mut txn = doc.transact_mut();
+            text.push(&mut txn, &chunk_str);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                text.push(txn, &chunk_str);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -252,6 +276,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePush(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The starting index of the deletion
 /// - `length`: The number of characters to delete
 #[no_mangle]
@@ -260,6 +285,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     length: jint,
 ) {
@@ -275,9 +301,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let mut txn = doc.transact_mut();
 
-        text.remove_range(&mut txn, index as u32, length as u32);
+        if txn_ptr == 0 {
+            // Create implicit transaction
+            let mut txn = doc.transact_mut();
+            text.remove_range(&mut txn, index as u32, length as u32);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                text.remove_range(txn, index as u32, length as u32);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -286,6 +322,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeDelete(
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The index at which to insert the text
 /// - `chunk`: The text to insert
 /// - `attributes`: A Java Map<String, Object> of formatting attributes
@@ -298,6 +335,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     chunk: JString,
     attributes: JObject,
@@ -332,9 +370,19 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let mut txn = doc.transact_mut();
 
-        text.insert_with_attributes(&mut txn, index as u32, &chunk_str, attrs);
+        if txn_ptr == 0 {
+            // Create implicit transaction
+            let mut txn = doc.transact_mut();
+            text.insert_with_attributes(&mut txn, index as u32, &chunk_str, attrs);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                text.insert_with_attributes(txn, index as u32, &chunk_str, attrs);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
@@ -343,6 +391,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
 /// # Parameters
 /// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to transaction (0 = create implicit txn)
 /// - `index`: The starting index of the range to format
 /// - `length`: The length of the range to format
 /// - `attributes`: A Java Map<String, Object> of formatting attributes.
@@ -356,6 +405,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormat(
     _class: JClass,
     doc_ptr: jlong,
     xml_text_ptr: jlong,
+    txn_ptr: jlong,
     index: jint,
     length: jint,
     attributes: JObject,
@@ -381,9 +431,19 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeFormat(
     unsafe {
         let doc = from_java_ptr::<Doc>(doc_ptr);
         let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
-        let mut txn = doc.transact_mut();
 
-        text.format(&mut txn, index as u32, length as u32, attrs);
+        if txn_ptr == 0 {
+            // Create implicit transaction
+            let mut txn = doc.transact_mut();
+            text.format(&mut txn, index as u32, length as u32, attrs);
+        } else {
+            // Use existing transaction
+            if let Some(txn) = crate::get_transaction_mut(txn_ptr) {
+                text.format(txn, index as u32, length as u32, attrs);
+            } else {
+                throw_exception(&mut env, "Invalid transaction pointer");
+            }
+        }
     }
 }
 
