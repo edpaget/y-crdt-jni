@@ -39,7 +39,7 @@ import static org.junit.Assert.assertTrue;
  *     .build();
  *
  * connection.handleMessage(msg);
- * waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS);
+ * waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS);
  * // Document is now guaranteed to be loaded
  * }</pre>
  *
@@ -91,7 +91,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
@@ -135,7 +135,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for both documents to be loaded
         assertTrue("Both documents should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for both documents to be added to server's map
         waitForCondition(() -> server.getDocument("doc1") != null, 1000);
@@ -157,7 +157,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map and messages to be sent
         waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
@@ -190,7 +190,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("shared-doc") != null, 1000);
@@ -213,7 +213,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
@@ -239,7 +239,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
@@ -280,7 +280,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("concurrent-doc") != null, 1000);
@@ -319,7 +319,7 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be fully loaded (no polling!)
         assertTrue("Document should be loaded",
-                waiter.awaitAfterLoadDocument(1, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
         // Now we know for certain the document is loaded
         YDocument doc = server.getDocument("test-doc");

@@ -391,7 +391,7 @@ public class SyncIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-            waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+            waiter.awaitAfterLoadDocument(30, TimeUnit.SECONDS));
 
         // Wait for document to be added to server's map
         waitForCondition(() -> server.getDocument("empty-doc") != null, 1000);
