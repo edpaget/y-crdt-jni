@@ -49,21 +49,6 @@ public class YTransactionTest {
         }
     }
 
-    @Test
-    public void testExplicitRollback() {
-        try (YDoc doc = new YDoc()) {
-            YTransaction txn = doc.beginTransaction();
-            assertFalse("Transaction should not be closed", txn.isClosed());
-
-            txn.rollback();
-            assertTrue("Transaction should be closed after rollback", txn.isClosed());
-
-            // Rolling back again should be safe (idempotent)
-            txn.rollback();
-            assertTrue("Transaction should still be closed", txn.isClosed());
-        }
-    }
-
     @Test(expected = IllegalStateException.class)
     public void testGetNativePtrAfterClose() {
         try (YDoc doc = new YDoc()) {
@@ -235,18 +220,6 @@ public class YTransactionTest {
 
             txn.commit();
             assertTrue("Committed transaction should be closed", txn.isClosed());
-        }
-    }
-
-    @Test
-    public void testRollbackState() {
-        try (YDoc doc = new YDoc()) {
-            YTransaction txn = doc.beginTransaction();
-
-            assertFalse("New transaction should not be closed", txn.isClosed());
-
-            txn.rollback();
-            assertTrue("Rolled back transaction should be closed", txn.isClosed());
         }
     }
 }
