@@ -63,7 +63,29 @@ public class YArray implements Closeable, YObservable {
      */
     public int length() {
         checkClosed();
-        return nativeLength(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the length of the array using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return The number of elements in the array
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public int length(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeLengthWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -78,7 +100,34 @@ public class YArray implements Closeable, YObservable {
         if (index < 0) {
             return null;
         }
-        return nativeGetString(doc.getNativePtr(), nativePtr, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), index);
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
+        }
+    }
+
+    /**
+     * Gets a string value at the specified index using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The index (0-based)
+     * @return The string value, or null if index is out of bounds or value is not a string
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public String getString(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            return null;
+        }
+        return nativeGetStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
     }
 
     /**
@@ -93,7 +142,34 @@ public class YArray implements Closeable, YObservable {
         if (index < 0) {
             return 0.0;
         }
-        return nativeGetDouble(doc.getNativePtr(), nativePtr, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), index);
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
+        }
+    }
+
+    /**
+     * Gets a double value at the specified index using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The index (0-based)
+     * @return The double value, or 0.0 if index is out of bounds or value is not a number
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public double getDouble(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            return 0.0;
+        }
+        return nativeGetDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index);
     }
 
     /**
@@ -143,11 +219,24 @@ public class YArray implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException(
-                "Index " + index + " out of bounds for length " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " out of bounds for length " + length(activeTxn));
+            }
+            nativeInsertStringWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException(
+                        "Index " + index + " out of bounds for length " + length(txn));
+                }
+                nativeInsertStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, value);
+            }
         }
-        nativeInsertString(doc.getNativePtr(), nativePtr, index, value);
     }
 
     /**
@@ -190,11 +279,24 @@ public class YArray implements Closeable, YObservable {
      */
     public void insertDouble(int index, double value) {
         checkClosed();
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException(
-                "Index " + index + " out of bounds for length " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " out of bounds for length " + length(activeTxn));
+            }
+            nativeInsertDoubleWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException(
+                        "Index " + index + " out of bounds for length " + length(txn));
+                }
+                nativeInsertDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, value);
+            }
         }
-        nativeInsertDouble(doc.getNativePtr(), nativePtr, index, value);
     }
 
     /**
@@ -236,7 +338,14 @@ public class YArray implements Closeable, YObservable {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        nativePushString(doc.getNativePtr(), nativePtr, value);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativePushStringWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativePushStringWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), value);
+            }
+        }
     }
 
     /**
@@ -271,7 +380,14 @@ public class YArray implements Closeable, YObservable {
      */
     public void pushDouble(double value) {
         checkClosed();
-        nativePushDouble(doc.getNativePtr(), nativePtr, value);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativePushDoubleWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), value);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativePushDoubleWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), value);
+            }
+        }
     }
 
     /**
@@ -325,13 +441,28 @@ public class YArray implements Closeable, YObservable {
             throw new IndexOutOfBoundsException(
                 "Index and length must be non-negative");
         }
-        int currentLength = length();
-        if (index + length > currentLength) {
-            throw new IndexOutOfBoundsException(
-                "Range [" + index + ", " + (index + length) + ") out of bounds for length "
-                + currentLength);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            int currentLength = length(activeTxn);
+            if (index + length > currentLength) {
+                throw new IndexOutOfBoundsException(
+                    "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                    + currentLength);
+            }
+            nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                index, length);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                int currentLength = length(txn);
+                if (index + length > currentLength) {
+                    throw new IndexOutOfBoundsException(
+                        "Range [" + index + ", " + (index + length) + ") out of bounds for length "
+                        + currentLength);
+                }
+                nativeRemoveWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    index, length);
+            }
         }
-        nativeRemove(doc.getNativePtr(), nativePtr, index, length);
     }
 
     /**
@@ -399,11 +530,24 @@ public class YArray implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        if (index < 0 || index > length()) {
-            throw new IndexOutOfBoundsException(
-                "Index " + index + " out of bounds for length " + length());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            if (index < 0 || index > length(activeTxn)) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " out of bounds for length " + length(activeTxn));
+            }
+            nativeInsertDocWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(), index,
+                subdoc.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                if (index < 0 || index > length(txn)) {
+                    throw new IndexOutOfBoundsException(
+                        "Index " + index + " out of bounds for length " + length(txn));
+                }
+                nativeInsertDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(), index,
+                    subdoc.getNativePtr());
+            }
         }
-        nativeInsertDoc(doc.getNativePtr(), nativePtr, index, subdoc.getNativePtr());
     }
 
     /**
@@ -463,7 +607,16 @@ public class YArray implements Closeable, YObservable {
         if (subdoc == null) {
             throw new IllegalArgumentException("Subdocument cannot be null");
         }
-        nativePushDoc(doc.getNativePtr(), nativePtr, subdoc.getNativePtr());
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            nativePushDocWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr(),
+                subdoc.getNativePtr());
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                nativePushDocWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr(),
+                    subdoc.getNativePtr());
+            }
+        }
     }
 
     /**
@@ -491,7 +644,44 @@ public class YArray implements Closeable, YObservable {
         if (index < 0) {
             return null;
         }
-        long subdocPtr = nativeGetDoc(doc.getNativePtr(), nativePtr, index);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        long subdocPtr;
+        if (activeTxn != null) {
+            subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr(), index);
+        } else {
+            try (YTransaction txn = doc.beginTransaction()) {
+                subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr,
+                    txn.getNativePtr(), index);
+            }
+        }
+        if (subdocPtr == 0) {
+            return null;
+        }
+        return new YDoc(subdocPtr, true);
+    }
+
+    /**
+     * Gets a YDoc subdocument at the specified index using an existing transaction.
+     *
+     * <p>The returned YDoc must be closed by the caller when no longer needed.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @param index The index (0-based)
+     * @return The YDoc subdocument, or null if index is out of bounds or value is not a Doc
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public YDoc getDoc(YTransaction txn, int index) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            return null;
+        }
+        long subdocPtr = nativeGetDocWithTxn(doc.getNativePtr(), nativePtr,
+            txn.getNativePtr(), index);
         if (subdocPtr == 0) {
             return null;
         }
@@ -506,7 +696,29 @@ public class YArray implements Closeable, YObservable {
      */
     public String toJson() {
         checkClosed();
-        return nativeToJson(doc.getNativePtr(), nativePtr);
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns a JSON string representation of the array using an existing transaction.
+     *
+     * @param txn The transaction to use for this operation
+     * @return A JSON string representation
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the array has been closed
+     */
+    public String toJson(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeToJsonWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
     }
 
     /**
@@ -649,35 +861,28 @@ public class YArray implements Closeable, YObservable {
     // Native methods
     private static native long nativeGetArray(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
-    private static native int nativeLength(long docPtr, long arrayPtr);
-    private static native String nativeGetString(long docPtr, long arrayPtr, int index);
-    private static native double nativeGetDouble(long docPtr, long arrayPtr, int index);
-    private static native void nativeInsertString(long docPtr, long arrayPtr, int index,
-                                                   String value);
+    private static native int nativeLengthWithTxn(long docPtr, long arrayPtr, long txnPtr);
+    private static native String nativeGetStringWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                         int index);
+    private static native double nativeGetDoubleWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                         int index);
     private static native void nativeInsertStringWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                           int index, String value);
-    private static native void nativeInsertDouble(long docPtr, long arrayPtr, int index,
-                                                   double value);
     private static native void nativeInsertDoubleWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                           int index, double value);
-    private static native void nativePushString(long docPtr, long arrayPtr, String value);
     private static native void nativePushStringWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                         String value);
-    private static native void nativePushDouble(long docPtr, long arrayPtr, double value);
     private static native void nativePushDoubleWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                         double value);
-    private static native void nativeRemove(long docPtr, long arrayPtr, int index, int length);
     private static native void nativeRemoveWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                     int index, int length);
-    private static native String nativeToJson(long docPtr, long arrayPtr);
-    private static native void nativeInsertDoc(long docPtr, long arrayPtr, int index,
-                                                long subdocPtr);
+    private static native String nativeToJsonWithTxn(long docPtr, long arrayPtr, long txnPtr);
     private static native void nativeInsertDocWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                        int index, long subdocPtr);
-    private static native void nativePushDoc(long docPtr, long arrayPtr, long subdocPtr);
     private static native void nativePushDocWithTxn(long docPtr, long arrayPtr, long txnPtr,
                                                      long subdocPtr);
-    private static native long nativeGetDoc(long docPtr, long arrayPtr, int index);
+    private static native long nativeGetDocWithTxn(long docPtr, long arrayPtr, long txnPtr,
+                                                    int index);
     private static native void nativeObserve(long docPtr, long arrayPtr, long subscriptionId,
                                               YArray yarrayObj);
     private static native void nativeUnobserve(long docPtr, long arrayPtr, long subscriptionId);
