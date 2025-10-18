@@ -246,6 +246,9 @@ public class ConnectionIntegrationTest {
 
         YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should exist before close", doc);
+
+        // Wait for connection to be registered with the document
+        waitForCondition(() -> doc.getConnectionCount() == 1, 1000);
         assertEquals("Document should have 1 connection", 1, doc.getConnectionCount());
 
         // Close connection

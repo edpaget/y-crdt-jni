@@ -248,4 +248,22 @@ public class TestWaiter implements Extension {
     public void resetStoreLatch(int count) {
         storeLatch = new CountDownLatch(count);
     }
+
+    /**
+     * Resets disconnect latch for reuse.
+     *
+     * @param count the number of events to wait for
+     */
+    public void resetDisconnectLatch(int count) {
+        disconnectLatch = new CountDownLatch(count);
+    }
+
+    /**
+     * Resets destroy latch for reuse.
+     *
+     * @param count the number of events to wait for
+     */
+    public void resetDestroyLatch(int count) {
+        destroyLatch = new CountDownLatch(count);
+    }
 }
