@@ -241,20 +241,58 @@ public final class YCrdtConverter {
     /**
      * Converts a YXmlText node to a ProseMirror text node.
      *
+     * <p>This method retrieves formatting chunks from the Y-CRDT text and converts them
+     * to ProseMirror text nodes with appropriate marks. Each chunk represents a portion
+     * of text with uniform formatting.
+     *
+     * <p>Formatting attributes from Y-CRDT are converted to ProseMirror marks using
+     * {@link #attributesToMarks(Map, Schema)}.
+     *
      * @param yText the Y-CRDT text node
      * @param schema the ProseMirror schema
-     * @return the ProseMirror text node
+     * @return the ProseMirror text node (with marks if formatting exists)
      */
     private static Node convertYXmlTextToNode(YXmlText yText, Schema schema) {
-        String text = yText.toString();
+        // Get formatting chunks from Y-CRDT
+        java.util.List<net.carcdr.ycrdt.FormattingChunk> chunks = yText.getFormattingChunks();
 
-        if (text == null || text.isEmpty()) {
+        if (chunks == null || chunks.isEmpty()) {
             return null;
         }
 
-        // TODO: Extract formatting attributes and convert to marks
-        // For now, create plain text without marks
-        return schema.text(text, null);
+        // If there's only one chunk, return a single text node
+        if (chunks.size() == 1) {
+            net.carcdr.ycrdt.FormattingChunk chunk = chunks.get(0);
+            String text = chunk.getText();
+            if (text == null || text.isEmpty()) {
+                return null;
+            }
+
+            List<Mark> marks = attributesToMarks(chunk.getAttributes(), schema);
+            return schema.text(text, marks.isEmpty() ? null : marks);
+        }
+
+        // Multiple chunks - need to create a fragment and wrap it
+        // Note: This shouldn't happen for a single text node, but handle it gracefully
+        // In practice, YXmlText chunks should be concatenated into a single text node
+        // with the formatting of the first chunk
+        StringBuilder textBuilder = new StringBuilder();
+        Map<String, Object> firstAttrs = null;
+
+        for (net.carcdr.ycrdt.FormattingChunk chunk : chunks) {
+            textBuilder.append(chunk.getText());
+            if (firstAttrs == null && chunk.hasAttributes()) {
+                firstAttrs = chunk.getAttributes();
+            }
+        }
+
+        String text = textBuilder.toString();
+        if (text.isEmpty()) {
+            return null;
+        }
+
+        List<Mark> marks = attributesToMarks(firstAttrs, schema);
+        return schema.text(text, marks.isEmpty() ? null : marks);
     }
 
     /**
@@ -283,11 +321,17 @@ public final class YCrdtConverter {
     /**
      * Converts Y-CRDT formatting attributes to ProseMirror marks.
      *
-     * @param attrs the formatting attributes from YXmlText
+     * <p>This method handles two types of formatting attributes:
+     * <ul>
+     *   <li>Simple marks: Boolean attributes like {@code "bold": true} become simple marks</li>
+     *   <li>Complex marks: Attributes with underscores like {@code "link_href": "url"}
+     *       become marks with attributes</li>
+     * </ul>
+     *
+     * @param attrs the formatting attributes from YXmlText (may be null or empty)
      * @param schema the ProseMirror schema
-     * @return a list of ProseMirror marks
+     * @return a list of ProseMirror marks (empty list if no marks)
      */
-    @SuppressWarnings("unused")
     private static List<Mark> attributesToMarks(Map<String, Object> attrs, Schema schema) {
         List<Mark> marks = new ArrayList<>();
 

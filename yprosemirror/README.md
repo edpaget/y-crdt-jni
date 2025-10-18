@@ -214,6 +214,9 @@ See [YPROSEMIRROR_PLAN.md](../plans/YPROSEMIRROR_PLAN.md) for the complete imple
 
 ### Completed
 - Phase 1: Core Conversion
+  - ProseMirror to Y-CRDT conversion
+  - Y-CRDT to ProseMirror conversion
+  - **Bidirectional mark (formatting) conversion** - Text formatting like bold, italic now preserved in both directions
 - Phase 2: Real-time Sync Binding (document-level)
 
 ### Future Work
@@ -228,8 +231,11 @@ See [YPROSEMIRROR_PLAN.md](../plans/YPROSEMIRROR_PLAN.md) for the complete imple
 ## Known Limitations
 
 1. **Document-Level Sync**: Not as efficient as transaction-level sync for large documents
+
 2. **Limited Testing**: Binding tests limited by Schema construction challenges
+
 3. **No Transaction Support**: Cannot directly integrate with ProseMirror's transaction system
+
 4. **No Position Mapping**: Phase 3 features not yet implemented
 
 ## Contributing

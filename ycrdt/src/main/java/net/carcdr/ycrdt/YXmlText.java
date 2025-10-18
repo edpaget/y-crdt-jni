@@ -1,6 +1,7 @@
 package net.carcdr.ycrdt;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -604,6 +605,68 @@ public class YXmlText implements Closeable, YObservable {
     }
 
     /**
+     * Returns the formatted text as a list of chunks with their formatting attributes.
+     *
+     * <p>This method retrieves the complete delta representation of the text, where each
+     * chunk contains text content and its associated formatting attributes. This is useful
+     * for converting Y-CRDT formatted text to other rich text formats like ProseMirror.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * try (YDoc doc = new YDoc();
+     *      YXmlText text = doc.getXmlText("mytext")) {
+     *     text.insertWithAttributes(0, "Hello", Map.of("bold", true));
+     *     text.insert(5, " World");
+     *
+     *     List<FormattingChunk> chunks = text.getFormattingChunks();
+     *     for (FormattingChunk chunk : chunks) {
+     *         System.out.println("Text: " + chunk.getText());
+     *         if (chunk.hasAttributes()) {
+     *             System.out.println("Attributes: " + chunk.getAttributes());
+     *         }
+     *     }
+     * }
+     * }</pre>
+     *
+     * @return a list of formatting chunks representing the text and its formatting
+     * @throws IllegalStateException if the XML text has been closed
+     * @see FormattingChunk
+     */
+    public List<FormattingChunk> getFormattingChunks() {
+        checkClosed();
+        YTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return nativeGetFormattingChunksWithTxn(doc.getNativePtr(), nativePtr,
+                activeTxn.getNativePtr());
+        }
+        try (YTransaction txn = doc.beginTransaction()) {
+            return nativeGetFormattingChunksWithTxn(doc.getNativePtr(), nativePtr,
+                txn.getNativePtr());
+        }
+    }
+
+    /**
+     * Returns the formatted text as a list of chunks with their formatting attributes
+     * using an existing transaction.
+     *
+     * <p>This method retrieves the complete delta representation of the text, where each
+     * chunk contains text content and its associated formatting attributes.</p>
+     *
+     * @param txn The transaction to use for this operation
+     * @return a list of formatting chunks representing the text and its formatting
+     * @throws IllegalArgumentException if txn is null
+     * @throws IllegalStateException if the XML text has been closed
+     * @see FormattingChunk
+     */
+    public List<FormattingChunk> getFormattingChunks(YTransaction txn) {
+        checkClosed();
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        return nativeGetFormattingChunksWithTxn(doc.getNativePtr(), nativePtr, txn.getNativePtr());
+    }
+
+    /**
      * Checks if this YXmlText has been closed.
      *
      * @return true if this YXmlText has been closed, false otherwise
@@ -753,4 +816,6 @@ public class YXmlText implements Closeable, YObservable {
     private static native void nativeObserve(long docPtr, long xmlTextPtr, long subscriptionId,
                                               YXmlText yxmlTextObj);
     private static native void nativeUnobserve(long docPtr, long xmlTextPtr, long subscriptionId);
+    private static native List<FormattingChunk> nativeGetFormattingChunksWithTxn(
+            long docPtr, long xmlTextPtr, long txnPtr);
 }

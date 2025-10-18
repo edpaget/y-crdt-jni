@@ -1045,6 +1045,192 @@ fn any_to_jobject_xmltext<'local>(
     }
 }
 
+/// Gets the formatting chunks (delta) of the XML text using an existing transaction
+///
+/// # Parameters
+/// - `doc_ptr`: Pointer to the YDoc instance
+/// - `xml_text_ptr`: Pointer to the YXmlText instance
+/// - `txn_ptr`: Pointer to the transaction
+///
+/// # Returns
+/// A Java List<FormattingChunk> containing the text chunks with their formatting attributes
+#[no_mangle]
+pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetFormattingChunksWithTxn<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    doc_ptr: jlong,
+    xml_text_ptr: jlong,
+    txn_ptr: jlong,
+) -> JObject<'local> {
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return JObject::null();
+    }
+    if xml_text_ptr == 0 {
+        throw_exception(&mut env, "Invalid YXmlText pointer");
+        return JObject::null();
+    }
+    if txn_ptr == 0 {
+        throw_exception(&mut env, "Invalid transaction pointer");
+        return JObject::null();
+    }
+
+    unsafe {
+        let text = from_java_ptr::<XmlTextRef>(xml_text_ptr);
+
+        let txn = match get_transaction_mut(txn_ptr) {
+            Some(t) => t,
+            None => {
+                throw_exception(&mut env, "Transaction not found");
+                return JObject::null();
+            }
+        };
+
+        // Get the diff (chunks of text with formatting)
+        let diff = text.diff(txn, yrs::types::text::YChange::identity);
+
+        // Create a Java ArrayList to hold FormattingChunk objects
+        let chunks_list = match env.new_object("java/util/ArrayList", "()V", &[]) {
+            Ok(list) => list,
+            Err(e) => {
+                throw_exception(&mut env, &format!("Failed to create ArrayList: {:?}", e));
+                return JObject::null();
+            }
+        };
+
+        // Convert each diff chunk to a FormattingChunk
+        for d in diff {
+            // Get the text content from insert field
+            let text_str = d.insert.to_string(txn);
+            let text_jstr = match env.new_string(&text_str) {
+                Ok(s) => s,
+                Err(e) => {
+                    throw_exception(&mut env, &format!("Failed to create text string: {:?}", e));
+                    return JObject::null();
+                }
+            };
+
+            // Convert attributes to HashMap (or null if no attributes)
+            let attrs_map = if let Some(attrs) = d.attributes {
+                match convert_attrs_to_java_hashmap(&mut env, &attrs) {
+                    Ok(map) => map,
+                    Err(e) => {
+                        throw_exception(
+                            &mut env,
+                            &format!("Failed to convert attributes: {:?}", e),
+                        );
+                        return JObject::null();
+                    }
+                }
+            } else {
+                JObject::null()
+            };
+
+            // Create FormattingChunk(text, attributes)
+            let chunk_class = match env.find_class("net/carcdr/ycrdt/FormattingChunk") {
+                Ok(cls) => cls,
+                Err(e) => {
+                    throw_exception(
+                        &mut env,
+                        &format!("Failed to find FormattingChunk class: {:?}", e),
+                    );
+                    return JObject::null();
+                }
+            };
+
+            let chunk_obj = match env.new_object(
+                chunk_class,
+                "(Ljava/lang/String;Ljava/util/Map;)V",
+                &[JValue::Object(&text_jstr), JValue::Object(&attrs_map)],
+            ) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    throw_exception(
+                        &mut env,
+                        &format!("Failed to create FormattingChunk: {:?}", e),
+                    );
+                    return JObject::null();
+                }
+            };
+
+            // Add to list
+            if let Err(e) = env.call_method(
+                &chunks_list,
+                "add",
+                "(Ljava/lang/Object;)Z",
+                &[JValue::Object(&chunk_obj)],
+            ) {
+                throw_exception(&mut env, &format!("Failed to add chunk to list: {:?}", e));
+                return JObject::null();
+            }
+        }
+
+        chunks_list
+    }
+}
+
+/// Helper function to convert yrs Attrs to Java HashMap for FormattingChunk
+fn convert_attrs_to_java_hashmap<'local>(
+    env: &mut JNIEnv<'local>,
+    attrs: &yrs::types::Attrs,
+) -> Result<JObject<'local>, jni::errors::Error> {
+    let hashmap = env.new_object("java/util/HashMap", "()V", &[])?;
+
+    for (key, value) in attrs.iter() {
+        let key_jstr = env.new_string(key)?;
+        let value_obj = any_to_jobject(env, value)?;
+
+        env.call_method(
+            &hashmap,
+            "put",
+            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+            &[JValue::Object(&key_jstr), JValue::Object(&value_obj)],
+        )?;
+    }
+
+    Ok(hashmap)
+}
+
+/// Helper function to convert yrs Any to JObject (for standard JNIEnv)
+fn any_to_jobject<'local>(
+    env: &mut JNIEnv<'local>,
+    value: &yrs::Any,
+) -> Result<JObject<'local>, jni::errors::Error> {
+    use yrs::Any;
+
+    match value {
+        Any::String(s) => {
+            let jstr = env.new_string(s.as_ref())?;
+            Ok(jstr.into())
+        }
+        Any::Bool(b) => {
+            let boolean_class = env.find_class("java/lang/Boolean")?;
+            let obj = env.new_object(
+                boolean_class,
+                "(Z)V",
+                &[JValue::Bool(if *b { 1 } else { 0 })],
+            )?;
+            Ok(obj)
+        }
+        Any::Number(n) => {
+            let double_class = env.find_class("java/lang/Double")?;
+            let obj = env.new_object(double_class, "(D)V", &[JValue::Double(*n)])?;
+            Ok(obj)
+        }
+        Any::BigInt(i) => {
+            let long_class = env.find_class("java/lang/Long")?;
+            let obj = env.new_object(long_class, "(J)V", &[JValue::Long(*i)])?;
+            Ok(obj)
+        }
+        _ => {
+            // For other types, convert to string
+            let s = value.to_string();
+            let jstr = env.new_string(&s)?;
+            Ok(jstr.into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
