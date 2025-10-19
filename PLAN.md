@@ -46,6 +46,7 @@ This document outlines the plan for creating JNI bindings to expose the y-crdt (
 ### 🚧 In Progress
 - **Phase 4:** Production readiness (stress testing, benchmarks, Maven Central)
 - **YProseMirror:** ProseMirror integration (Phase 1 setup complete)
+- **YHocuspocus:** Collaborative editing server (Phase 1-7 complete, Phase 8 pending)
 - **Build Artifacts:** Multi-platform distribution
 - **Documentation:** Tutorial guides and best practices
 

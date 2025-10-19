@@ -1,0 +1,68 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+}
+
+group = 'net.carcdr'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // YHocuspocus core (transport-agnostic server)
+    api project(':yhocuspocus')
+
+    // Jetty WebSocket server
+    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-server:12.0.13'
+    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-api:12.0.13'
+    implementation 'org.eclipse.jetty:jetty-server:12.0.13'
+
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-client:12.0.13'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.9'
+}
+
+// Checkstyle configuration
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file('../config/checkstyle/checkstyle.xml')
+}
+
+// Test configuration
+test {
+    testLogging {
+        events = []  // Disable default event logging
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+    // Custom test event listener
+    afterTest { descriptor, result ->
+        logger.lifecycle("${descriptor.className} > ${descriptor.name} ${result.resultType}")
+    }
+    afterSuite { desc, result ->
+        if (!desc.parent) {
+            println "\nWebSocket Test Results: ${result.resultType} " +
+                    "(${result.testCount} tests, " +
+                    "${result.successfulTestCount} passed, " +
+                    "${result.failedTestCount} failed, " +
+                    "${result.skippedTestCount} skipped)"
+        }
+    }
+}
+
+// Javadoc configuration
+javadoc {
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
