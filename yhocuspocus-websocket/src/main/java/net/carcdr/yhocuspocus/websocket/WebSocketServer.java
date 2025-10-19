@@ -50,6 +50,7 @@ public final class WebSocketServer implements AutoCloseable {
     private final int port;
     private final String host;
     private final String path;
+    private final Duration pingInterval;
     private final Server jettyServer;
 
     private boolean started = false;
@@ -62,6 +63,7 @@ public final class WebSocketServer implements AutoCloseable {
         this.port = builder.port;
         this.host = builder.host;
         this.path = builder.path;
+        this.pingInterval = builder.pingInterval;
         this.jettyServer = createJettyServer();
     }
 
@@ -81,7 +83,14 @@ public final class WebSocketServer implements AutoCloseable {
 
         // Create WebSocket container and configure
         ServerWebSocketContainer container = ServerWebSocketContainer.ensure(server);
-        container.setIdleTimeout(Duration.ofMinutes(5));
+
+        // Set idle timeout for connection keepalive
+        // Jetty will automatically send WebSocket ping frames when idle
+        // and close connections that don't respond with pong
+        Duration idleTimeout = pingInterval.multipliedBy(2); // Allow time for pong response
+        container.setIdleTimeout(idleTimeout);
+        LOGGER.debug("WebSocket idle timeout (keepalive): {}", idleTimeout);
+
         container.setMaxBinaryMessageSize(10 * 1024 * 1024); // 10MB max message
         container.setAutoFragment(false);
 
@@ -231,6 +240,7 @@ public final class WebSocketServer implements AutoCloseable {
         private int port = 1234;
         private String host = null; // null = bind to all interfaces
         private String path = "/";
+        private Duration pingInterval = Duration.ofSeconds(30);
 
         /**
          * Sets the YHocuspocus server instance.
@@ -279,6 +289,24 @@ public final class WebSocketServer implements AutoCloseable {
                 throw new IllegalArgumentException("Path must start with '/'");
             }
             this.path = path;
+            return this;
+        }
+
+        /**
+         * Sets the WebSocket ping interval for keepalive.
+         *
+         * <p>The server will automatically send WebSocket ping frames at this
+         * interval to detect broken connections. Set to {@link Duration#ZERO}
+         * to disable automatic pings.</p>
+         *
+         * @param pingInterval the ping interval (default: 30 seconds)
+         * @return this builder
+         */
+        public Builder pingInterval(Duration pingInterval) {
+            if (pingInterval == null || pingInterval.isNegative()) {
+                throw new IllegalArgumentException("Ping interval must be non-negative");
+            }
+            this.pingInterval = pingInterval;
             return this;
         }
 

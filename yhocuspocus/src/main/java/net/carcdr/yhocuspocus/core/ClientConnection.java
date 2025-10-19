@@ -6,10 +6,6 @@ import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Manages a client transport connection.
@@ -23,9 +19,11 @@ import java.util.concurrent.TimeUnit;
  *   <li>Authentication flow per document</li>
  *   <li>Message queueing during authentication</li>
  *   <li>Document multiplexing (multiple documents per connection)</li>
- *   <li>Keepalive mechanism to detect dead connections</li>
  *   <li>Clean shutdown and resource cleanup</li>
  * </ul>
+ *
+ * <p>Note: Keepalive/ping mechanisms are handled by the transport layer
+ * (e.g., WebSocket ping/pong) to maintain transport-agnostic design.</p>
  */
 public class ClientConnection implements AutoCloseable {
 
@@ -34,9 +32,6 @@ public class ClientConnection implements AutoCloseable {
     private final Map<String, Object> context;
     private final ConcurrentHashMap<String, DocumentConnection> documentConnections;
     private final ConcurrentHashMap<String, ConcurrentLinkedQueue<byte[]>> messageQueues;
-
-    private final ScheduledExecutorService keepaliveScheduler;
-    private ScheduledFuture<?> keepaliveFuture;
 
     /**
      * Creates a new client connection.
@@ -51,9 +46,6 @@ public class ClientConnection implements AutoCloseable {
         this.context = new ConcurrentHashMap<>(context);
         this.documentConnections = new ConcurrentHashMap<>();
         this.messageQueues = new ConcurrentHashMap<>();
-        this.keepaliveScheduler = Executors.newSingleThreadScheduledExecutor();
-
-        setupKeepalive();
     }
 
     /**
@@ -149,31 +141,6 @@ public class ClientConnection implements AutoCloseable {
     }
 
     /**
-     * Sets up keepalive/ping mechanism.
-     *
-     * <p>Checks every 30 seconds if the transport is still alive.
-     * If not, closes the connection.</p>
-     */
-    private void setupKeepalive() {
-        keepaliveFuture = keepaliveScheduler.scheduleAtFixedRate(
-            this::sendKeepalive,
-            30, // initial delay
-            30, // period
-            TimeUnit.SECONDS
-        );
-    }
-
-    /**
-     * Sends keepalive check.
-     */
-    private void sendKeepalive() {
-        // Send ping or check if transport is still alive
-        if (!transport.isOpen()) {
-            close(1001, "Transport closed");
-        }
-    }
-
-    /**
      * Sends a message via transport.
      *
      * @param message the message bytes
@@ -191,11 +158,6 @@ public class ClientConnection implements AutoCloseable {
      * @param reason close reason
      */
     public void close(int code, String reason) {
-        if (keepaliveFuture != null) {
-            keepaliveFuture.cancel(false);
-        }
-        keepaliveScheduler.shutdown();
-
         // Close all document connections
         documentConnections.values().forEach(DocumentConnection::close);
         documentConnections.clear();

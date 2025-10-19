@@ -55,7 +55,9 @@ public class WebSocketEndpoint implements Session.Listener {
     @Override
     public void onWebSocketOpen(Session session) {
         this.session = session;
-        LOGGER.info("WebSocket connection opened: {}", session.getRemoteSocketAddress());
+        LOGGER.info("WebSocket connection opened from: {}", session.getRemoteSocketAddress());
+        LOGGER.info("Session ID: {}", session.hashCode());
+        LOGGER.info("Protocol version: {}", session.getProtocolVersion());
 
         try {
             // Create transport wrapper
@@ -68,7 +70,7 @@ public class WebSocketEndpoint implements Session.Listener {
             // Register connection with YHocuspocus
             this.connection = server.handleConnection(transport, context);
 
-            LOGGER.debug("Registered connection: {}", transport.getConnectionId());
+            LOGGER.info("Successfully registered connection: {}", transport.getConnectionId());
         } catch (Exception e) {
             LOGGER.error("Failed to handle WebSocket connection", e);
             session.close(1011, "Server error: " + e.getMessage(), Callback.NOOP);
@@ -81,6 +83,17 @@ public class WebSocketEndpoint implements Session.Listener {
             // Convert ByteBuffer to byte array
             byte[] data = new byte[payload.remaining()];
             payload.get(data);
+
+            LOGGER.info("Received binary message, size: {} bytes", data.length);
+
+            // Log first few bytes for debugging
+            if (data.length > 0) {
+                StringBuilder hex = new StringBuilder();
+                for (int i = 0; i < Math.min(20, data.length); i++) {
+                    hex.append(String.format("%02x ", data[i]));
+                }
+                LOGGER.info("First bytes: {}", hex.toString());
+            }
 
             // Forward to connection
             if (connection != null) {

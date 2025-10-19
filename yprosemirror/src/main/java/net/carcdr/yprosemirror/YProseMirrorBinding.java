@@ -67,6 +67,8 @@ public class YProseMirrorBinding implements Closeable {
     private final Consumer<Node> onUpdate;
     private final YSubscription subscription;
     private final AtomicBoolean isApplyingRemoteChange = new AtomicBoolean(false);
+    private final boolean useIncrementalUpdates;
+    private volatile Node lastDocument = null;
     private volatile boolean closed = false;
 
     /**
@@ -79,6 +81,8 @@ public class YProseMirrorBinding implements Closeable {
      *   <li>Call the onUpdate callback when remote changes occur</li>
      * </ul>
      *
+     * <p>By default, uses full document replacement for updates.
+     *
      * @param yFragment the Y-CRDT fragment to bind to (typically named "prosemirror")
      * @param schema the ProseMirror schema defining document structure
      * @param onUpdate callback invoked when Y-CRDT changes occur (receives new ProseMirror doc)
@@ -89,6 +93,29 @@ public class YProseMirrorBinding implements Closeable {
             YXmlFragment yFragment,
             Schema schema,
             Consumer<Node> onUpdate) {
+        this(yFragment, schema, onUpdate, false);
+    }
+
+    /**
+     * Creates a new binding with optional incremental update support.
+     *
+     * <p>When incremental updates are enabled, the binding will compute diffs
+     * between document states and apply only the changes, improving performance
+     * for large documents.
+     *
+     * @param yFragment the Y-CRDT fragment to bind to
+     * @param schema the ProseMirror schema
+     * @param onUpdate callback for document updates
+     * @param useIncrementalUpdates whether to use incremental updates (true) or
+     *                             full replacement (false)
+     * @throws IllegalArgumentException if any parameter is null
+     * @throws IllegalStateException if the Y-CRDT fragment is closed
+     */
+    public YProseMirrorBinding(
+            YXmlFragment yFragment,
+            Schema schema,
+            Consumer<Node> onUpdate,
+            boolean useIncrementalUpdates) {
 
         if (yFragment == null) {
             throw new IllegalArgumentException("YXmlFragment cannot be null");
@@ -103,6 +130,7 @@ public class YProseMirrorBinding implements Closeable {
         this.yFragment = yFragment;
         this.schema = schema;
         this.onUpdate = onUpdate;
+        this.useIncrementalUpdates = useIncrementalUpdates;
 
         // Set up Y-CRDT observer to listen for remote changes
         this.subscription = yFragment.observe(new YCrdtObserver());
@@ -110,6 +138,7 @@ public class YProseMirrorBinding implements Closeable {
         // Initialize with current Y-CRDT content if any
         if (yFragment.length() > 0) {
             Node initialDoc = YCrdtConverter.yXmlToNode(yFragment, schema);
+            this.lastDocument = initialDoc;
             onUpdate.accept(initialDoc);
         }
     }
@@ -122,6 +151,9 @@ public class YProseMirrorBinding implements Closeable {
      *
      * <p><strong>Important:</strong> Only call this for LOCAL changes. Remote changes
      * received via the onUpdate callback should NOT be sent back through this method.
+     *
+     * <p>If incremental updates are enabled, only the differences between the last
+     * document and the new document will be applied. Otherwise, full replacement is used.
      *
      * @param proseMirrorDoc the new ProseMirror document
      * @throws IllegalArgumentException if proseMirrorDoc is null
@@ -139,8 +171,18 @@ public class YProseMirrorBinding implements Closeable {
             return;
         }
 
-        // Replace Y-CRDT content with new ProseMirror document
-        replaceYCrdtContent(proseMirrorDoc);
+        if (useIncrementalUpdates) {
+            // Apply incremental updates
+            updateIncrementally(proseMirrorDoc);
+        } else {
+            // Replace Y-CRDT content with new ProseMirror document
+            replaceYCrdtContent(proseMirrorDoc);
+        }
+
+        // Store this as the last document for future diffs
+        if (useIncrementalUpdates) {
+            lastDocument = proseMirrorDoc;
+        }
     }
 
     /**
@@ -206,10 +248,28 @@ public class YProseMirrorBinding implements Closeable {
     }
 
     /**
+     * Applies incremental updates to Y-CRDT based on document differences.
+     *
+     * <p>This method computes the diff between the last document and the new document,
+     * then applies only the changes to Y-CRDT.
+     */
+    private void updateIncrementally(Node newDoc) {
+        // Compute diff
+        java.util.List<DocumentDiff.Change> changes = DocumentDiff.diff(lastDocument, newDoc);
+
+        if (changes.isEmpty()) {
+            // No changes to apply
+            return;
+        }
+
+        // Apply changes to Y-CRDT
+        IncrementalUpdater.applyChanges(yFragment, changes, schema);
+    }
+
+    /**
      * Replaces the entire Y-CRDT fragment content with a new ProseMirror document.
      *
-     * <p>This is a simple but less efficient approach. Future optimization will
-     * translate individual ProseMirror steps into Y-CRDT operations.
+     * <p>This is a simple but less efficient approach compared to incremental updates.
      */
     private void replaceYCrdtContent(Node newDoc) {
         // Clear existing content
@@ -235,6 +295,11 @@ public class YProseMirrorBinding implements Closeable {
         try {
             // Convert Y-CRDT to ProseMirror document
             Node newDoc = YCrdtConverter.yXmlToNode(yFragment, schema);
+
+            // Update last document for incremental updates
+            if (useIncrementalUpdates) {
+                lastDocument = newDoc;
+            }
 
             // Notify the callback
             onUpdate.accept(newDoc);
