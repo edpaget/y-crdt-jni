@@ -1,5 +1,6 @@
 package net.carcdr.yhocuspocus.websocket;
 
+import net.carcdr.yhocuspocus.transport.ReceiveListener;
 import net.carcdr.yhocuspocus.transport.Transport;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.StatusCode;
@@ -35,6 +36,7 @@ public class WebSocketTransport implements Transport {
     private final String connectionId;
     private final String remoteAddress;
     private final AtomicBoolean closed;
+    private volatile ReceiveListener receiveListener;
 
     /**
      * Creates a new WebSocket transport from a Jetty session.
@@ -105,6 +107,28 @@ public class WebSocketTransport implements Transport {
     @Override
     public String getRemoteAddress() {
         return remoteAddress;
+    }
+
+    @Override
+    public void setReceiveListener(ReceiveListener listener) {
+        this.receiveListener = listener;
+    }
+
+    /**
+     * Called by {@link WebSocketEndpoint} when a binary message is received.
+     *
+     * <p>This method is package-private as it should only be called by
+     * WebSocketEndpoint within the same package.</p>
+     *
+     * @param data the received message bytes
+     */
+    void receiveMessage(byte[] data) {
+        ReceiveListener listener = this.receiveListener;
+        if (listener != null) {
+            listener.onMessage(data);
+        } else {
+            LOGGER.warn("Received message on connection {} but no listener registered", connectionId);
+        }
     }
 
     /**

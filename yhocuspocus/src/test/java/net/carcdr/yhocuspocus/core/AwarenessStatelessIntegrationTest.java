@@ -83,9 +83,9 @@ public class AwarenessStatelessIntegrationTest {
 
         // All connect to same document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
-        conn3.handleMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
+        transport3.receiveMessage(OutgoingMessage.sync("awareness-doc", sync).encode());
 
         // Wait for document to be loaded (longer timeout for test suite)
         assertTrue("Document should be created and loaded",
@@ -111,7 +111,7 @@ public class AwarenessStatelessIntegrationTest {
         awarenessWriter.writeVarString("{\"user\":{\"name\":\"Alice\"}}");
 
         byte[] awarenessUpdate = awarenessWriter.toByteArray();
-        conn1.handleMessage(OutgoingMessage.awareness("awareness-doc", awarenessUpdate).encode());
+        transport1.receiveMessage(OutgoingMessage.awareness("awareness-doc", awarenessUpdate).encode());
 
         // Wait for awareness to propagate to conn2 and conn3
         waitForCondition(() -> transport2.getSentMessages().size() > 0, 1000);
@@ -140,8 +140,8 @@ public class AwarenessStatelessIntegrationTest {
 
         // Both connect
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("disconnect-awareness-doc", sync).encode());
 
         // Wait for document to be loaded (longer timeout for test suite)
         assertTrue("Document should be created and loaded",
@@ -160,7 +160,7 @@ public class AwarenessStatelessIntegrationTest {
         awarenessWriter.writeVarInt(1);
         awarenessWriter.writeVarString("{\"user\":{\"name\":\"Alice\"}}");
 
-        conn1.handleMessage(OutgoingMessage.awareness("disconnect-awareness-doc",
+        transport1.receiveMessage(OutgoingMessage.awareness("disconnect-awareness-doc",
                 awarenessWriter.toByteArray()).encode());
 
         // Wait for awareness to propagate
@@ -190,7 +190,7 @@ public class AwarenessStatelessIntegrationTest {
 
         // Connect to document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("stateless-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("stateless-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -209,7 +209,7 @@ public class AwarenessStatelessIntegrationTest {
         String statelessPayload = "Hello from stateless message";
         byte[] statelessMsg = OutgoingMessage.stateless("stateless-doc",
                 statelessPayload).encode();
-        connection.handleMessage(statelessMsg);
+        transport.receiveMessage(statelessMsg);
 
         // Wait for response
         waitForCondition(() -> transport.getSentMessages().size() > 0, 1000);
@@ -245,9 +245,9 @@ public class AwarenessStatelessIntegrationTest {
 
         // All connect
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
-        conn3.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport3.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -268,7 +268,7 @@ public class AwarenessStatelessIntegrationTest {
         String broadcastPayload = "Chat message from user 1";
         byte[] broadcastMsg = OutgoingMessage.broadcastStateless("broadcast-doc",
                 broadcastPayload).encode();
-        conn1.handleMessage(broadcastMsg);
+        transport1.receiveMessage(broadcastMsg);
 
         // Wait for broadcasts
         waitForCondition(() -> transport2.getSentMessages().size() > 0, 1000);
@@ -299,8 +299,8 @@ public class AwarenessStatelessIntegrationTest {
         ClientConnection conn2 = server.handleConnection(transport2, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("multi-awareness", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -322,7 +322,7 @@ public class AwarenessStatelessIntegrationTest {
             writer.writeVarInt(i + 1); // increasing clock
             writer.writeVarString("{\"cursor\":" + i + "}");
 
-            conn1.handleMessage(OutgoingMessage.awareness("multi-awareness",
+            transport1.receiveMessage(OutgoingMessage.awareness("multi-awareness",
                     writer.toByteArray()).encode());
             Thread.sleep(20);
         }
@@ -342,7 +342,7 @@ public class AwarenessStatelessIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("query-test", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("query-test", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -364,7 +364,7 @@ public class AwarenessStatelessIntegrationTest {
         writer.writeVarInt(MessageType.QUERY_AWARENESS.getValue());
         byte[] queryAwarenessMsg = writer.toByteArray();
 
-        connection.handleMessage(queryAwarenessMsg);
+        transport.receiveMessage(queryAwarenessMsg);
 
         // Should receive awareness state response
         waitForCondition(() -> transport.getSentMessages().size() > 0, 1000);

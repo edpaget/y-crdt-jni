@@ -19,6 +19,7 @@ public class MockTransport implements Transport {
     private boolean open;
     private int closeCode;
     private String closeReason;
+    private ReceiveListener receiveListener;
 
     /**
      * Creates a new mock transport.
@@ -65,6 +66,25 @@ public class MockTransport implements Transport {
     @Override
     public String getRemoteAddress() {
         return "mock://127.0.0.1";
+    }
+
+    @Override
+    public void setReceiveListener(ReceiveListener listener) {
+        this.receiveListener = listener;
+    }
+
+    /**
+     * Simulates receiving a message (for testing).
+     *
+     * <p>This method is used by tests to simulate incoming messages
+     * and trigger the receive listener.</p>
+     *
+     * @param data the message bytes to receive
+     */
+    public void receiveMessage(byte[] data) {
+        if (receiveListener != null) {
+            receiveListener.onMessage(data);
+        }
     }
 
     /**

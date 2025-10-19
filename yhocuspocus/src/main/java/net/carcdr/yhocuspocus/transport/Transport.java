@@ -11,6 +11,10 @@ import java.util.concurrent.CompletableFuture;
  * <p>This interface is transport-agnostic, allowing YHocuspocus to work
  * with any protocol layer including WebSocket, HTTP long-polling, Server-Sent
  * Events, or custom protocols.</p>
+ *
+ * <p>Receiving messages: Transport implementations should invoke the registered
+ * {@link ReceiveListener} when binary messages are received from the underlying
+ * protocol. This decouples the transport from connection management.</p>
  */
 public interface Transport extends AutoCloseable {
 
@@ -22,6 +26,19 @@ public interface Transport extends AutoCloseable {
      * @throws IllegalStateException if transport is closed
      */
     CompletableFuture<Void> send(byte[] message);
+
+    /**
+     * Sets the listener for receiving messages from this transport.
+     *
+     * <p>The transport implementation should invoke {@link ReceiveListener#onMessage(byte[])}
+     * when binary messages are received from the underlying protocol.</p>
+     *
+     * <p>Only one listener can be registered at a time. Setting a new listener
+     * replaces any previously registered listener.</p>
+     *
+     * @param listener the receive listener (may be null to unregister)
+     */
+    void setReceiveListener(ReceiveListener listener);
 
     /**
      * Gets a unique identifier for this transport connection.

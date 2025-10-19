@@ -102,7 +102,7 @@ public class ExtensionIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -153,7 +153,7 @@ public class ExtensionIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("change-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("change-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -172,7 +172,7 @@ public class ExtensionIntegrationTest {
             text.insert(0, "New content");
             byte[] update = updateDoc.encodeStateAsUpdate();
 
-            connection.handleMessage(OutgoingMessage.sync("change-doc",
+            transport.receiveMessage(OutgoingMessage.sync("change-doc",
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Manually trigger onChange (observers not hooked up yet per TODO in YHocuspocus:189-192)
@@ -198,7 +198,7 @@ public class ExtensionIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("persist-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("persist-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -217,7 +217,7 @@ public class ExtensionIntegrationTest {
             text.insert(0, "Persist me");
             byte[] update = updateDoc.encodeStateAsUpdate();
 
-            connection.handleMessage(OutgoingMessage.sync("persist-doc",
+            transport.receiveMessage(OutgoingMessage.sync("persist-doc",
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Trigger document change notification
@@ -484,7 +484,7 @@ public class ExtensionIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("roundtrip-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("roundtrip-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -507,7 +507,7 @@ public class ExtensionIntegrationTest {
             updateText.insert(0, "Updated ");
             byte[] update = updateDoc.encodeStateAsUpdate();
 
-            connection.handleMessage(OutgoingMessage.sync("roundtrip-doc",
+            transport.receiveMessage(OutgoingMessage.sync("roundtrip-doc",
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Trigger save

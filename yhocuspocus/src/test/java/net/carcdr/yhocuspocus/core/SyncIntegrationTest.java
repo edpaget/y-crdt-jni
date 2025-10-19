@@ -81,7 +81,7 @@ public class SyncIntegrationTest {
 
         // Pre-populate document on server
         byte[] initialSync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("test-doc", initialSync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", initialSync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -102,7 +102,7 @@ public class SyncIntegrationTest {
 
         // Client sends empty state vector (requests full document)
         byte[] syncStep1 = SyncProtocol.encodeSyncStep2(new byte[0]); // Empty state
-        connection2.handleMessage(OutgoingMessage.sync("test-doc", syncStep1).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("test-doc", syncStep1).encode());
 
         // Wait for response
         waitForCondition(() -> transport2.getSentMessages().size() >= 2, 1000);
@@ -140,9 +140,9 @@ public class SyncIntegrationTest {
 
         // All connect to same document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("shared-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("shared-doc", sync).encode());
-        conn3.handleMessage(OutgoingMessage.sync("shared-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("shared-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("shared-doc", sync).encode());
+        transport3.receiveMessage(OutgoingMessage.sync("shared-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -169,7 +169,7 @@ public class SyncIntegrationTest {
             byte[] update = tempDoc.encodeStateAsUpdate();
             byte[] updateMsg = SyncProtocol.encodeUpdate(update);
 
-            conn1.handleMessage(OutgoingMessage.sync("shared-doc", updateMsg).encode());
+            transport1.receiveMessage(OutgoingMessage.sync("shared-doc", updateMsg).encode());
 
             // Wait for updates to propagate to conn2 and conn3
             waitForCondition(() -> transport2.getSentMessages().size() > 0, 1000);
@@ -206,8 +206,8 @@ public class SyncIntegrationTest {
 
         // Connect both to same document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("merge-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("merge-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("merge-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("merge-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -237,9 +237,9 @@ public class SyncIntegrationTest {
             byte[] update2 = doc2.encodeStateAsUpdate();
 
             // Send both updates
-            conn1.handleMessage(OutgoingMessage.sync("merge-doc",
+            transport1.receiveMessage(OutgoingMessage.sync("merge-doc",
                     SyncProtocol.encodeUpdate(update1)).encode());
-            conn2.handleMessage(OutgoingMessage.sync("merge-doc",
+            transport2.receiveMessage(OutgoingMessage.sync("merge-doc",
                     SyncProtocol.encodeUpdate(update2)).encode());
 
             // Wait for updates to settle
@@ -274,7 +274,7 @@ public class SyncIntegrationTest {
 
         // Connect to document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("readonly-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("readonly-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -326,8 +326,8 @@ public class SyncIntegrationTest {
 
         // Connect both
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("seq-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("seq-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("seq-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("seq-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -359,7 +359,7 @@ public class SyncIntegrationTest {
                 // Encode differential update
                 byte[] update = tempDoc.encodeDiff(stateBefore);
 
-                conn1.handleMessage(OutgoingMessage.sync("seq-doc",
+                transport1.receiveMessage(OutgoingMessage.sync("seq-doc",
                         SyncProtocol.encodeUpdate(update)).encode());
 
                 // Small delay to allow propagation
@@ -387,7 +387,7 @@ public class SyncIntegrationTest {
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("empty-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("empty-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -403,7 +403,7 @@ public class SyncIntegrationTest {
         byte[] emptyUpdate = SyncProtocol.encodeUpdate(new byte[0]);
 
         // This should not crash
-        connection.handleMessage(OutgoingMessage.sync("empty-doc", emptyUpdate).encode());
+        transport.receiveMessage(OutgoingMessage.sync("empty-doc", emptyUpdate).encode());
 
         // Verify hasChanges returns false for empty
         assertFalse("Empty update should have no changes",
@@ -424,9 +424,9 @@ public class SyncIntegrationTest {
         ClientConnection conn3 = server.handleConnection(transport3, Map.of());
 
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
-        conn2.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
-        conn3.handleMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
+        transport3.receiveMessage(OutgoingMessage.sync("broadcast-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -448,7 +448,7 @@ public class SyncIntegrationTest {
             text.insert(0, "Broadcast test");
             byte[] update = tempDoc.encodeStateAsUpdate();
 
-            conn1.handleMessage(OutgoingMessage.sync("broadcast-doc",
+            transport1.receiveMessage(OutgoingMessage.sync("broadcast-doc",
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Wait for broadcasts

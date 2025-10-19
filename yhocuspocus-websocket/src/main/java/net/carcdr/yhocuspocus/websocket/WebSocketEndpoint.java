@@ -37,6 +37,7 @@ public class WebSocketEndpoint implements Session.Listener {
 
     private final YHocuspocus server;
     private Session session;
+    private WebSocketTransport transport;
     private ClientConnection connection;
 
     /**
@@ -61,13 +62,14 @@ public class WebSocketEndpoint implements Session.Listener {
 
         try {
             // Create transport wrapper
-            WebSocketTransport transport = new WebSocketTransport(session);
+            this.transport = new WebSocketTransport(session);
 
             // Create initial context (can be enriched by extensions)
             Map<String, Object> context = new ConcurrentHashMap<>();
             context.put("remoteAddress", transport.getRemoteAddress());
 
             // Register connection with YHocuspocus
+            // The ClientConnection will register itself as a receive listener on the transport
             this.connection = server.handleConnection(transport, context);
 
             LOGGER.info("Successfully registered connection: {}", transport.getConnectionId());
@@ -95,13 +97,13 @@ public class WebSocketEndpoint implements Session.Listener {
                 LOGGER.info("First bytes: {}", hex.toString());
             }
 
-            // Forward to connection
-            if (connection != null) {
-                connection.handleMessage(data);
+            // Forward to transport, which will notify its registered listener
+            if (transport != null) {
+                transport.receiveMessage(data);
                 callback.succeed();
             } else {
-                LOGGER.warn("Received message before connection initialized");
-                callback.fail(new IllegalStateException("Connection not initialized"));
+                LOGGER.warn("Received message before transport initialized");
+                callback.fail(new IllegalStateException("Transport not initialized"));
             }
         } catch (Exception e) {
             LOGGER.error("Error processing WebSocket message", e);
@@ -113,6 +115,7 @@ public class WebSocketEndpoint implements Session.Listener {
     public void onWebSocketClose(int statusCode, String reason) {
         LOGGER.info("WebSocket connection closed: code={}, reason={}", statusCode, reason);
 
+        // Clean up the connection when WebSocket closes
         if (connection != null) {
             try {
                 connection.close(statusCode, reason != null ? reason : "Connection closed");
@@ -126,6 +129,7 @@ public class WebSocketEndpoint implements Session.Listener {
     public void onWebSocketError(Throwable cause) {
         LOGGER.error("WebSocket error", cause);
 
+        // Clean up the connection on error
         if (connection != null) {
             try {
                 connection.close(1011, "Error: " + cause.getMessage());
@@ -133,14 +137,5 @@ public class WebSocketEndpoint implements Session.Listener {
                 LOGGER.error("Error closing connection after error", e);
             }
         }
-    }
-
-    /**
-     * Gets the associated client connection.
-     *
-     * @return the client connection, or null if not yet initialized
-     */
-    public ClientConnection getConnection() {
-        return connection;
     }
 }

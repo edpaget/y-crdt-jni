@@ -38,7 +38,7 @@ import static org.junit.Assert.assertTrue;
  *     .extension(waiter)
  *     .build();
  *
- * connection.handleMessage(msg);
+ * transport.receiveMessage(msg);
  * waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS);
  * // Document is now guaranteed to be loaded
  * }</pre>
@@ -87,7 +87,7 @@ public class ConnectionIntegrationTest {
         OutgoingMessage msg = OutgoingMessage.sync("test-doc", syncPayload);
 
         // Send message
-        connection.handleMessage(msg.encode());
+        transport.receiveMessage(msg.encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -128,10 +128,10 @@ public class ConnectionIntegrationTest {
 
         // Connect to two documents
         byte[] sync1 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("doc1", sync1).encode());
+        transport.receiveMessage(OutgoingMessage.sync("doc1", sync1).encode());
 
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("doc2", sync2).encode());
+        transport.receiveMessage(OutgoingMessage.sync("doc2", sync2).encode());
 
         // Wait for both documents to be loaded
         assertTrue("Both documents should be created and loaded",
@@ -153,7 +153,7 @@ public class ConnectionIntegrationTest {
 
         // Send sync request
         byte[] syncPayload = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("test-doc", syncPayload).encode());
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", syncPayload).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -183,10 +183,10 @@ public class ConnectionIntegrationTest {
 
         // Both connect to same document
         byte[] sync1 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("shared-doc", sync1).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("shared-doc", sync1).encode());
 
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn2.handleMessage(OutgoingMessage.sync("shared-doc", sync2).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("shared-doc", sync2).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -209,7 +209,7 @@ public class ConnectionIntegrationTest {
 
         // Connect to document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -235,7 +235,7 @@ public class ConnectionIntegrationTest {
 
         // Connect to document
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
-        connection.handleMessage(OutgoingMessage.sync("test-doc", sync).encode());
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", sync).encode());
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
@@ -278,7 +278,7 @@ public class ConnectionIntegrationTest {
         // All connect to same document simultaneously
         byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
         for (int i = 0; i < numConnections; i++) {
-            connections[i].handleMessage(OutgoingMessage.sync("concurrent-doc", sync).encode());
+            transports[i].receiveMessage(OutgoingMessage.sync("concurrent-doc", sync).encode());
         }
 
         // Wait for document to be loaded
@@ -318,7 +318,7 @@ public class ConnectionIntegrationTest {
         OutgoingMessage msg = OutgoingMessage.sync("test-doc", syncPayload);
 
         // Send message
-        connection.handleMessage(msg.encode());
+        transport.receiveMessage(msg.encode());
 
         // Wait for document to be fully loaded (no polling!)
         assertTrue("Document should be loaded",
@@ -346,10 +346,10 @@ public class ConnectionIntegrationTest {
         ClientConnection conn2 = server.handleConnection(transport2, Map.of());
 
         byte[] sync1 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn1.handleMessage(OutgoingMessage.sync("doc1", sync1).encode());
+        transport1.receiveMessage(OutgoingMessage.sync("doc1", sync1).encode());
 
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        conn2.handleMessage(OutgoingMessage.sync("doc2", sync2).encode());
+        transport2.receiveMessage(OutgoingMessage.sync("doc2", sync2).encode());
 
         // Wait for both documents to be created (no polling!)
         assertTrue("Both documents should be created",

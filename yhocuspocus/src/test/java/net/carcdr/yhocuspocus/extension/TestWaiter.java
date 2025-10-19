@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  *     .build();
  *
  * // Trigger document creation
- * connection.handleMessage(...);
+ * transport.receiveMessage(...);
  *
  * // Wait for document to be created (instead of polling)
  * waiter.awaitDocumentCreated(1, TimeUnit.SECONDS);

@@ -1,5 +1,6 @@
 package net.carcdr.yhocuspocus.core;
 
+import net.carcdr.yhocuspocus.transport.ReceiveListener;
 import net.carcdr.yhocuspocus.transport.Transport;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * <p>Note: Keepalive/ping mechanisms are handled by the transport layer
  * (e.g., WebSocket ping/pong) to maintain transport-agnostic design.</p>
  */
-public class ClientConnection implements AutoCloseable {
+public class ClientConnection implements ReceiveListener, AutoCloseable {
 
     private final YHocuspocus server;
     private final Transport transport;
@@ -46,14 +47,20 @@ public class ClientConnection implements AutoCloseable {
         this.context = new ConcurrentHashMap<>(context);
         this.documentConnections = new ConcurrentHashMap<>();
         this.messageQueues = new ConcurrentHashMap<>();
+
+        // Register this connection as the receive listener for the transport
+        transport.setReceiveListener(this);
     }
 
     /**
-     * Handles an incoming message from transport.
+     * Called by the transport when a binary message is received.
+     *
+     * <p>Implements {@link ReceiveListener#onMessage(byte[])}.</p>
      *
      * @param data the raw message data
      */
-    public void handleMessage(byte[] data) {
+    @Override
+    public void onMessage(byte[] data) {
         try {
             IncomingMessage message = MessageDecoder.decode(data);
             String documentName = message.getDocumentName();
