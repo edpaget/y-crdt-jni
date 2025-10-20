@@ -33,21 +33,22 @@ public class VarIntWriter {
      * Writes a variable-length unsigned integer.
      *
      * <p>Encodes integers using 7 bits per byte with continuation bit.
-     * Compatible with lib0's writeVarUint format.</p>
+     * Compatible with lib0's writeVarUint format. Accepts a 64-bit long
+     * to support the full range of JavaScript safe integers (up to 2^53-1).</p>
      *
      * @param value the value to write (must be non-negative)
      * @throws IllegalArgumentException if value is negative
      */
-    public void writeVarInt(int value) {
+    public void writeVarInt(long value) {
         if (value < 0) {
             throw new IllegalArgumentException("VarInt values must be non-negative, got: " + value);
         }
 
         while (value >= 0x80) {
-            buffer.write((value & 0x7F) | 0x80);
+            buffer.write((int) ((value & 0x7F) | 0x80));
             value >>>= 7;
         }
-        buffer.write(value);
+        buffer.write((int) value);
     }
 
     /**
@@ -79,6 +80,24 @@ public class VarIntWriter {
             throw new IllegalArgumentException("Data cannot be null");
         }
 
+        buffer.write(data, 0, data.length);
+    }
+
+    /**
+     * Writes a variable-length byte array.
+     *
+     * <p>Format: [length as varInt][bytes]
+     * Compatible with lib0's writeVarUint8Array.</p>
+     *
+     * @param data the bytes to write
+     * @throws IllegalArgumentException if data is null
+     */
+    public void writeVarBytes(byte[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("Data cannot be null");
+        }
+
+        writeVarInt(data.length);
         buffer.write(data, 0, data.length);
     }
 

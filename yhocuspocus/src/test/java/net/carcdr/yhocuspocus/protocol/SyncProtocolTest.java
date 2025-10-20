@@ -44,7 +44,7 @@ public class SyncProtocolTest {
 
         // Verify structure
         VarIntReader reader = new VarIntReader(encoded);
-        int syncType = reader.readVarInt();
+        long syncType = reader.readVarInt();
         assertTrue("Should be SYNC_STEP_2 (1)", syncType == 1);
     }
 
@@ -58,7 +58,7 @@ public class SyncProtocolTest {
 
         // Verify structure
         VarIntReader reader = new VarIntReader(encoded);
-        int syncType = reader.readVarInt();
+        long syncType = reader.readVarInt();
         assertTrue("Should be UPDATE (2)", syncType == 2);
     }
 

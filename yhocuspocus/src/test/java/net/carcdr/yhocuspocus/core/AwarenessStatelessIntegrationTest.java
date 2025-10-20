@@ -106,7 +106,7 @@ public class AwarenessStatelessIntegrationTest {
         // Conn1 sends awareness update
         VarIntWriter awarenessWriter = new VarIntWriter();
         awarenessWriter.writeVarInt(1); // num clients
-        awarenessWriter.writeVarString("client1");
+        awarenessWriter.writeVarInt(1); // client ID
         awarenessWriter.writeVarInt(1); // clock
         awarenessWriter.writeVarString("{\"user\":{\"name\":\"Alice\"}}");
 
@@ -156,7 +156,7 @@ public class AwarenessStatelessIntegrationTest {
         // Conn1 adds awareness
         VarIntWriter awarenessWriter = new VarIntWriter();
         awarenessWriter.writeVarInt(1);
-        awarenessWriter.writeVarString("client1");
+        awarenessWriter.writeVarInt(1); // client ID
         awarenessWriter.writeVarInt(1);
         awarenessWriter.writeVarString("{\"user\":{\"name\":\"Alice\"}}");
 
@@ -318,7 +318,7 @@ public class AwarenessStatelessIntegrationTest {
         for (int i = 0; i < 3; i++) {
             VarIntWriter writer = new VarIntWriter();
             writer.writeVarInt(1);
-            writer.writeVarString("client1");
+            writer.writeVarInt(1); // client ID
             writer.writeVarInt(i + 1); // increasing clock
             writer.writeVarString("{\"cursor\":" + i + "}");
 

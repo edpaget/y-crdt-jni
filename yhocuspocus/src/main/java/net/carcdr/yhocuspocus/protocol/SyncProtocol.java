@@ -58,7 +58,7 @@ public final class SyncProtocol {
         }
 
         VarIntReader reader = new VarIntReader(payload);
-        int syncType = reader.readVarInt();
+        int syncType = (int) reader.readVarInt();
 
         switch (syncType) {
             case SYNC_STEP_1:
@@ -153,6 +153,7 @@ public final class SyncProtocol {
 
         VarIntWriter writer = new VarIntWriter();
         writer.writeVarInt(UPDATE);
+        System.out.println(update);
         writer.writeBytes(update);
         return writer.toByteArray();
     }
@@ -172,7 +173,7 @@ public final class SyncProtocol {
         }
 
         VarIntReader reader = new VarIntReader(payload);
-        int syncType = reader.readVarInt();
+        int syncType = (int) reader.readVarInt();
 
         if (syncType == UPDATE || syncType == SYNC_STEP_2) {
             byte[] update = reader.remaining();

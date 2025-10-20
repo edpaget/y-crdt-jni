@@ -37,7 +37,7 @@ public final class OutgoingMessage {
         VarIntWriter writer = new VarIntWriter();
         writer.writeVarString(documentName);
         writer.writeVarInt(type.getValue());
-        writer.writeBytes(payload);
+        writer.writeVarBytes(payload);
         return writer.toByteArray();
     }
 

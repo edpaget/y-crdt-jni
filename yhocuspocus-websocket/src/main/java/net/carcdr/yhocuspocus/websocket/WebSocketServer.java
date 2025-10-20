@@ -104,7 +104,8 @@ public final class WebSocketServer implements AutoCloseable {
                 if (requestPath.equals(path)) {
                     // Attempt WebSocket upgrade - create new endpoint for each connection
                     if (container.upgrade((upgradeRequest, upgradeResponse, upgradeCallback) -> {
-                        LOGGER.debug("Passing to the endpoint");
+                                System.out.println("HEREHERE");
+                                LOGGER.debug("Passing to the endpoint");
                         return new WebSocketEndpoint(hocuspocus);
                     }, request, response, callback)) {
                         return true; // Upgrade successful

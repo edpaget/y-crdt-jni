@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <pre>
  * [numClients: varInt]
  * For each client:
- *   [clientId: varString]
+ *   [clientId: varInt]
  *   [clock: varInt]
  *   [state: varString (JSON)]
  * </pre>
@@ -35,9 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Awareness {
 
     private final YDoc doc;
-    private final ConcurrentHashMap<String, Map<String, Object>> states;
-    private final ConcurrentHashMap<String, Long> lastSeen;
-    private final ConcurrentHashMap<String, Integer> clocks;
+    private final ConcurrentHashMap<Long, Map<String, Object>> states;
+    private final ConcurrentHashMap<Long, Long> lastSeen;
+    private final ConcurrentHashMap<Long, Long> clocks;
     private final ObjectMapper jsonMapper;
 
     /**
@@ -70,11 +70,11 @@ public class Awareness {
 
         try {
             VarIntReader reader = new VarIntReader(update);
-            int numClients = reader.readVarInt();
+            long numClients = reader.readVarInt();
 
-            for (int i = 0; i < numClients; i++) {
-                String clientId = reader.readVarString();
-                int clock = reader.readVarInt();
+            for (long i = 0; i < numClients; i++) {
+                long clientId = reader.readVarInt();
+                long clock = reader.readVarInt();
 
                 // Read state (JSON encoded)
                 String stateJson = reader.readVarString();
@@ -87,7 +87,7 @@ public class Awareness {
                     clocks.remove(clientId);
                 } else {
                     // Client updated - only accept if clock is newer
-                    Integer currentClock = clocks.get(clientId);
+                    Long currentClock = clocks.get(clientId);
                     if (currentClock == null || clock > currentClock) {
                         Map<String, Object> state = parseJson(stateJson);
                         states.put(clientId, state);
@@ -121,8 +121,8 @@ public class Awareness {
         writer.writeVarInt(states.size());
 
         states.forEach((clientId, state) -> {
-            writer.writeVarString(clientId);
-            int clock = clocks.getOrDefault(clientId, 0);
+            writer.writeVarInt(clientId);
+            long clock = clocks.getOrDefault(clientId, 0L);
             writer.writeVarInt(clock);
             writer.writeVarString(toJson(state));
         });
@@ -136,7 +136,7 @@ public class Awareness {
      * @param clientId the client ID
      * @return the client's awareness state, or null if not found
      */
-    public Map<String, Object> getState(String clientId) {
+    public Map<String, Object> getState(long clientId) {
         return states.get(clientId);
     }
 
@@ -149,7 +149,7 @@ public class Awareness {
      * @param clientIds the client IDs to remove
      * @return encoded removal update
      */
-    public byte[] removeStates(String[] clientIds) {
+    public byte[] removeStates(long[] clientIds) {
         if (clientIds == null || clientIds.length == 0) {
             VarIntWriter writer = new VarIntWriter();
             writer.writeVarInt(0);
@@ -157,15 +157,15 @@ public class Awareness {
         }
 
         VarIntWriter writer = new VarIntWriter();
-        writer.writeVarInt(clientIds.length);
+        writer.writeVarInt(clientIds.length); // Number of clients being removed
 
-        for (String clientId : clientIds) {
+        for (long clientId : clientIds) {
             states.remove(clientId);
             lastSeen.remove(clientId);
-            int clock = clocks.getOrDefault(clientId, 0) + 1;
+            long clock = clocks.getOrDefault(clientId, 0L) + 1;
             clocks.put(clientId, clock);
 
-            writer.writeVarString(clientId);
+            writer.writeVarInt(clientId);
             writer.writeVarInt(clock);
             writer.writeVarString(""); // Empty string indicates removal
         }

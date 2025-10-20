@@ -35,9 +35,9 @@ public final class MessageDecoder {
             VarIntReader reader = new VarIntReader(data);
 
             String documentName = reader.readVarString();
-            int typeValue = reader.readVarInt();
-            MessageType type = MessageType.fromValue(typeValue);
-            byte[] payload = reader.remaining();
+            long typeValue = reader.readVarInt();
+            MessageType type = MessageType.fromValue((int) typeValue);
+            byte[] payload = reader.readVarBytes();
 
             return new IncomingMessage(documentName, type, payload, data);
         } catch (Exception e) {

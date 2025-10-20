@@ -40,25 +40,26 @@ public class VarIntReader {
      * Reads a variable-length unsigned integer.
      *
      * <p>Decodes integers using 7 bits per byte with continuation bit.
-     * Compatible with lib0's readVarUint format.</p>
+     * Compatible with lib0's readVarUint format. Returns a 64-bit long
+     * to support the full range of JavaScript safe integers (up to 2^53-1).</p>
      *
-     * @return the decoded integer value
+     * @return the decoded long value
      * @throws IndexOutOfBoundsException if not enough data to read
      */
-    public int readVarInt() {
-        int value = 0;
+    public long readVarInt() {
+        long value = 0;
         int shift = 0;
 
         while (position < data.length) {
             byte b = data[position++];
-            value |= (b & 0x7F) << shift;
+            value |= (long) (b & 0x7F) << shift;
 
             if ((b & 0x80) == 0) {
                 break;
             }
             shift += 7;
 
-            if (shift >= 32) {
+            if (shift >= 64) {
                 throw new IllegalStateException("VarInt overflow: too many continuation bits");
             }
         }
@@ -75,7 +76,7 @@ public class VarIntReader {
      * @throws IndexOutOfBoundsException if not enough data to read
      */
     public String readVarString() {
-        int length = readVarInt();
+        long length = readVarInt();
 
         if (position + length > data.length) {
             throw new IndexOutOfBoundsException(
@@ -84,8 +85,8 @@ public class VarIntReader {
             );
         }
 
-        String str = new String(data, position, length, StandardCharsets.UTF_8);
-        position += length;
+        String str = new String(data, position, (int) length, StandardCharsets.UTF_8);
+        position += (int) length;
         return str;
     }
 
@@ -111,6 +112,31 @@ public class VarIntReader {
         byte[] result = new byte[count];
         System.arraycopy(data, position, result, 0, count);
         position += count;
+        return result;
+    }
+
+    /**
+     * Reads a variable-length byte array.
+     *
+     * <p>Format: [length as varInt][bytes]
+     * Compatible with lib0's writeVarUint8Array.</p>
+     *
+     * @return the decoded byte array
+     * @throws IndexOutOfBoundsException if not enough data to read
+     */
+    public byte[] readVarBytes() {
+        long length = readVarInt();
+
+        if (position + length > data.length) {
+            throw new IndexOutOfBoundsException(
+                "Not enough data for byte array: need " + length + " bytes, have " +
+                (data.length - position)
+            );
+        }
+
+        byte[] result = new byte[(int) length];
+        System.arraycopy(data, position, result, 0, (int) length);
+        position += (int) length;
         return result;
     }
 

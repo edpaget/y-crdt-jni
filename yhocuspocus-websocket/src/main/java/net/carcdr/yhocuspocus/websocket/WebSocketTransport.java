@@ -2,6 +2,7 @@ package net.carcdr.yhocuspocus.websocket;
 
 import net.carcdr.yhocuspocus.transport.ReceiveListener;
 import net.carcdr.yhocuspocus.transport.Transport;
+import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.StatusCode;
 import org.slf4j.Logger;
@@ -90,7 +91,7 @@ public class WebSocketTransport implements Transport {
             try {
                 // Map custom codes to WebSocket close codes
                 int wsCode = mapToWebSocketCode(code);
-                session.close(wsCode, reason, null);
+                session.close(wsCode, reason, Callback.NOOP);
                 LOGGER.debug("Closed WebSocket connection {} with code {} ({}): {}",
                     connectionId, code, wsCode, reason);
             } catch (Exception e) {

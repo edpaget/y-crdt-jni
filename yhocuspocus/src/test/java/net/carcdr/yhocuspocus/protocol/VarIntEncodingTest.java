@@ -19,7 +19,7 @@ public class VarIntEncodingTest {
         byte[] encoded = writer.toByteArray();
 
         VarIntReader reader = new VarIntReader(encoded);
-        int decoded = reader.readVarInt();
+        long decoded = reader.readVarInt();
 
         assertEquals("Zero should encode/decode correctly", 0, decoded);
         assertEquals("Zero should encode to 1 byte", 1, encoded.length);
@@ -35,7 +35,7 @@ public class VarIntEncodingTest {
             byte[] encoded = writer.toByteArray();
 
             VarIntReader reader = new VarIntReader(encoded);
-            int decoded = reader.readVarInt();
+            long decoded = reader.readVarInt();
 
             assertEquals("Value " + value + " should encode/decode correctly",
                         value, decoded);
@@ -53,7 +53,7 @@ public class VarIntEncodingTest {
             byte[] encoded = writer.toByteArray();
 
             VarIntReader reader = new VarIntReader(encoded);
-            int decoded = reader.readVarInt();
+            long decoded = reader.readVarInt();
 
             assertEquals("Value " + value + " should encode/decode correctly",
                         value, decoded);
@@ -70,7 +70,7 @@ public class VarIntEncodingTest {
             byte[] encoded = writer.toByteArray();
 
             VarIntReader reader = new VarIntReader(encoded);
-            int decoded = reader.readVarInt();
+            long decoded = reader.readVarInt();
 
             assertEquals("Value " + value + " should encode/decode correctly",
                         value, decoded);

@@ -3,6 +3,7 @@ package net.carcdr.yhocuspocus.websocket;
 import net.carcdr.yhocuspocus.core.ClientConnection;
 import net.carcdr.yhocuspocus.core.YHocuspocus;
 import org.eclipse.jetty.websocket.api.Callback;
+import org.eclipse.jetty.websocket.api.Frame;
 import org.eclipse.jetty.websocket.api.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @since 1.0.0
  */
-public class WebSocketEndpoint implements Session.Listener {
+public class WebSocketEndpoint implements Session.Listener.AutoDemanding {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WebSocketEndpoint.class);
 

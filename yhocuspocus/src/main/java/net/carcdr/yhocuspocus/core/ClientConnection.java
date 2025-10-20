@@ -153,6 +153,7 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
      * @param message the message bytes
      */
     public void send(byte[] message) {
+        System.out.println(message.length);
         if (transport.isOpen()) {
             transport.send(message);
         }

@@ -48,6 +48,10 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
       onOutgoingMessage: (data) => {
         console.log('Sending message:', data)
       },
+      onAwarenessUpdate: (data) => {
+        console.log('Awareness', data)
+      }
+                                
     })
   }, [documentName])
 
