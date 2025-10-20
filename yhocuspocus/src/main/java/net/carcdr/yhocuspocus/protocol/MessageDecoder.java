@@ -18,6 +18,12 @@ public final class MessageDecoder {
     /**
      * Decodes a binary message.
      *
+     * <p>Decoding format depends on message type:</p>
+     * <ul>
+     *   <li>SYNC messages: [docName][type][payload] - payload parsed by SyncProtocol</li>
+     *   <li>Other messages: [docName][type][length][payload] - length-prefixed payload</li>
+     * </ul>
+     *
      * @param data the encoded message data
      * @return decoded message
      * @throws IllegalArgumentException if data is null or invalid
@@ -37,7 +43,15 @@ public final class MessageDecoder {
             String documentName = reader.readVarString();
             long typeValue = reader.readVarInt();
             MessageType type = MessageType.fromValue((int) typeValue);
-            byte[] payload = reader.readVarBytes();
+
+            // SYNC and SYNC_REPLY messages have payload directly (parsed by SyncProtocol)
+            // Other messages have length-prefixed payload
+            byte[] payload;
+            if (type == MessageType.SYNC || type == MessageType.SYNC_REPLY) {
+                payload = reader.remaining();
+            } else {
+                payload = reader.readVarBytes();
+            }
 
             return new IncomingMessage(documentName, type, payload, data);
         } catch (Exception e) {

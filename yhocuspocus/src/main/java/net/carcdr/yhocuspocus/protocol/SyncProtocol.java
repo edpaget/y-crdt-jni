@@ -83,7 +83,7 @@ public final class SyncProtocol {
      * @return SyncStep2 response payload
      */
     private static byte[] handleSyncStep1(YDoc doc, VarIntReader reader) {
-        byte[] clientStateVector = reader.remaining();
+        byte[] clientStateVector = reader.readVarBytes();
 
         // Encode diff from client state
         byte[] diff;
@@ -110,7 +110,7 @@ public final class SyncProtocol {
      * @param reader the payload reader positioned after sync type
      */
     private static void handleUpdate(YDoc doc, VarIntReader reader) {
-        byte[] update = reader.remaining();
+        byte[] update = reader.readVarBytes();
         if (update.length > 0) {
             // Wrap in transaction for atomicity and to batch observer notifications
             try (YTransaction txn = doc.beginTransaction()) {
@@ -122,7 +122,7 @@ public final class SyncProtocol {
     /**
      * Encodes a SyncStep2 message.
      *
-     * <p>Format: [SYNC_STEP_2: varInt][update: bytes]</p>
+     * <p>Format: [SYNC_STEP_2: varInt][update: varBytes]</p>
      *
      * @param update the update bytes
      * @return encoded SyncStep2 payload
@@ -134,14 +134,14 @@ public final class SyncProtocol {
 
         VarIntWriter writer = new VarIntWriter();
         writer.writeVarInt(SYNC_STEP_2);
-        writer.writeBytes(update);
+        writer.writeVarBytes(update);
         return writer.toByteArray();
     }
 
     /**
      * Encodes an Update message.
      *
-     * <p>Format: [UPDATE: varInt][update: bytes]</p>
+     * <p>Format: [UPDATE: varInt][update: varBytes]</p>
      *
      * @param update the update bytes
      * @return encoded Update payload
@@ -153,8 +153,7 @@ public final class SyncProtocol {
 
         VarIntWriter writer = new VarIntWriter();
         writer.writeVarInt(UPDATE);
-        System.out.println(update);
-        writer.writeBytes(update);
+        writer.writeVarBytes(update);
         return writer.toByteArray();
     }
 
@@ -176,7 +175,7 @@ public final class SyncProtocol {
         int syncType = (int) reader.readVarInt();
 
         if (syncType == UPDATE || syncType == SYNC_STEP_2) {
-            byte[] update = reader.remaining();
+            byte[] update = reader.readVarBytes();
             return update.length > 0; // Simplified check
         }
 

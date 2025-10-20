@@ -31,13 +31,28 @@ public final class OutgoingMessage {
     /**
      * Encodes this message to binary format.
      *
+     * <p>Encoding format depends on message type:</p>
+     * <ul>
+     *   <li>SYNC messages: [docName][type][payload] - payload already encoded by SyncProtocol</li>
+     *   <li>Other messages: [docName][type][length][payload] - payload needs length prefix</li>
+     * </ul>
+     *
      * @return encoded message bytes
      */
     public byte[] encode() {
         VarIntWriter writer = new VarIntWriter();
         writer.writeVarString(documentName);
         writer.writeVarInt(type.getValue());
-        writer.writeVarBytes(payload);
+
+        // SYNC and SYNC_REPLY payloads are already properly encoded by SyncProtocol
+        // (they contain sync type + var-length data internally)
+        // Other message types need length-prefixed payload
+        if (type == MessageType.SYNC || type == MessageType.SYNC_REPLY) {
+            writer.writeBytes(payload);
+        } else {
+            writer.writeVarBytes(payload);
+        }
+
         return writer.toByteArray();
     }
 
