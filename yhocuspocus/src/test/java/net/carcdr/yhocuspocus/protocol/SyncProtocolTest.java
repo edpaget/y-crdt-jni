@@ -35,6 +35,20 @@ public class SyncProtocolTest {
     }
 
     @Test
+    public void testEncodeSyncStep1() {
+        byte[] stateVector = new byte[]{1, 2, 3};
+        byte[] encoded = SyncProtocol.encodeSyncStep1(stateVector);
+
+        assertNotNull("Encoded should not be null", encoded);
+        assertTrue("Encoded should have content", encoded.length > 0);
+
+        // Verify structure
+        VarIntReader reader = new VarIntReader(encoded);
+        long syncType = reader.readVarInt();
+        assertTrue("Should be SYNC_STEP_1 (0)", syncType == 0);
+    }
+
+    @Test
     public void testEncodeSyncStep2() {
         byte[] update = new byte[]{1, 2, 3};
         byte[] encoded = SyncProtocol.encodeSyncStep2(update);
@@ -149,6 +163,11 @@ public class SyncProtocolTest {
     @Test(expected = IllegalArgumentException.class)
     public void testApplySyncMessageWithEmptyPayload() {
         SyncProtocol.applySyncMessage(doc1, new byte[0]);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testEncodeSyncStep1WithNull() {
+        SyncProtocol.encodeSyncStep1(null);
     }
 
     @Test(expected = IllegalArgumentException.class)

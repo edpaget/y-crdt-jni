@@ -151,8 +151,8 @@ public class ConnectionIntegrationTest {
         MockTransport transport = new MockTransport();
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
-        // Send sync request
-        byte[] syncPayload = SyncProtocol.encodeSyncStep2(new byte[0]);
+        // Client initiates sync with SyncStep1 (per y-protocol/sync spec)
+        byte[] syncPayload = SyncProtocol.encodeSyncStep1(new byte[0]); // Empty state vector
         transport.receiveMessage(OutgoingMessage.sync("test-doc", syncPayload).encode());
 
         // Wait for document to be loaded
@@ -161,16 +161,22 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be added to server's map and messages to be sent
         waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
-        waitForCondition(() -> transport.getSentMessages().size() >= 2, 1000);
+        // Expect: SyncStep2 + SyncStep1 + SyncStatus = 3 messages
+        waitForCondition(() -> transport.getSentMessages().size() >= 3, 1000);
 
-        // Should have received messages (initial sync + sync status)
-        assertTrue("Should have sent messages",
-                  transport.getSentMessages().size() >= 2);
+        // Should have received messages (SyncStep2 + SyncStep1 + sync status)
+        assertTrue("Should have sent at least 3 messages",
+                  transport.getSentMessages().size() >= 3);
 
-        // First message should be a sync response
+        // First message should be SyncStep2 (the diff/full state)
         byte[] firstMsg = transport.getSentMessages().get(0);
         IncomingMessage decoded = MessageDecoder.decode(firstMsg);
         assertEquals("First message should be SYNC", MessageType.SYNC, decoded.getType());
+
+        // Second message should be SyncStep1 (server's state vector)
+        byte[] secondMsg = transport.getSentMessages().get(1);
+        IncomingMessage decoded2 = MessageDecoder.decode(secondMsg);
+        assertEquals("Second message should be SYNC", MessageType.SYNC, decoded2.getType());
     }
 
     @Test

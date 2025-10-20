@@ -194,7 +194,7 @@ public final class YHocuspocus implements AutoCloseable {
         // Create a context copy for the observer closure to avoid capturing mutable reference
         Map<String, Object> observerContext = new ConcurrentHashMap<>(context);
         UpdateObserver observer = (update, origin) -> {
-            handleDocumentChange(document, observerContext);
+            handleDocumentChange(document, observerContext, update);
         };
 
         YSubscription subscription = ydoc.observeUpdateV1(observer);
@@ -206,24 +206,35 @@ public final class YHocuspocus implements AutoCloseable {
     }
 
     /**
-     * Handles document changes (triggers onChange and schedules save).
+     * Handles document changes (triggers onChange, broadcasts update, and schedules save).
      *
      * @param document the document that changed
      * @param context connection context
+     * @param update the incremental update bytes that were applied
      */
-    public void handleDocumentChange(YDocument document, Map<String, Object> context) {
+    public void handleDocumentChange(YDocument document, Map<String, Object> context, byte[] update) {
         if (closed || document.getState() != YDocument.State.ACTIVE) {
             return;
         }
-
-        // Get current state as update
-        byte[] update = document.getDoc().encodeStateAsUpdate();
 
         // Run onChange hooks
         OnChangePayload payload = new OnChangePayload(document, context, update);
 
         runHooks(payload, Extension::onChange)
             .thenRun(() -> {
+                // After all callbacks have been notified, broadcast the update to all connections
+                if (!closed && update != null && update.length > 0) {
+                    byte[] encodedUpdate = net.carcdr.yhocuspocus.protocol.SyncProtocol.encodeUpdate(
+                        update
+                    );
+                    net.carcdr.yhocuspocus.protocol.OutgoingMessage msg =
+                        net.carcdr.yhocuspocus.protocol.OutgoingMessage.sync(
+                            document.getName(),
+                            encodedUpdate
+                        );
+                    document.broadcast(msg.encode(), null);
+                }
+
                 // Schedule debounced save
                 if (!closed) {
                     documentSaver.scheduleSave(document.getName(), () -> {

@@ -176,7 +176,7 @@ public class ExtensionIntegrationTest {
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Manually trigger onChange (observers not hooked up yet per TODO in YHocuspocus:189-192)
-            server.handleDocumentChange(doc, new ConcurrentHashMap<>());
+            server.handleDocumentChange(doc, new ConcurrentHashMap<>(), update);
 
             // Wait for onChange to be called
             assertTrue("onChange should be called",
@@ -221,7 +221,7 @@ public class ExtensionIntegrationTest {
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Trigger document change notification
-            server.handleDocumentChange(doc, new ConcurrentHashMap<>());
+            server.handleDocumentChange(doc, new ConcurrentHashMap<>(), update);
 
             // Wait for debounced save (100ms debounce + 100ms buffer)
             Thread.sleep(250);
@@ -511,7 +511,7 @@ public class ExtensionIntegrationTest {
                     SyncProtocol.encodeUpdate(update)).encode());
 
             // Trigger save
-            server.handleDocumentChange(doc, new ConcurrentHashMap<>());
+            server.handleDocumentChange(doc, new ConcurrentHashMap<>(), update);
 
             // Wait for debounced save
             Thread.sleep(250);

@@ -16,12 +16,10 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
 
   // Create provider first (memoized so it doesn't recreate on every render)
   const provider = useMemo(() => {
-    console.log('Creating HocuspocusProvider for document:', documentName)
     return new HocuspocusProvider({
       url: 'ws://localhost:1234',
       name: documentName,
       onStatus: ({ status }) => {
-        console.log('Hocuspocus status changed:', status)
         setStatus(status as 'connecting' | 'connected' | 'disconnected')
       },
       onSynced: ({ state }) => {

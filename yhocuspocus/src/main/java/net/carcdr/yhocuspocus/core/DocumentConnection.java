@@ -33,6 +33,10 @@ public class DocumentConnection {
     /**
      * Creates a new document connection.
      *
+     * <p>Note: Does not send initial sync proactively. Following y-protocol/sync spec,
+     * the client should initiate synchronization by sending SyncStep1. The server
+     * will respond with SyncStep2 (the diff) followed by SyncStep1 (server's state vector).</p>
+     *
      * @param clientConnection the client connection
      * @param document the document
      * @param documentName the document name
@@ -53,8 +57,8 @@ public class DocumentConnection {
         // Add to document
         document.addConnection(this);
 
-        // Send initial sync
-        sendInitialSync();
+        // Don't send initial sync - client should initiate with SyncStep1
+        // per y-protocol/sync specification
     }
 
     /**
@@ -90,8 +94,13 @@ public class DocumentConnection {
     /**
      * Handles sync protocol messages.
      *
-     * <p>Applies the sync message to the document, generates a response
-     * if needed, and broadcasts changes to other connections.</p>
+     * <p>Implements the y-protocol/sync specification for client-server sync:</p>
+     * <ul>
+     *   <li>When receiving SyncStep1: Reply with SyncStep2 (diff) + SyncStep1 (our state)</li>
+     *   <li>When receiving SyncStep2/Update: Apply changes and send sync status</li>
+     * </ul>
+     *
+     * <p>This ensures the server only responds to client requests, not initiating them.</p>
      *
      * @param message the sync message
      */
@@ -108,16 +117,28 @@ public class DocumentConnection {
             message.getPayload()
         );
 
+        System.out.println("PAYLOAD");
+        System.out.println(responsePayload);
+
         if (responsePayload != null) {
-            // Send sync response
-            OutgoingMessage response = OutgoingMessage.sync(
+            // Client sent SyncStep1 - we need to reply with SyncStep2 + SyncStep1
+            // per y-protocol/sync specification for client-server model
+
+            // 1. Send SyncStep2 (the diff/updates client needs)
+            OutgoingMessage step2Response = OutgoingMessage.sync(
                 documentName,
                 responsePayload
             );
-            send(response.encode());
+            send(step2Response.encode());
 
-            // Broadcast to other connections
-            document.broadcast(response.encode(), getConnectionId());
+            // 2. Send SyncStep1 (our state vector, so client can send us any missing updates)
+            byte[] ourStateVector = document.getDoc().encodeStateVector();
+            byte[] step1Payload = SyncProtocol.encodeSyncStep1(ourStateVector);
+            OutgoingMessage step1Response = OutgoingMessage.sync(
+                documentName,
+                step1Payload
+            );
+            send(step1Response.encode());
         }
 
         sendSyncStatus(true);
@@ -195,34 +216,6 @@ public class DocumentConnection {
         document.broadcastStateless(payload, getConnectionId());
     }
 
-    /**
-     * Sends initial sync to client.
-     *
-     * <p>Sends the full document state and current awareness information.</p>
-     */
-    private void sendInitialSync() {
-        // Get full document state
-        byte[] fullState = document.getDoc().encodeStateAsUpdate();
-
-        // Create sync step 2 message
-        byte[] syncPayload = SyncProtocol.encodeSyncStep2(fullState);
-
-        OutgoingMessage syncMsg = OutgoingMessage.sync(
-            documentName,
-            syncPayload
-        );
-        send(syncMsg.encode());
-
-        // Send awareness
-        byte[] awarenessUpdate = document.getAwareness().getStates();
-        if (awarenessUpdate.length > 0) {
-            OutgoingMessage awarenessMsg = OutgoingMessage.awareness(
-                documentName,
-                awarenessUpdate
-            );
-            send(awarenessMsg.encode());
-        }
-    }
 
     /**
      * Sends sync status message.

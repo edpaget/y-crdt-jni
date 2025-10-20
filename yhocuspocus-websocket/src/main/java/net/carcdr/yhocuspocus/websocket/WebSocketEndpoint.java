@@ -87,17 +87,6 @@ public class WebSocketEndpoint implements Session.Listener.AutoDemanding {
             byte[] data = new byte[payload.remaining()];
             payload.get(data);
 
-            LOGGER.info("Received binary message, size: {} bytes", data.length);
-
-            // Log first few bytes for debugging
-            if (data.length > 0) {
-                StringBuilder hex = new StringBuilder();
-                for (int i = 0; i < Math.min(20, data.length); i++) {
-                    hex.append(String.format("%02x ", data[i]));
-                }
-                LOGGER.info("First bytes: {}", hex.toString());
-            }
-
             // Forward to transport, which will notify its registered listener
             if (transport != null) {
                 transport.receiveMessage(data);

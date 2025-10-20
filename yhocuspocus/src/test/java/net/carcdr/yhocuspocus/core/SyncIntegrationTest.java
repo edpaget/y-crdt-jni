@@ -79,8 +79,8 @@ public class SyncIntegrationTest {
         MockTransport transport = new MockTransport();
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
-        // Pre-populate document on server
-        byte[] initialSync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        // Client initiates with SyncStep1 (per y-protocol/sync spec)
+        byte[] initialSync = SyncProtocol.encodeSyncStep1(new byte[0]);
         transport.receiveMessage(OutgoingMessage.sync("test-doc", initialSync).encode());
 
         // Wait for document to be loaded
@@ -100,16 +100,16 @@ public class SyncIntegrationTest {
         MockTransport transport2 = new MockTransport();
         ClientConnection connection2 = server.handleConnection(transport2, Map.of());
 
-        // Client sends empty state vector (requests full document)
-        byte[] syncStep1 = SyncProtocol.encodeSyncStep2(new byte[0]); // Empty state
+        // Client sends SyncStep1 with empty state vector (requests full document)
+        byte[] syncStep1 = SyncProtocol.encodeSyncStep1(new byte[0]); // Empty state vector
         transport2.receiveMessage(OutgoingMessage.sync("test-doc", syncStep1).encode());
 
-        // Wait for response
-        waitForCondition(() -> transport2.getSentMessages().size() >= 2, 1000);
+        // Wait for response - should get SyncStep2 + SyncStep1 + SyncStatus = 3 messages
+        waitForCondition(() -> transport2.getSentMessages().size() >= 3, 1000);
 
         // Verify client received sync response
         List<byte[]> messages = transport2.getSentMessages();
-        assertTrue("Client should receive sync messages", messages.size() >= 1);
+        assertTrue("Client should receive at least 3 sync messages", messages.size() >= 3);
 
         // Find sync message
         boolean foundSyncMessage = false;

@@ -60,6 +60,7 @@ public final class SyncProtocol {
         VarIntReader reader = new VarIntReader(payload);
         int syncType = (int) reader.readVarInt();
 
+        System.out.println(syncType);
         switch (syncType) {
             case SYNC_STEP_1:
                 return handleSyncStep1(doc, reader);
@@ -117,6 +118,28 @@ public final class SyncProtocol {
                 doc.applyUpdate(update);
             }
         }
+    }
+
+    /**
+     * Encodes a SyncStep1 message.
+     *
+     * <p>Format: [SYNC_STEP_1: varInt][stateVector: varBytes]</p>
+     *
+     * <p>SyncStep1 is sent by a client/server to communicate their current state.
+     * The recipient can use this state vector to determine what updates to send back.</p>
+     *
+     * @param stateVector the state vector bytes
+     * @return encoded SyncStep1 payload
+     */
+    public static byte[] encodeSyncStep1(byte[] stateVector) {
+        if (stateVector == null) {
+            throw new IllegalArgumentException("State vector cannot be null");
+        }
+
+        VarIntWriter writer = new VarIntWriter();
+        writer.writeVarInt(SYNC_STEP_1);
+        writer.writeVarBytes(stateVector);
+        return writer.toByteArray();
     }
 
     /**
