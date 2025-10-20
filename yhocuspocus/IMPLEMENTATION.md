@@ -170,8 +170,9 @@ Document wrapper:
 - Broadcast messages
 
 **Broadcasting:**
-- `broadcast(message, exceptConnectionId)` - Send to all except one
-- `broadcastStateless(payload, exceptConnectionId)` - Broadcast custom message
+- `broadcast(message, exceptConnectionId)` - Send to all except one (awareness/stateless)
+- `broadcastToAll(message)` - Send to all connections including sender (document updates)
+- `broadcastStateless(payload, exceptConnectionId)` - Broadcast custom message to all except sender
 
 **Connection Tracking:**
 - `addConnection(DocumentConnection)` - Track new connection
@@ -465,33 +466,35 @@ Test utility:
 
 ## Known Limitations
 
-1. **No Extension System** - Phase 5 not implemented
-2. **No Persistence** - Phase 6 not implemented
-3. **No Debouncing** - Phase 6 not implemented
-4. **No WebSocket Reference** - Phase 7 not implemented
-5. **Single Instance** - No horizontal scaling support yet
+1. **Single Instance** - No horizontal scaling support yet (Redis extension planned for post-v1.0)
+2. **Documentation Incomplete** - Phase 8 in progress (comprehensive testing, API docs, user guide)
+3. **No Distributed Locking** - Required for horizontal scaling
 
-## Future Enhancements
+## Completed Enhancements
 
-### Extension System (Phase 5)
+### Extension System (Phase 5) ✅
 
-- Hook-based customization
+- Hook-based customization with 12 lifecycle hooks
 - Priority-ordered execution
-- Context enrichment
-- Database, Redis, auth extensions
+- Context enrichment across hooks
+- DatabaseExtension abstract class for persistence
+- InMemoryDatabaseExtension reference implementation
 
-### Persistence (Phase 6)
+### Persistence & Debouncing (Phase 6) ✅
 
-- Debounced document saving
-- Max debounce enforcement
-- Immediate save on unload
-- Extension-based storage
+- DebouncedDocumentSaver with configurable debounce/maxDebounce
+- Automatic document saving after quiet period
+- Immediate save on document unload
+- Extension-based storage (onLoadDocument/onStoreDocument hooks)
+- Save mutex for thread safety
 
-### WebSocket Transport (Phase 7)
+### WebSocket Transport (Phase 7) ✅
 
-- Reference implementation
-- Jakarta WebSocket API
-- Jetty or Spring integration
+- yhocuspocus-websocket module (separate Gradle module)
+- Jetty 12 WebSocket server implementation
+- WebSocketTransport implementing Transport interface
+- WebSocketServer with builder pattern
+- Production-ready with example application
 
 ### Horizontal Scaling
 
