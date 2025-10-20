@@ -411,10 +411,14 @@ public class SyncIntegrationTest {
     }
 
     /**
-     * Test update broadcasting excludes sender.
+     * Test update broadcasting to all clients including sender.
+     *
+     * <p>Updates are broadcast to all connected clients including the client
+     * that originated the update. This ensures all clients receive updates
+     * through the same path for consistency.</p>
      */
     @Test
-    public void testUpdateBroadcastExcludesSender() throws Exception {
+    public void testUpdateBroadcastToAll() throws Exception {
         MockTransport transport1 = new MockTransport();
         MockTransport transport2 = new MockTransport();
         MockTransport transport3 = new MockTransport();
@@ -451,20 +455,26 @@ public class SyncIntegrationTest {
             transport1.receiveMessage(OutgoingMessage.sync("broadcast-doc",
                     SyncProtocol.encodeUpdate(update)).encode());
 
-            // Wait for broadcasts
+            // Wait for broadcasts to all clients including sender
+            waitForCondition(() -> transport1.getSentMessages().size() > 0, 1000);
             waitForCondition(() -> transport2.getSentMessages().size() > 0, 1000);
             waitForCondition(() -> transport3.getSentMessages().size() > 0, 1000);
 
-            // Conn2 and conn3 should receive update
+            // All connections should receive the update including the sender
+            assertTrue("Connection 1 (sender) should receive update broadcast",
+                    transport1.getSentMessages().size() > 0);
             assertTrue("Connection 2 should receive update",
                     transport2.getSentMessages().size() > 0);
             assertTrue("Connection 3 should receive update",
                     transport3.getSentMessages().size() > 0);
 
-            // Conn1 should NOT receive their own update back
-            // (they already have it)
-            // Note: In current implementation, server may send sync status
-            // So we just verify it's not the same update
+            // Verify all received SYNC messages
+            assertTrue("Connection 1 should receive SYNC update",
+                    hasMessageType(transport1.getSentMessages(), MessageType.SYNC));
+            assertTrue("Connection 2 should receive SYNC update",
+                    hasMessageType(transport2.getSentMessages(), MessageType.SYNC));
+            assertTrue("Connection 3 should receive SYNC update",
+                    hasMessageType(transport3.getSentMessages(), MessageType.SYNC));
         } finally {
             tempDoc.close();
         }

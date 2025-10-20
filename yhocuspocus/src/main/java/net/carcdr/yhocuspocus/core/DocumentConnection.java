@@ -17,9 +17,13 @@ import java.util.Map;
  * <ul>
  *   <li>Message routing per message type (sync, awareness, stateless)</li>
  *   <li>Read-only mode enforcement</li>
- *   <li>Initial sync sending</li>
- *   <li>Update broadcasting to other connections</li>
+ *   <li>Initial sync response (following y-protocol/sync specification)</li>
+ *   <li>Awareness and stateless message broadcasting</li>
  * </ul>
+ *
+ * <p>Note: Document update broadcasting is handled by YHocuspocus.handleDocumentChange()
+ * to ensure updates are sent to all connections including the originator after all
+ * extension hooks have been notified.</p>
  */
 public class DocumentConnection {
 
@@ -117,9 +121,6 @@ public class DocumentConnection {
             message.getPayload()
         );
 
-        System.out.println("PAYLOAD");
-        System.out.println(responsePayload);
-
         if (responsePayload != null) {
             // Client sent SyncStep1 - we need to reply with SyncStep2 + SyncStep1
             // per y-protocol/sync specification for client-server model
@@ -139,6 +140,16 @@ public class DocumentConnection {
                 step1Payload
             );
             send(step1Response.encode());
+
+            // 3. Send current awareness state (so client knows about other connected users)
+            byte[] awarenessUpdate = document.getAwareness().getStates();
+            if (awarenessUpdate.length > 0) {
+                OutgoingMessage awarenessMsg = OutgoingMessage.awareness(
+                    documentName,
+                    awarenessUpdate
+                );
+                send(awarenessMsg.encode());
+            }
         }
 
         sendSyncStatus(true);

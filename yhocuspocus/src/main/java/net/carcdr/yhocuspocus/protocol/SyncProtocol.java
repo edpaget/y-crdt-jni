@@ -60,7 +60,6 @@ public final class SyncProtocol {
         VarIntReader reader = new VarIntReader(payload);
         int syncType = (int) reader.readVarInt();
 
-        System.out.println(syncType);
         switch (syncType) {
             case SYNC_STEP_1:
                 return handleSyncStep1(doc, reader);

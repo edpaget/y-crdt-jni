@@ -232,7 +232,7 @@ public final class YHocuspocus implements AutoCloseable {
                             document.getName(),
                             encodedUpdate
                         );
-                    document.broadcast(msg.encode(), null);
+                    document.broadcastToAll(msg.encode());
                 }
 
                 // Schedule debounced save

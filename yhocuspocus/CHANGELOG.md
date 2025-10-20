@@ -35,7 +35,7 @@ All notable changes to the yhocuspocus module.
   - Full integration test coverage for connection management
 - Phase 3: Sync Protocol (COMPLETE)
   - Enhanced sync protocol with differential updates using state vectors
-  - Update broadcasting to all connections except sender
+  - Update broadcasting to all connections including sender
   - Initial sync sends full document to new clients
   - Incremental updates propagate correctly to all connections
   - Concurrent edits merge correctly (CRDT properties verified)
