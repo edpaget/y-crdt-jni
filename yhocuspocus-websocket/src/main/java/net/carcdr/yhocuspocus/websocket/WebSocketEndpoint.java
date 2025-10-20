@@ -3,7 +3,6 @@ package net.carcdr.yhocuspocus.websocket;
 import net.carcdr.yhocuspocus.core.ClientConnection;
 import net.carcdr.yhocuspocus.core.YHocuspocus;
 import org.eclipse.jetty.websocket.api.Callback;
-import org.eclipse.jetty.websocket.api.Frame;
 import org.eclipse.jetty.websocket.api.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
