@@ -20,6 +20,7 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
       url: 'ws://localhost:1234',
       name: documentName,
       onStatus: ({ status }) => {
+        console.log('Hocuspocus status changed:', status)
         setStatus(status as 'connecting' | 'connected' | 'disconnected')
       },
       onSynced: ({ state }) => {
@@ -31,25 +32,12 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
       onDisconnect: ({ event }) => {
         console.log('WebSocket disconnected:', event)
       },
-      onAuthenticationFailed: ({ reason }) => {
-        console.error('Authentication failed:', reason)
-      },
       onClose: ({ event }) => {
         console.log('Connection closed:', event)
       },
       onOpen: () => {
         console.log('WebSocket opened!')
       },
-      onMessage: (data) => {
-        console.log('Received message:', data)
-      },
-      onOutgoingMessage: (data) => {
-        console.log('Sending message:', data)
-      },
-      onAwarenessUpdate: (data) => {
-        console.log('Awareness', data)
-      }
-                                
     })
   }, [documentName])
 
@@ -70,13 +58,6 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
         },
       }),
     ],
-  }, [provider])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      provider?.destroy()
-    }
   }, [provider])
 
   if (!editor) {
