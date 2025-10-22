@@ -191,7 +191,7 @@ The module includes comprehensive conversion tests (Phase 1) but limited binding
   - Requires non-null SchemaSpec parameter with proper node/mark definitions
   - Full testing requires actual ProseMirror editor integration
 
-The binding implementation itself is production-ready, but comprehensive unit testing requires a proper ProseMirror environment.
+The binding implementation is functional, but comprehensive unit testing requires a proper ProseMirror environment.
 
 ## Dependencies
 

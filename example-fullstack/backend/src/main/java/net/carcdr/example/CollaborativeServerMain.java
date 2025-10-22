@@ -54,7 +54,7 @@ public final class CollaborativeServerMain {
             .maxDebounce(Duration.ofSeconds(10))  // Force save after 10s max
             .build()) {
 
-            System.out.println("✓ YHocuspocus server initialized");
+            System.out.println("YHocuspocus server initialized");
             System.out.println("  - Storage: In-Memory");
             System.out.println("  - Debounce: 2s / Max: 10s");
             System.out.println();
@@ -70,7 +70,7 @@ public final class CollaborativeServerMain {
                 // Start the server
                 server.start();
 
-                System.out.println("✓ WebSocket server started");
+                System.out.println("WebSocket server started");
                 System.out.println("  - Address: ws://localhost:1234/");
                 System.out.println("  - Max connections: Unlimited");
                 System.out.println("  - Max message size: 10MB");

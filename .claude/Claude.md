@@ -1,27 +1,87 @@
 # Development Guidelines for y-crdt-jni
 
+## Documentation Style
+
+When writing or updating documentation:
+
+- **Avoid hyperbolic language**: Do not use terms like "enterprise", "production-ready", "world-class", "cutting-edge", "comprehensive", etc.
+- **Avoid emojis**: Do not use emojis (✅, ✓, 🎉, etc.) in documentation or code output
+- **Be factual and descriptive**: Use neutral, technical language that describes what the code does
+- **Example replacements**:
+  - ❌ "Production-ready WebSocket implementation"
+  - ✓ "WebSocket implementation using Jetty 12"
+  - ❌ "Comprehensive test coverage"
+  - ✓ "122 tests, 100% passing"
+  - ❌ "World-class performance"
+  - ✓ "Uses Rust for native code execution"
+
 ## Project Structure
 
 This is a **multi-module Gradle project**:
 
 ```
 y-crdt-jni/
-├── ycrdt/              # Core Y-CRDT JNI bindings (Java + Rust)
-│   ├── build.gradle    # Gradle build for Java layer
-│   ├── Cargo.toml      # Rust build for native library
+├── ycrdt/                      # Core Y-CRDT JNI bindings (Java + Rust)
+│   ├── build.gradle           # Gradle build for Java layer
+│   ├── Cargo.toml             # Rust build for native library
+│   ├── README.md              # User-facing documentation
+│   ├── IMPLEMENTATION.md      # Technical implementation details
+│   ├── PLAN.md                # Future development tasks
 │   └── src/
-│       ├── main/java/  # Java classes
-│       ├── main/rust/  # Rust JNI bindings
-│       └── test/java/  # Java tests
-├── yprosemirror/       # ProseMirror integration (Java only)
+│       ├── main/java/         # Java classes
+│       ├── main/rust/         # Rust JNI bindings
+│       └── test/java/         # Java tests
+├── yprosemirror/              # ProseMirror integration (Java only)
 │   ├── build.gradle
+│   ├── README.md              # User-facing documentation
+│   ├── IMPLEMENTATION.md      # Technical implementation details
+│   ├── PLAN.md                # Future development tasks
 │   └── src/
 │       ├── main/java/
 │       └── test/java/
-├── yhocuspocus/        # Hocuspocus server (planned, Java only)
-│   └── ...
-└── build.gradle        # Root project configuration
+├── yhocuspocus/               # Collaborative editing server (Java only)
+│   ├── build.gradle
+│   ├── README.md              # User-facing documentation
+│   ├── IMPLEMENTATION.md      # Technical implementation details
+│   ├── PLAN.md                # Future development tasks
+│   └── src/
+│       ├── main/java/
+│       └── test/java/
+├── yhocuspocus-websocket/     # WebSocket transport for yhocuspocus
+│   ├── build.gradle
+│   ├── README.md              # User-facing documentation
+│   ├── IMPLEMENTATION.md      # Technical implementation details
+│   ├── PLAN.md                # Future development tasks
+│   └── src/
+│       ├── main/java/
+│       └── test/java/
+├── example-fullstack/         # Full-stack collaborative editor example
+│   ├── backend/               # Java WebSocket server
+│   │   └── src/main/java/
+│   ├── frontend/              # React + TypeScript + Tiptap
+│   │   └── src/
+│   └── README.md              # Example documentation
+└── build.gradle               # Root project configuration
 ```
+
+### Module Descriptions
+
+- **ycrdt**: Core module providing Java bindings to the Rust y-crdt library. Includes YDoc, YText, YArray, YMap, YXml types. Combines Java and Rust code via JNI.
+
+- **yprosemirror**: ProseMirror integration module for collaborative rich-text editing. Provides bidirectional conversion between ProseMirror and Y-CRDT documents. Pure Java.
+
+- **yhocuspocus**: Transport-agnostic collaborative editing server inspired by Hocuspocus. Manages document lifecycle, connections, sync protocol, awareness, and extensions. Pure Java.
+
+- **yhocuspocus-websocket**: WebSocket transport implementation for yhocuspocus using Jetty 12. Reference transport implementation. Pure Java.
+
+- **example-fullstack**: Complete example application with Java backend and React frontend demonstrating real-time collaborative editing with Tiptap.
+
+### Documentation Structure
+
+Each module has:
+- **README.md**: User-facing documentation with quick start, examples, and API overview
+- **IMPLEMENTATION.md**: Technical details about architecture, design decisions, and implementation
+- **PLAN.md**: Concise list of future development tasks (no historical information or already-implemented features)
 
 ## After Making Changes
 

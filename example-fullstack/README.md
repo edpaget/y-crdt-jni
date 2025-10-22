@@ -5,17 +5,17 @@ A complete full-stack example demonstrating real-time collaborative editing usin
 - **Backend**: Java YHocuspocus WebSocket server
 - **Frontend**: React + TypeScript + Tiptap editor + Hocuspocus provider
 
-This example shows how to build a production-ready collaborative editing application with the YHocuspocus Java server, proving full compatibility with the JavaScript/TypeScript Hocuspocus ecosystem and official Tiptap collaboration extensions.
+This example shows how to build a collaborative editing application with the YHocuspocus Java server, demonstrating full compatibility with the JavaScript/TypeScript Hocuspocus ecosystem and official Tiptap collaboration extensions.
 
 ## Features
 
-- ✅ **Real-time Collaboration** - Multiple users can edit the same document simultaneously
-- ✅ **Rich Text Editing** - Full-featured editor with bold, italic, headings, lists, and more
-- ✅ **Collaborative Cursors** - See where other users are typing in real-time
-- ✅ **CRDT-based** - Conflict-free merge of concurrent edits
-- ✅ **WebSocket Transport** - Low-latency bidirectional communication
-- ✅ **Persistent Storage** - Documents are saved with debouncing (in-memory by default)
-- ✅ **Modern Tech Stack** - React 18, TypeScript, Tiptap, Vite
+- **Real-time Collaboration** - Multiple users can edit the same document simultaneously
+- **Rich Text Editing** - Full-featured editor with bold, italic, headings, lists, and more
+- **Collaborative Cursors** - See where other users are typing in real-time
+- **CRDT-based** - Conflict-free merge of concurrent edits
+- **WebSocket Transport** - Low-latency bidirectional communication
+- **Persistent Storage** - Documents are saved with debouncing (in-memory by default)
+- **Modern Tech Stack** - React 18, TypeScript, Tiptap, Vite
 
 ## Architecture
 
@@ -82,11 +82,11 @@ You should see:
   YHocuspocus Collaborative Editing Server
 ═══════════════════════════════════════════════════════
 
-✓ YHocuspocus server initialized
+YHocuspocus server initialized
   - Storage: In-Memory
   - Debounce: 2s / Max: 10s
 
-✓ WebSocket server started
+WebSocket server started
   - Address: ws://localhost:1234/
   - Max connections: Unlimited
   - Max message size: 10MB
@@ -292,7 +292,7 @@ public class PostgresDatabaseExtension extends DatabaseExtension {
 - **Try refresh**: Reload both browser windows
 - **Check document names match**: Both clients must use the same document name
 
-## Production Deployment
+## Deployment
 
 For production use:
 
@@ -336,7 +336,3 @@ If you encounter issues:
 2. Check browser console for errors (F12)
 3. Check server logs for exceptions
 4. Open an issue on GitHub with details
-
----
-
-**Happy Collaborating!** 🎉

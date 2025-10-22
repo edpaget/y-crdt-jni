@@ -4,118 +4,67 @@
 [![License: Apache 2](https://img.shields.io/badge/license-Apache%202-blue.svg)](LICENSE)
 [![Javadoc](https://img.shields.io/badge/javadoc-latest-blue.svg)](https://carcdr.net/y-crdt-jni/)
 
-Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust library, providing high-performance Conflict-free Replicated Data Types (CRDTs) for the JVM.
+Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust library, providing Conflict-free Replicated Data Types (CRDTs) for the JVM.
 
 ## Overview
 
 Y-CRDT is a CRDT implementation that enables real-time collaborative editing with automatic conflict resolution. This library provides JNI bindings to make y-crdt available to Java, Kotlin, and other JVM languages.
 
-## Project Structure
+## Modules
 
-This is a multi-module Gradle project:
+This project consists of multiple modules, each with its own purpose and documentation:
 
-- **ycrdt** - Core Y-CRDT JNI bindings with Rust native library
+### Core Library
+
+- **[ycrdt](ycrdt/README.md)** - Core Y-CRDT JNI bindings with Rust native library
   - Provides: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
-  - Artifact: `net.carcdr:ycrdt`
-  - Documentation: [ycrdt/README.md](ycrdt/README.md)
+  - CRDT types with subdocument support
+  - Observer API for change notifications
+  - Binary state synchronization
+  - [Technical Details](ycrdt/IMPLEMENTATION.md)
 
-- **yprosemirror** - ProseMirror integration
-  - Provides bidirectional sync between ProseMirror and Y-CRDT
-  - Depends on: ycrdt module
-  - Artifact: `net.carcdr:yprosemirror`
-  - Documentation: [yprosemirror/README.md](yprosemirror/README.md)
+### Integrations
 
-- **yhocuspocus** - Collaborative editing server
-  - Transport-agnostic server for Y-CRDT synchronization
-  - Depends on: ycrdt module
-  - Artifact: `net.carcdr:yhocuspocus`
-  - Documentation: [yhocuspocus/README.md](yhocuspocus/README.md)
+- **[yprosemirror](yprosemirror/README.md)** - ProseMirror integration for collaborative rich-text editing
+  - Bidirectional sync between ProseMirror and Y-CRDT
+  - Change loop prevention
+  - Position mapping
+  - [Technical Details](yprosemirror/IMPLEMENTATION.md)
 
-## Features
+### Server
 
-- ✅ **YDoc**: Core document type with synchronization support
-- ✅ **YText**: Collaborative text editing with Unicode support
-- ✅ **YArray**: Collaborative arrays with mixed types and JSON serialization
-- ✅ **YMap**: Collaborative maps with mixed types and JSON serialization
-- ✅ **YXmlText**: Collaborative XML text nodes with rich formatting
-- ✅ **YXmlElement**: Collaborative XML elements with attributes and nesting
-- ✅ **YXmlFragment**: Hierarchical XML tree support with child node retrieval
-- ✅ **Subdocuments**: Embed YDocs within YMap and YArray for hierarchical structures
-- ✅ **Observer API**: Real-time change notification for all CRDT types
-- ✅ **Binary updates**: Efficient state synchronization
-- ✅ **Memory safe**: Proper resource management with AutoCloseable
-- ✅ **Multi-platform**: Linux, macOS, and Windows support
+- **[yhocuspocus](yhocuspocus/README.md)** - Transport-agnostic collaborative editing server
+  - Y.js-compatible sync protocol
+  - Extension system with 12 lifecycle hooks
+  - Debounced persistence
+  - Awareness protocol (user presence)
+  - [Technical Details](yhocuspocus/IMPLEMENTATION.md)
 
-See [PLAN.md](PLAN.md) for the full development roadmap. For module-specific changelogs, see each module's documentation.
+- **[yhocuspocus-websocket](yhocuspocus-websocket/README.md)** - WebSocket transport for yhocuspocus
+  - Jetty 12 WebSocket server implementation
+  - Reference implementation
+  - Yjs/Hocuspocus compatibility
+  - [Technical Details](yhocuspocus-websocket/IMPLEMENTATION.md)
 
-## Requirements
+### Examples
 
-- Java 21 or higher
-- Rust 1.70+ (for building from source)
-- Gradle 7.0+ (for building)
+- **[example-fullstack](example-fullstack/README.md)** - Full-stack collaborative editor example
+  - Backend: Java YHocuspocus WebSocket server
+  - Frontend: React + TypeScript + Tiptap editor
+  - Real-time collaboration with collaborative cursors
+  - Demonstrates complete integration
 
-## Building
+## Quick Start
 
-### Prerequisites
+### Installation
 
-- Java 21 or higher
-- Rust 1.70 or higher
-- Gradle 7.0+ (or use the included wrapper)
-
-### Build all modules
+Build from source (Maven Central publishing planned):
 
 ```bash
 ./gradlew build
 ```
 
-This will:
-1. Build the ycrdt module (Rust library + Java bindings)
-2. Build the yprosemirror module (depends on ycrdt)
-3. Run all tests
-4. Package everything into JARs
-
-### Build specific module
-
-```bash
-# Build only ycrdt (core library)
-./gradlew :ycrdt:build
-
-# Build only yprosemirror
-./gradlew :yprosemirror:build
-```
-
-### Run tests
-
-```bash
-# Run all tests
-./gradlew test
-
-# Run tests for specific module
-./gradlew :ycrdt:test
-
-# Run Rust tests only
-cd ycrdt && cargo test
-```
-
-### Clean build artifacts
-
-```bash
-./gradlew clean
-```
-
-### List all modules
-
-```bash
-./gradlew projects
-```
-
-### Build for specific platform
-
-The build automatically detects your platform and builds the appropriate native library. The JAR will include libraries for the host platform only.
-
-For multi-platform JARs, see the [CI/CD section](#cicd) below.
-
-## Quick Start
+### Example Usage
 
 ```java
 import net.carcdr.ycrdt.*;
@@ -131,13 +80,6 @@ public class Example {
                 System.out.println(text.toString()); // "Hello, World!"
             }
 
-            // Collaborative map
-            try (YMap map = doc.getMap("myMap")) {
-                map.set("name", "Alice");
-                map.set("age", 30.0);
-                System.out.println(map.toJson()); // {"name":"Alice","age":30.0}
-            }
-
             // Synchronize with another document
             byte[] update = doc.encodeStateAsUpdate();
             try (YDoc doc2 = new YDoc()) {
@@ -149,93 +91,44 @@ public class Example {
 }
 ```
 
-For more examples, see the [Example.java](ycrdt/src/main/java/net/carcdr/ycrdt/Example.java) program with 14+ demonstrations.
+For more examples, see [ycrdt/README.md](ycrdt/README.md).
 
-## Observer API
+## Features
 
-Y-CRDT JNI provides full observer support for real-time change notifications across all 6 CRDT types. The Observer API enables applications to react to document changes as they occur, making it ideal for building reactive UIs and collaborative applications.
+- **CRDT Types**: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
+- **Subdocuments**: Embed YDocs within collections for hierarchical structures
+- **Observer API**: Change notifications for all CRDT types
+- **Binary Updates**: State synchronization
+- **ProseMirror Integration**: Bidirectional sync with ProseMirror editors
+- **Collaborative Server**: yhocuspocus server with WebSocket transport
+- **Memory Management**: Resource management with AutoCloseable
+- **Multi-platform**: Linux, macOS, and Windows support
 
-### Features
+## Requirements
 
-- **Full Coverage**: Observers for all 6 Y-CRDT types (YText, YArray, YMap, YXmlFragment, YXmlElement, YXmlText)
-- **Thread-Safe**: Callbacks can be triggered from any thread with proper JVM attachment
-- **AutoCloseable**: Subscription handles implement AutoCloseable for automatic cleanup
-- **Type-Safe**: Strongly typed change events for each CRDT type
-- **Production-Ready**: 51 integration tests, all passing
+- Java 21 or higher
+- Rust 1.70+ (for building from source)
+- Gradle 7.0+ (included via wrapper)
 
-### Example Usage
+## Building
 
-```java
-import net.carcdr.ycrdt.*;
+```bash
+# Build all modules
+./gradlew build
 
-public class ObserverExample {
-    public static void main(String[] args) {
-        try (YDoc doc = new YDoc()) {
-            try (YText text = doc.getText("myText")) {
-                // Subscribe to text changes
-                try (Subscription sub = text.observe(event -> {
-                    System.out.println("Text changed!");
-                    for (Object change : event.getChanges()) {
-                        YTextChange tc = (YTextChange) change;
-                        System.out.println("  Type: " + tc.getType());
-                        System.out.println("  Content: " + tc.getInsert());
-                    }
-                })) {
-                    // Make changes - observer will be notified
-                    text.push("Hello, ");
-                    text.push("World!");
+# Build specific module
+./gradlew :ycrdt:build
+./gradlew :yprosemirror:build
+./gradlew :yhocuspocus:build
 
-                    // Subscription automatically unsubscribed when closed
-                }
-            }
-        }
-    }
-}
+# Run tests
+./gradlew test
+
+# Run the example
+./gradlew :example-fullstack:backend:run
 ```
 
-### Available Observer Types
-
-Each CRDT type provides its own specialized change event structure:
-
-- **YText**: `YTextChange` - tracks insertions, deletions, and retains with formatting attributes
-- **YArray**: `YArrayChange` - tracks insertions, deletions, and retains for array items
-- **YMap**: `YMapChange` - tracks key insertions, updates, and deletions
-- **YXmlElement**: `YXmlElementChange` - tracks child and attribute changes
-- **YXmlFragment**: Uses `YArrayChange` for child changes
-- **YXmlText**: Uses `YTextChange` for text content changes
-
-All observer callbacks receive a `YEvent` object containing:
-- `target`: The CRDT object that changed
-- `changes`: List of typed change objects
-- `origin`: Optional origin string for tracking change sources
-
-For detailed examples, see the observer tests in the [test suite](ycrdt/src/test/java/net/carcdr/ycrdt/).
-
-## API Documentation
-
-**Full API documentation**: [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
-
-**Implementation details**: See each module's IMPLEMENTATION.md file for technical details:
-- [ycrdt/IMPLEMENTATION.md](ycrdt/IMPLEMENTATION.md) - JNI bindings and native layer
-- [yprosemirror/IMPLEMENTATION.md](yprosemirror/IMPLEMENTATION.md) - ProseMirror integration
-- [yhocuspocus/IMPLEMENTATION.md](yhocuspocus/IMPLEMENTATION.md) - Server architecture
-
-### Core Types
-
-- **YDoc** - Main document class with synchronization support
-- **YText** - Collaborative text with insert, push, delete operations
-- **YArray** - Collaborative array supporting strings, doubles, and subdocuments
-- **YMap** - Collaborative map supporting strings, doubles, and subdocuments
-- **YXmlText** - XML text nodes with rich formatting and collaborative editing
-- **YXmlElement** - XML elements with attribute management and nested structures
-- **YXmlFragment** - Hierarchical XML trees with child node access
-
-**Subdocuments**: YMap and YArray can contain nested YDoc instances, enabling:
-- Hierarchical document structures
-- Modular and composable document architecture
-- Full CRDT functionality within nested documents
-
-All types implement `AutoCloseable` for automatic resource management.
+See individual module documentation for module-specific build instructions.
 
 ## Project Status
 
@@ -243,50 +136,38 @@ All types implement `AutoCloseable` for automatic resource management.
 
 **Test Coverage**:
 - 36 Rust unit tests (100% passing)
-- 239 Java integration tests (100% passing)
-  - 198 functional tests
-  - 25 memory stress tests
-  - 16 subdocument tests
+- 239 Java tests in ycrdt (100% passing)
+- 22 Java tests in yprosemirror (100% passing)
+- 122 Java tests in yhocuspocus + yhocuspocus-websocket (100% passing)
 
-**Build Status**: [![CI](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/y-crdt-jni/actions/workflows/ci.yml)
+**Total**: 419 tests, 100% passing
 
-See [PLAN.md](PLAN.md) for development roadmap. For detailed changelogs, see each module's documentation.
+## Documentation
 
-## Development
-
-```bash
-# Run the example program
-./gradlew :ycrdt:run
-
-# Run tests (all modules)
-./gradlew test
-
-# Run Rust tests
-cd ycrdt && cargo test
-
-# Format and lint
-cd ycrdt && cargo fmt
-cd ycrdt && cargo clippy
-./gradlew checkstyle
-```
-
-See module-specific IMPLEMENTATION.md files for architecture and build details.
+- **API Reference**: [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
+- **Module Documentation**: See each module's README.md and IMPLEMENTATION.md
+- **Example Application**: [example-fullstack/README.md](example-fullstack/README.md)
+- **Development Guide**: [.claude/CLAUDE.md](.claude/CLAUDE.md)
 
 ## CI/CD
 
 GitHub Actions workflows:
-- **Quick Check** - Fast linting and formatting on every PR
-- **CI** - Full test suite on Linux, macOS, and Windows with multi-platform JAR creation
+- **Quick Check** - Linting and formatting on every PR
+- **CI** - Test suite on Linux, macOS, and Windows
 - **Release** - Automated release creation and artifact publishing
 - **Javadoc** - API documentation published to GitHub Pages
 
-**Pre-built binaries**: Available from [GitHub Actions](https://github.com/edpaget/y-crdt-jni/actions) and [Releases](https://github.com/edpaget/y-crdt-jni/releases)
-
-See [`.github/workflows/`](.github/workflows/) for workflow configurations.
+Pre-built binaries available from [GitHub Actions](https://github.com/edpaget/y-crdt-jni/actions) and [Releases](https://github.com/edpaget/y-crdt-jni/releases).
 
 ## Contributing
 
-Contributions are welcome! Please see [PLAN.md](PLAN.md) for the development roadmap and open issues.
+Contributions are welcome. See each module's documentation for development plans:
+- [ycrdt/PLAN.md](ycrdt/PLAN.md)
+- [yprosemirror/PLAN.md](yprosemirror/PLAN.md)
+- [yhocuspocus/PLAN.md](yhocuspocus/PLAN.md)
+- [yhocuspocus-websocket/PLAN.md](yhocuspocus-websocket/PLAN.md)
+
+Also see [.claude/CLAUDE.md](.claude/CLAUDE.md) for development guidelines.
 
 ## License
 
@@ -296,3 +177,4 @@ This project is licensed under the Apache License v2.0 - see the [LICENSE](LICEN
 
 - [y-crdt](https://github.com/y-crdt/y-crdt) - The Rust CRDT implementation
 - [jni-rs](https://github.com/jni-rs/jni-rs) - Rust JNI bindings
+- [Hocuspocus](https://github.com/ueberdosis/hocuspocus) - Inspiration for yhocuspocus server

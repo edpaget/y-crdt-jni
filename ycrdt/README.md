@@ -1,6 +1,6 @@
 # ycrdt - Y-CRDT JNI Bindings
 
-Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) Rust library, providing high-performance Conflict-free Replicated Data Types (CRDTs) for the JVM.
+Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) Rust library, providing Conflict-free Replicated Data Types (CRDTs) for the JVM.
 
 ## Features
 

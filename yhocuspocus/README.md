@@ -12,18 +12,18 @@ Transport-agnostic collaborative editing server for Y-CRDT, inspired by [Hocuspo
 - **Awareness Protocol**: User presence tracking
 - **Stateless Messaging**: Custom application-level messages
 - **Extension System**: Hook-based customization with 12 lifecycle hooks
-- **Production-Ready**: 122 comprehensive tests (119 core + 3 WebSocket), 100% passing
+- **Testing**: 122 tests (119 core + 3 WebSocket), 100% passing
 
 ## Status
 
-- ✅ Phase 1: Core Infrastructure (COMPLETE)
-- ✅ Phase 2: Connection Management (COMPLETE)
-- ✅ Phase 3: Sync Protocol (COMPLETE)
-- ✅ Phase 4: Awareness & Stateless Messages (COMPLETE)
-- ✅ Phase 5: Extension System (COMPLETE)
-- ✅ Phase 6: Persistence & Debouncing (COMPLETE)
-- ✅ Phase 7: WebSocket Transport (COMPLETE)
-- ⏳ Phase 8: Testing & Documentation (In Progress)
+- Phase 1: Core Infrastructure (COMPLETE)
+- Phase 2: Connection Management (COMPLETE)
+- Phase 3: Sync Protocol (COMPLETE)
+- Phase 4: Awareness & Stateless Messages (COMPLETE)
+- Phase 5: Extension System (COMPLETE)
+- Phase 6: Persistence & Debouncing (COMPLETE)
+- Phase 7: WebSocket Transport (COMPLETE)
+- Phase 8: Testing & Documentation (In Progress)
 
 See [YHOCUSPOCUS_PLAN.md](../plans/YHOCUSPOCUS_PLAN.md) for full roadmap.
 
@@ -308,16 +308,16 @@ See [IMPLEMENTATION.md](IMPLEMENTATION.md) for technical details.
 ## Roadmap
 
 ### Completed (Phase 1-7)
-- ✅ Phase 1: Core Infrastructure (transport abstraction, message protocol)
-- ✅ Phase 2: Connection Management (auth, multiplexing, keepalive)
-- ✅ Phase 3: Sync Protocol (Y.js compatible synchronization)
-- ✅ Phase 4: Awareness & Stateless Messages (presence, custom messaging)
-- ✅ Phase 5: Extension System (12 lifecycle hooks, DatabaseExtension)
-- ✅ Phase 6: Persistence & Debouncing (debounced saving, immediate save on unload)
-- ✅ Phase 7: WebSocket Transport (Jetty 12 reference implementation)
+- Phase 1: Core Infrastructure (transport abstraction, message protocol)
+- Phase 2: Connection Management (auth, multiplexing, keepalive)
+- Phase 3: Sync Protocol (Y.js compatible synchronization)
+- Phase 4: Awareness & Stateless Messages (presence, custom messaging)
+- Phase 5: Extension System (12 lifecycle hooks, DatabaseExtension)
+- Phase 6: Persistence & Debouncing (debounced saving, immediate save on unload)
+- Phase 7: WebSocket Transport (Jetty 12 reference implementation)
 
 ### In Progress
-- ⏳ Phase 8: Testing & Documentation (comprehensive testing, API docs, user guide)
+- Phase 8: Testing & Documentation (testing, API docs, user guide)
 
 See [YHOCUSPOCUS_PLAN.md](../plans/YHOCUSPOCUS_PLAN.md) for details.
 
@@ -339,14 +339,6 @@ Planned extension system (Phase 5) enables:
 - Redis pub/sub for scaling
 - Logging and metrics
 - Custom message handling
-
-### Production-Ready
-
-- Comprehensive test coverage
-- Checkstyle compliance
-- JavaDoc documentation
-- Race condition prevention
-- Resource management
 
 ## Known Limitations
 
