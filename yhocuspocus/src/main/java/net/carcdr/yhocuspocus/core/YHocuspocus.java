@@ -83,7 +83,8 @@ public final class YHocuspocus implements AutoCloseable {
         this.debounce = builder.debounce;
         this.maxDebounce = builder.maxDebounce;
         this.scheduler = Executors.newScheduledThreadPool(builder.schedulerThreads);
-        this.executor = Executors.newCachedThreadPool();
+        // Use virtual threads for document operations - allows blocking without thread exhaustion
+        this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.documentSaver = new DebouncedDocumentSaver(
             scheduler,
             debounce,
@@ -159,9 +160,9 @@ public final class YHocuspocus implements AutoCloseable {
                 loadingDocuments.remove(name);
                 if (doc != null && error == null) {
                     documents.put(name, doc);
-                    // Run afterLoadDocument hooks asynchronously (don't block the executor thread)
+                    // Run afterLoadDocument hooks synchronously - safe with virtual threads
                     AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(doc, context);
-                    runHooks(afterPayload, Extension::afterLoadDocument);
+                    runHooksSync(afterPayload, Extension::afterLoadDocument);
                 }
             });
         });
