@@ -159,9 +159,9 @@ public final class YHocuspocus implements AutoCloseable {
                 loadingDocuments.remove(name);
                 if (doc != null && error == null) {
                     documents.put(name, doc);
-                    // Run afterLoadDocument hooks
+                    // Run afterLoadDocument hooks asynchronously (don't block the executor thread)
                     AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(doc, context);
-                    runHooksSync(afterPayload, Extension::afterLoadDocument);
+                    runHooks(afterPayload, Extension::afterLoadDocument);
                 }
             });
         });
