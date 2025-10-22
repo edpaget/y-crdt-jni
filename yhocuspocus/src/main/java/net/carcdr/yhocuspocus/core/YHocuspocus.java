@@ -152,19 +152,23 @@ public final class YHocuspocus implements AutoCloseable {
         return loadingDocuments.computeIfAbsent(documentName, name -> {
             return CompletableFuture.supplyAsync(() -> {
                 try {
-                    return loadDocument(name, context);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to load document: " + name, e);
-                }
-            }, executor).whenComplete((doc, error) -> {
-                loadingDocuments.remove(name);
-                if (doc != null && error == null) {
+                    YDocument doc = loadDocument(name, context);
+
+                    // Add to documents map and run hooks - all on virtual thread
                     documents.put(name, doc);
-                    // Run afterLoadDocument hooks synchronously - safe with virtual threads
                     AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(doc, context);
                     runHooksSync(afterPayload, Extension::afterLoadDocument);
+
+                    // Remove from loading map
+                    loadingDocuments.remove(name);
+
+                    return doc;
+                } catch (Exception e) {
+                    // Clean up on error
+                    loadingDocuments.remove(name);
+                    throw new RuntimeException("Failed to load document: " + name, e);
                 }
-            });
+            }, executor);
         });
     }
 
