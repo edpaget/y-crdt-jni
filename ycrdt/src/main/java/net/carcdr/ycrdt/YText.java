@@ -93,7 +93,6 @@ public class YText implements Closeable, YObservable {
     public String toString() {
         checkClosed();
         YTransaction activeTxn = doc.getActiveTransaction();
-        System.err.println(activeTxn);
         if (activeTxn != null) {
             return nativeToStringWithTxn(doc.getNativePtr(), nativePtr, activeTxn.getNativePtr());
         }

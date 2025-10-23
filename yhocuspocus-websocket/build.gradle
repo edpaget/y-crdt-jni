@@ -42,22 +42,9 @@ checkstyle {
 // Test configuration
 test {
     testLogging {
-        events = []  // Disable default event logging
-        exceptionFormat "full"
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
         showStandardStreams = false
-    }
-    // Custom test event listener
-    afterTest { descriptor, result ->
-        logger.lifecycle("${descriptor.className} > ${descriptor.name} ${result.resultType}")
-    }
-    afterSuite { desc, result ->
-        if (!desc.parent) {
-            println "\nWebSocket Test Results: ${result.resultType} " +
-                    "(${result.testCount} tests, " +
-                    "${result.successfulTestCount} passed, " +
-                    "${result.failedTestCount} failed, " +
-                    "${result.skippedTestCount} skipped)"
-        }
     }
 }
 

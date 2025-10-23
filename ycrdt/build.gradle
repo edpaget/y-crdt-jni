@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'checkstyle'
     id 'maven-publish'
+    id 'me.champeau.jmh' version '0.7.2'
 }
 
 group = 'net.carcdr'
@@ -38,22 +39,9 @@ dependencies {
 // Test configuration
 test {
     testLogging {
-        events = []  // Disable default event logging
-        exceptionFormat "full"
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
         showStandardStreams = false
-    }
-    // Custom test event listener to control newlines
-    afterTest { descriptor, result ->
-        logger.lifecycle("${descriptor.className} > ${descriptor.name} ${result.resultType}")
-    }
-    afterSuite { desc, result ->
-        if (!desc.parent) {
-            println "Java Test Results: ${result.resultType} " +
-                    "(${result.testCount} tests, " +
-                    "${result.successfulTestCount} passed, " +
-                    "${result.failedTestCount} failed, " +
-                    "${result.skippedTestCount} skipped)"
-        }
     }
 }
 
@@ -204,4 +192,39 @@ publishing {
             }
         }
     }
+}
+
+// JMH Benchmark configuration
+jmh {
+    jmhVersion = '1.37'
+
+    // Output configuration
+    resultFormat = 'JSON'
+    resultsFile = file("${buildDir}/reports/jmh/results.json")
+
+    // Benchmark execution parameters
+    warmupIterations = 3
+    iterations = 5
+    fork = 2
+    threads = 1
+    timeOnIteration = '1s'
+
+    // Enable GC profiler by default to measure memory usage
+    profilers = ['gc']
+
+    // JVM arguments
+    jvmArgs = ['-Xmx2g', '-Xms2g']
+
+    // Include/exclude patterns (can be overridden via command line)
+    // includes = ['.*Benchmark.*']
+
+    // Duplicate class strategy
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
+}
+
+// Ensure JMH benchmarks are not included in production JAR
+jar {
+    // Exclude JMH metadata from production JAR
+    exclude 'META-INF/BenchmarkList'
+    exclude 'META-INF/CompilerHints'
 }

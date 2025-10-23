@@ -4,11 +4,15 @@
 
 ### Production Readiness (v1.0.0)
 
-1. **Performance Benchmarking**
+1. **Performance Benchmarking** (See [plans/YCRDT_BENCHMARKS.md](../plans/YCRDT_BENCHMARKS.md))
+   - Set up JMH (Java Microbenchmark Harness) infrastructure
+   - Benchmark all CRDT types: YText, YArray, YMap, YXml
    - Measure JNI overhead vs native Rust
-   - Compare with JavaScript Y.js implementation
+   - Compare transaction performance (implicit vs explicit)
+   - Benchmark sync protocol operations
    - Identify and optimize bottlenecks
-   - Target: < 20% overhead vs native
+   - Establish baseline metrics for regression testing
+   - Target: < 20% JNI overhead, > 100k ops/sec for basic operations
 
 2. **Concurrent Access Patterns**
    - Test thread safety under concurrent load
