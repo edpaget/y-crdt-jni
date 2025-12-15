@@ -191,7 +191,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeWithT
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
         match get_transaction_mut(txn_ptr) {
             Some(txn) => match element.get_attribute(txn, &name_str) {
-                Some(value) => to_jstring(&mut env, &value),
+                Some(yrs::Out::Any(yrs::Any::String(s))) => to_jstring(&mut env, s.as_ref()),
+                Some(_) => std::ptr::null_mut(), // Non-string attribute value
                 None => std::ptr::null_mut(),
             },
             None => {
@@ -1426,9 +1427,12 @@ mod tests {
         let element = fragment.get(&txn, 0).unwrap().into_xml_element().unwrap();
         assert_eq!(
             element.get_attribute(&txn, "class"),
-            Some("container".to_string())
+            Some(yrs::Out::Any(yrs::Any::String("container".into())))
         );
-        assert_eq!(element.get_attribute(&txn, "id"), Some("main".to_string()));
+        assert_eq!(
+            element.get_attribute(&txn, "id"),
+            Some(yrs::Out::Any(yrs::Any::String("main".into())))
+        );
     }
 
     #[test]
@@ -1452,6 +1456,9 @@ mod tests {
         let txn = doc.transact();
         let element = fragment.get(&txn, 0).unwrap().into_xml_element().unwrap();
         assert_eq!(element.get_attribute(&txn, "class"), None);
-        assert_eq!(element.get_attribute(&txn, "id"), Some("main".to_string()));
+        assert_eq!(
+            element.get_attribute(&txn, "id"),
+            Some(yrs::Out::Any(yrs::Any::String("main".into())))
+        );
     }
 }
