@@ -1,14 +1,17 @@
 plugins {
     id 'java-library'
     id 'checkstyle'
+    id 'maven-publish'
 }
 
 group = 'net.carcdr'
-version = '0.1.0-SNAPSHOT'
+version = rootProject.version
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+    withJavadocJar()
+    withSourcesJar()
 }
 
 repositories {
@@ -52,4 +55,40 @@ test {
 javadoc {
     options.encoding = 'UTF-8'
     options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+// Publishing configuration
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'yhocuspocus-websocket'
+            from components.java
+
+            pom {
+                name = 'YHocuspocus WebSocket'
+                description = 'WebSocket transport for YHocuspocus using Jetty 12'
+                url = 'https://github.com/edpaget/y-crdt-jni'
+
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'edpaget'
+                        name = 'Edward Paget'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
+                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
+                    url = 'https://github.com/edpaget/y-crdt-jni'
+                }
+            }
+        }
+    }
 }

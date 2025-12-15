@@ -1,0 +1,148 @@
+name: Publish Snapshot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-native-libraries:
+    name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            lib_name: libycrdt_jni.so
+            resource_path: native/linux/x86_64
+
+          - os: macos-latest
+            arch: x86_64
+            target: x86_64-apple-darwin
+            lib_name: libycrdt_jni.dylib
+            resource_path: native/macos/x86_64
+
+          - os: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+            lib_name: libycrdt_jni.dylib
+            resource_path: native/macos/aarch64
+
+          - os: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+            lib_name: ycrdt_jni.dll
+            resource_path: native/windows/x86_64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt/target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build release library
+        run: cd ycrdt && cargo build --release --target ${{ matrix.target }}
+
+      - name: Create resource directory
+        run: mkdir -p build/resources/${{ matrix.resource_path }}
+
+      - name: Copy native library (Unix)
+        if: runner.os != 'Windows'
+        run: cp ycrdt/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+
+      - name: Copy native library (Windows)
+        if: runner.os == 'Windows'
+        run: Copy-Item ycrdt\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lib-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          retention-days: 1
+
+  publish-snapshot:
+    name: Publish Snapshot to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: build-native-libraries
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Organize native libraries
+        run: |
+          mkdir -p ycrdt/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt/src/main/resources/native/macos/x86_64
+          mkdir -p ycrdt/src/main/resources/native/macos/aarch64
+          mkdir -p ycrdt/src/main/resources/native/windows/x86_64
+
+          # Copy each platform's library to the correct location
+          find downloaded-artifacts -name "*.so" -exec cp {} ycrdt/src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -name "*.dylib" | while read file; do
+            if [[ "$file" == *"aarch64"* ]]; then
+              cp "$file" ycrdt/src/main/resources/native/macos/aarch64/
+            else
+              cp "$file" ycrdt/src/main/resources/native/macos/x86_64/
+            fi
+          done
+          find downloaded-artifacts -name "*.dll" -exec cp {} ycrdt/src/main/resources/native/windows/x86_64/ \;
+
+      - name: Verify native libraries
+        run: |
+          echo "Native libraries organized:"
+          find ycrdt/src/main/resources/native -type f
+
+      - name: Publish to GitHub Packages
+        run: ./gradlew publish
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List published artifacts
+        run: |
+          echo "Published modules:"
+          echo "  - net.carcdr:ycrdt:0.1.0-SNAPSHOT"
+          echo "  - net.carcdr:yprosemirror:0.1.0-SNAPSHOT"
+          echo "  - net.carcdr:yhocuspocus:0.1.0-SNAPSHOT"
+          echo "  - net.carcdr:yhocuspocus-websocket:0.1.0-SNAPSHOT"
