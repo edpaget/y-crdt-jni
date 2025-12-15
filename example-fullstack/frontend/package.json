@@ -8,19 +8,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@tiptap/react": "^2.1.13",
-    "@tiptap/starter-kit": "^2.1.13",
-    "@hocuspocus/provider": "^2.8.4",
-    "@tiptap/extension-collaboration": "^2.1.13",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "@tiptap/react": "^3.13.0",
+    "@tiptap/starter-kit": "^3.13.0",
+    "@hocuspocus/provider": "^3.4.3",
+    "@tiptap/extension-collaboration": "^3.13.0",
     "@tiptap/extension-collaboration-cursor": "^2.1.13",
     "yjs": "^13.6.10"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
     "typescript": "^5.2.2",
     "vite": "^7.3.0"
   }
