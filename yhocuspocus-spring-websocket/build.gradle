@@ -1,0 +1,99 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id 'maven-publish'
+}
+
+group = 'net.carcdr'
+version = rootProject.version
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // YHocuspocus core (transport-agnostic server)
+    api project(':yhocuspocus')
+
+    // Spring WebSocket (provided by user's Spring Boot app)
+    compileOnly 'org.springframework:spring-websocket:6.1.12'
+    compileOnly 'org.springframework:spring-web:6.1.12'
+    compileOnly 'org.springframework.boot:spring-boot-autoconfigure:3.3.4'
+
+    // Servlet API (for WebSocket)
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.4'
+    testImplementation 'org.springframework.boot:spring-boot-starter-websocket:3.3.4'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.9'
+}
+
+// Checkstyle configuration
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file('../config/checkstyle/checkstyle.xml')
+}
+
+// Test configuration
+test {
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+        showStandardStreams = false
+    }
+}
+
+// Javadoc configuration
+javadoc {
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+// Publishing configuration
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'yhocuspocus-spring-websocket'
+            from components.java
+
+            pom {
+                name = 'YHocuspocus Spring WebSocket'
+                description = 'Spring WebSocket transport for YHocuspocus'
+                url = 'https://github.com/edpaget/y-crdt-jni'
+
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'edpaget'
+                        name = 'Edward Paget'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
+                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
+                    url = 'https://github.com/edpaget/y-crdt-jni'
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,2 @@
+net.carcdr.yhocuspocus.spring.autoconfigure.YHocuspocusAutoConfiguration
+net.carcdr.yhocuspocus.spring.autoconfigure.YHocuspocusWebSocketAutoConfiguration
