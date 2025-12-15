@@ -16,7 +16,7 @@ dependencies {
     implementation project(':yhocuspocus-websocket')
 
     // Logging
-    implementation 'org.slf4j:slf4j-simple:2.0.9'
+    implementation 'org.slf4j:slf4j-simple:2.0.17'
 }
 
 application {
