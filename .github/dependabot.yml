@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Gradle dependencies (Java)
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      gradle-dependencies:
+        patterns:
+          - "*"
+
+  # Cargo dependencies (Rust) for ycrdt module
+  - package-ecosystem: "cargo"
+    directory: "/ycrdt"
+    schedule:
+      interval: "weekly"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  # npm dependencies for frontend example
+  - package-ecosystem: "npm"
+    directory: "/example-fullstack/frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
