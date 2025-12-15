@@ -94,7 +94,7 @@ WebSocket server started
 ═══════════════════════════════════════════════════════
 Server is ready! Open the frontend to start editing.
 
-Frontend: http://localhost:3000
+Frontend: http://localhost:3001
 Press Ctrl+C to stop the server...
 ═══════════════════════════════════════════════════════
 ```
@@ -115,18 +115,18 @@ npm install
 npm run dev
 ```
 
-The frontend will start on **http://localhost:3000**
+The frontend will start on **http://localhost:3001**
 
 ### 3. Test Collaboration
 
-1. Open **http://localhost:3000** in your browser
+1. Open **http://localhost:3001** in your browser
 2. Enter your name and a document name (e.g., "demo-document")
 3. Click **Connect**
 4. Start typing in the editor
 
 To see real-time collaboration:
 
-1. Open **http://localhost:3000** in a **second browser window** (or incognito tab)
+1. Open **http://localhost:3001** in a **second browser window** (or incognito tab)
 2. Use a different name but the **same document name**
 3. Click **Connect**
 4. Type in either window and watch the changes appear instantly in the other!
@@ -158,8 +158,91 @@ example-fullstack/
 │       ├── App.css                   # Styles
 │       └── index.css                 # Global styles
 │
+├── e2e/                               # End-to-end tests (Playwright)
+│   ├── package.json                  # Test dependencies
+│   ├── playwright.config.ts          # Playwright configuration
+│   └── tests/                        # Test files
+│       ├── health.spec.ts           # Server health checks
+│       ├── connection.spec.ts       # Frontend connection tests
+│       └── collaboration.spec.ts    # Multi-user sync tests
+│
 └── README.md                          # This file
 ```
+
+## E2E Testing
+
+The example includes end-to-end tests using Playwright that verify the collaborative editing functionality works correctly.
+
+### Running E2E Tests Locally
+
+```bash
+# From the project root, first build the backend
+./gradlew :example-fullstack:backend:build
+
+# Install frontend dependencies
+cd example-fullstack/frontend
+npm install
+
+# Install E2E test dependencies
+cd ../e2e
+npm install
+
+# Install Playwright browsers
+npx playwright install chromium
+
+# Run the tests (this will auto-start backend and frontend)
+npm test
+
+# Or run with browser visible for debugging
+npm run test:headed
+
+# Or run in debug mode
+npm run test:debug
+
+# View the HTML test report
+npm run test:report
+```
+
+The Playwright configuration automatically starts both the backend server (port 1234) and frontend dev server (port 3001) before running tests, and stops them afterward.
+
+### Running with Servers Already Running
+
+If you already have the backend and frontend running, the tests will reuse them (in non-CI environments):
+
+```bash
+# Terminal 1: Backend
+./gradlew :example-fullstack:backend:run
+
+# Terminal 2: Frontend
+cd example-fullstack/frontend && npm run dev
+
+# Terminal 3: Tests (will connect to existing servers)
+cd example-fullstack/e2e && npm test
+```
+
+### Test Scenarios
+
+1. **Health Tests** (`health.spec.ts`):
+   - WebSocket server accepts connections
+
+2. **Connection Tests** (`connection.spec.ts`):
+   - Frontend loads correctly
+   - User can connect to a document
+   - User can disconnect from a document
+
+3. **Collaboration Tests** (`collaboration.spec.ts`):
+   - Two users can see each other's edits
+   - Simultaneous editing syncs correctly
+   - Edits persist when user reconnects
+   - New user joining sees existing content
+
+### CI Integration
+
+E2E tests run automatically in GitHub Actions on:
+- Pushes to main/develop branches
+- Pull requests that modify the example, yhocuspocus, or ycrdt modules
+
+See `.github/workflows/e2e.yml` for the workflow configuration.
 
 ## How It Works
 

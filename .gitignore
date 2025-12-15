@@ -78,3 +78,5 @@ plans/
 .claude/*
 !.claude/Claude.md
 !.claude/commands/
+
+example-fullstack/e2e/node_modules/

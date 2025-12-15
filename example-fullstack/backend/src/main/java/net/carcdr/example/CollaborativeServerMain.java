@@ -78,7 +78,7 @@ public final class CollaborativeServerMain {
                 System.out.println("═══════════════════════════════════════════════════════");
                 System.out.println("Server is ready! Open the frontend to start editing.");
                 System.out.println();
-                System.out.println("Frontend: http://localhost:3000");
+                System.out.println("Frontend: http://localhost:3001");
                 System.out.println("Press Ctrl+C to stop the server...");
                 System.out.println("═══════════════════════════════════════════════════════");
                 System.out.println();
