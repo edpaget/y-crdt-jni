@@ -69,10 +69,10 @@ From the project root directory:
 
 ```bash
 # Build the backend
-./gradlew :example-fullstack:backend:build
+./gradlew :examples:fullstack:backend:build
 
 # Run the server
-./gradlew :example-fullstack:backend:run
+./gradlew :examples:fullstack:backend:run
 ```
 
 You should see:
@@ -106,7 +106,7 @@ The server is now running on **ws://localhost:1234**
 In a new terminal, navigate to the frontend directory:
 
 ```bash
-cd example-fullstack/frontend
+cd examples/frontend
 
 # Install dependencies (first time only)
 npm install
@@ -139,14 +139,8 @@ You'll see:
 ## Project Structure
 
 ```
-example-fullstack/
-├── backend/                           # Java WebSocket server
-│   ├── build.gradle                  # Gradle build configuration
-│   └── src/main/java/
-│       └── net/carcdr/example/
-│           └── CollaborativeServerMain.java  # Server entry point
-│
-├── frontend/                          # React TypeScript frontend
+examples/
+├── frontend/                          # Shared React TypeScript frontend
 │   ├── package.json                  # NPM dependencies
 │   ├── tsconfig.json                 # TypeScript config
 │   ├── vite.config.ts                # Vite build config
@@ -158,15 +152,20 @@ example-fullstack/
 │       ├── App.css                   # Styles
 │       └── index.css                 # Global styles
 │
-├── e2e/                               # End-to-end tests (Playwright)
-│   ├── package.json                  # Test dependencies
-│   ├── playwright.config.ts          # Playwright configuration
-│   └── tests/                        # Test files
-│       ├── health.spec.ts           # Server health checks
-│       ├── connection.spec.ts       # Frontend connection tests
-│       └── collaboration.spec.ts    # Multi-user sync tests
+├── fullstack/                         # This example (standalone Jetty)
+│   ├── backend/                      # Java WebSocket server
+│   │   ├── build.gradle             # Gradle build configuration
+│   │   └── src/main/java/
+│   │       └── net/carcdr/example/
+│   │           └── CollaborativeServerMain.java
+│   ├── e2e/                          # End-to-end tests (Playwright)
+│   │   ├── package.json             # Test dependencies
+│   │   ├── playwright.config.ts     # Playwright configuration
+│   │   └── tests/                   # Test files
+│   └── README.md                     # This file
 │
-└── README.md                          # This file
+└── spring-boot/                       # Spring Boot alternative
+    └── backend/                      # Spring Boot server
 ```
 
 ## E2E Testing
@@ -177,10 +176,10 @@ The example includes end-to-end tests using Playwright that verify the collabora
 
 ```bash
 # From the project root, first build the backend
-./gradlew :example-fullstack:backend:build
+./gradlew :examples:fullstack:backend:build
 
 # Install frontend dependencies
-cd example-fullstack/frontend
+cd examples/frontend
 npm install
 
 # Install E2E test dependencies
@@ -211,13 +210,13 @@ If you already have the backend and frontend running, the tests will reuse them 
 
 ```bash
 # Terminal 1: Backend
-./gradlew :example-fullstack:backend:run
+./gradlew :examples:fullstack:backend:run
 
 # Terminal 2: Frontend
-cd example-fullstack/frontend && npm run dev
+cd examples/frontend && npm run dev
 
 # Terminal 3: Tests (will connect to existing servers)
-cd example-fullstack/e2e && npm test
+cd examples/fullstack/e2e && npm test
 ```
 
 ### Test Scenarios
@@ -353,11 +352,11 @@ public class PostgresDatabaseExtension extends DatabaseExtension {
 
 - **Check Java version**: `java -version` (need 21)
 - **Check port 1234**: Make sure nothing else is using port 1234
-- **Build first**: Run `./gradlew :example-fullstack:backend:build`
+- **Build first**: Run `./gradlew :examples:fullstack:backend:build`
 
 ### Frontend won't start
 
-- **Install dependencies**: `npm install` in `frontend/` directory
+- **Install dependencies**: `npm install` in `examples/frontend/` directory
 - **Check Node version**: `node -v` (need 18+)
 - **Clear cache**: Delete `node_modules/` and run `npm install` again
 

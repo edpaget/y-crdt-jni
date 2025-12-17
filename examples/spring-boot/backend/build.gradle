@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.4'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'net.carcdr'
+version = rootProject.version
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // YHocuspocus Spring WebSocket integration
+    implementation project(':yhocuspocus-spring-websocket')
+
+    // Spring Boot WebSocket starter
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // Spring Boot test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Disable checkstyle for example code - Spring Boot @Configuration classes cannot be final
+tasks.withType(Checkstyle).configureEach {
+    enabled = false
+}

@@ -1,11 +1,45 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { HocuspocusProvider } from '@hocuspocus/provider'
+import * as Y from 'yjs'
 import CollaborativeEditor from './Editor'
 import './App.css'
+
+type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 function App() {
   const [documentName, setDocumentName] = useState('demo-document')
   const [userName, setUserName] = useState(`User-${Math.floor(Math.random() * 1000)}`)
-  const [connected, setConnected] = useState(false)
+  const [shouldConnect, setShouldConnect] = useState(false)
+  const [status, setStatus] = useState<ConnectionStatus>('disconnected')
+
+  // Create Y.Doc - persists across connection attempts
+  const ydoc = useMemo(() => new Y.Doc(), [])
+
+  // Create provider only when user clicks connect
+  const provider = useMemo(() => {
+    if (!shouldConnect) return null
+    return new HocuspocusProvider({
+      url: 'ws://localhost:1234',
+      name: documentName,
+      document: ydoc,
+      onStatus: ({ status }) => {
+        setStatus(status as ConnectionStatus)
+      },
+    })
+  }, [shouldConnect, documentName, ydoc])
+
+  // Cleanup provider on disconnect or unmount
+  useEffect(() => {
+    return () => {
+      provider?.destroy()
+    }
+  }, [provider])
+
+  const handleDisconnect = () => {
+    provider?.destroy()
+    setShouldConnect(false)
+    setStatus('disconnected')
+  }
 
   return (
     <div className="app">
@@ -16,7 +50,7 @@ function App() {
         </p>
       </header>
 
-      {!connected ? (
+      {!shouldConnect ? (
         <div className="connect-form">
           <h2>Connect to Server</h2>
           <div className="form-group">
@@ -41,7 +75,7 @@ function App() {
           </div>
           <button
             className="connect-button"
-            onClick={() => setConnected(true)}
+            onClick={() => setShouldConnect(true)}
             disabled={!userName.trim() || !documentName.trim()}
           >
             Connect
@@ -54,13 +88,15 @@ function App() {
             <span className="document-info">Document: <strong>{documentName}</strong></span>
             <button
               className="disconnect-button"
-              onClick={() => setConnected(false)}
+              onClick={handleDisconnect}
             >
               Disconnect
             </button>
           </div>
           <CollaborativeEditor
-            documentName={documentName}
+            ydoc={ydoc}
+            provider={provider!}
+            status={status}
             userName={userName}
             userColor={getUserColor(userName)}
           />
