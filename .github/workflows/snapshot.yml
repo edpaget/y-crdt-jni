@@ -9,6 +9,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  e2e-tests:
+    name: E2E Tests
+    uses: ./.github/workflows/e2e.yml
+
   build-native-libraries:
     name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
@@ -87,7 +91,7 @@ jobs:
   publish-snapshot:
     name: Publish Snapshot to GitHub Packages
     runs-on: ubuntu-latest
-    needs: build-native-libraries
+    needs: [e2e-tests, build-native-libraries]
     permissions:
       contents: read
       packages: write
@@ -146,3 +150,4 @@ jobs:
           echo "  - net.carcdr:yprosemirror:0.1.0-SNAPSHOT"
           echo "  - net.carcdr:yhocuspocus:0.1.0-SNAPSHOT"
           echo "  - net.carcdr:yhocuspocus-websocket:0.1.0-SNAPSHOT"
+          echo "  - net.carcdr:yhocuspocus-spring-websocket:0.1.0-SNAPSHOT"

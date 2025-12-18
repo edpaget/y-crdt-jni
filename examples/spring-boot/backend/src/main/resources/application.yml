@@ -1,0 +1,15 @@
+server:
+  port: 1234
+
+yhocuspocus:
+  path: /
+  allowed-origins:
+    - "http://localhost:3001"
+    - "http://127.0.0.1:3001"
+  debounce: 2s
+  max-debounce: 10s
+
+logging:
+  level:
+    net.carcdr.yhocuspocus: DEBUG
+    org.springframework.web.socket: DEBUG

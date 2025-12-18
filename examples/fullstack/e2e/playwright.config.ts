@@ -1,5 +1,19 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Backend configuration - can be overridden via BACKEND env var
+// Options: 'jetty' (default) or 'spring'
+const backend = process.env.BACKEND || 'jetty';
+
+const backendCommands: Record<string, string> = {
+  jetty: 'cd ../../.. && ./gradlew :examples:fullstack:backend:run',
+  spring: 'cd ../../.. && ./gradlew :examples:spring-boot:backend:bootRun',
+};
+
+const backendCommand = backendCommands[backend];
+if (!backendCommand) {
+  throw new Error(`Unknown backend: ${backend}. Use 'jetty' or 'spring'.`);
+}
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
@@ -23,7 +37,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'cd ../.. && ./gradlew :example-fullstack:backend:run',
+      command: backendCommand,
       port: 1234,
       reuseExistingServer: !process.env.CI,
       timeout: 180000,
@@ -32,7 +46,7 @@ export default defineConfig({
     },
     {
       command: 'npm run dev',
-      cwd: '../frontend',
+      cwd: '../../frontend',
       url: 'http://localhost:3001',
       reuseExistingServer: !process.env.CI,
       timeout: 60000,

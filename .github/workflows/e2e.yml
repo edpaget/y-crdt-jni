@@ -6,18 +6,25 @@ on:
   pull_request:
     branches: [main, develop]
     paths:
-      - 'example-fullstack/**'
+      - 'examples/**'
       - 'yhocuspocus/**'
       - 'yhocuspocus-websocket/**'
+      - 'yhocuspocus-spring-websocket/**'
       - 'ycrdt/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   e2e:
-    name: E2E Tests
+    name: E2E Tests (${{ matrix.backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [jetty, spring]
 
     steps:
       - name: Checkout code
@@ -40,8 +47,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
-            example-fullstack/frontend/package-lock.json
-            example-fullstack/e2e/package-lock.json
+            examples/frontend/package-lock.json
+            examples/fullstack/e2e/package-lock.json
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -63,27 +70,29 @@ jobs:
         run: ./gradlew build -x test
 
       - name: Install frontend dependencies
-        working-directory: example-fullstack/frontend
+        working-directory: examples/frontend
         run: npm ci
 
       - name: Install E2E dependencies
-        working-directory: example-fullstack/e2e
+        working-directory: examples/fullstack/e2e
         run: npm ci
 
       - name: Install Playwright browsers
-        working-directory: example-fullstack/e2e
+        working-directory: examples/fullstack/e2e
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        working-directory: example-fullstack/e2e
+        working-directory: examples/fullstack/e2e
+        env:
+          BACKEND: ${{ matrix.backend }}
         run: npm test
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results
+          name: e2e-test-results-${{ matrix.backend }}
           path: |
-            example-fullstack/e2e/playwright-report/
-            example-fullstack/e2e/test-results/
+            examples/fullstack/e2e/playwright-report/
+            examples/fullstack/e2e/test-results/
           retention-days: 30

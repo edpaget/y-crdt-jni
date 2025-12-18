@@ -1,56 +1,29 @@
-import { useEffect, useState, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
-import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import * as Y from 'yjs'
 
 interface EditorProps {
-  documentName: string
+  ydoc: Y.Doc
+  provider: HocuspocusProvider
+  status: 'connecting' | 'connected' | 'disconnected'
   userName: string
   userColor: string
 }
 
-const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps) => {
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
-
-  // Create provider first (memoized so it doesn't recreate on every render)
-  const provider = useMemo(() => {
-    return new HocuspocusProvider({
-      url: 'ws://localhost:1234',
-      name: documentName,
-      onStatus: ({ status }) => {
-        console.log('Hocuspocus status changed:', status)
-        setStatus(status as 'connecting' | 'connected' | 'disconnected')
-      },
-      onSynced: ({ state }) => {
-        console.log('Document synced, state:', state)
-      },
-      onConnect: () => {
-        console.log('WebSocket connected!')
-      },
-      onDisconnect: ({ event }) => {
-        console.log('WebSocket disconnected:', event)
-      },
-      onClose: ({ event }) => {
-        console.log('Connection closed:', event)
-      },
-      onOpen: () => {
-        console.log('WebSocket opened!')
-      },
-    })
-  }, [documentName])
-
-  // Create editor with the provider's document
+const CollaborativeEditor = ({ ydoc, provider, status, userName, userColor }: EditorProps) => {
+  // Create editor only after provider is connected
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        history: false, // Disable default history, use Yjs history
+        undoRedo: false, // Disable default history, use Yjs history
       }),
       Collaboration.configure({
-        document: provider.document,
+        document: ydoc,
       }),
-      CollaborationCursor.configure({
+      CollaborationCaret.configure({
         provider: provider,
         user: {
           name: userName,
@@ -58,10 +31,29 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
         },
       }),
     ],
-  }, [provider])
+  }, [ydoc, provider, status === 'connected'])
 
-  if (!editor) {
-    return <div className="editor-loading">Loading editor...</div>
+  const statusIndicator = (
+    <div className={`status-indicator status-${status}`}>
+      {status === 'connected' && 'Connected'}
+      {status === 'connecting' && 'Connecting...'}
+      {status === 'disconnected' && 'Disconnected'}
+    </div>
+  )
+
+  if (status !== 'connected' || !editor) {
+    return (
+      <div className="editor-wrapper">
+        <div className="editor-toolbar">
+          {statusIndicator}
+        </div>
+        <div className="editor-loading">
+          {status === 'connecting' && 'Connecting to server...'}
+          {status === 'disconnected' && 'Disconnected. Reconnecting...'}
+          {status === 'connected' && 'Loading editor...'}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -110,11 +102,7 @@ const CollaborativeEditor = ({ documentName, userName, userColor }: EditorProps)
           1. List
         </button>
         <div className="toolbar-separator"></div>
-        <div className={`status-indicator status-${status}`}>
-          {status === 'connected' && '🟢 Connected'}
-          {status === 'connecting' && '🟡 Connecting...'}
-          {status === 'disconnected' && '🔴 Disconnected'}
-        </div>
+        {statusIndicator}
       </div>
       <EditorContent editor={editor} className="editor-content" />
     </div>

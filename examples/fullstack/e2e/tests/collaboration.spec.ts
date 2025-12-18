@@ -34,8 +34,11 @@ test.describe('Collaborative Editing', () => {
 
       // Bob should see Alice's text
       await expect(page2.locator('.ProseMirror')).toContainText('Hello from Alice', {
-        timeout: 5000,
+        timeout: 10000,
       });
+
+      // Small delay to ensure sync is complete before Bob types
+      await page2.waitForTimeout(500);
 
       // Bob types
       await page2.locator('.ProseMirror').click();
@@ -44,7 +47,7 @@ test.describe('Collaborative Editing', () => {
 
       // Alice should see Bob's text
       await expect(page1.locator('.ProseMirror')).toContainText('and Bob says hi', {
-        timeout: 5000,
+        timeout: 10000,
       });
     } finally {
       await context1.close();

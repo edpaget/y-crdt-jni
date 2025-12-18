@@ -14,7 +14,7 @@
     "@tiptap/starter-kit": "^3.13.0",
     "@hocuspocus/provider": "^3.4.3",
     "@tiptap/extension-collaboration": "^3.13.0",
-    "@tiptap/extension-collaboration-cursor": "^2.1.13",
+    "@tiptap/extension-collaboration-caret": "^3.13.0",
     "yjs": "^13.6.10"
   },
   "devDependencies": {
