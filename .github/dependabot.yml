@@ -5,6 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       gradle-dependencies:
         patterns:
@@ -15,6 +17,8 @@ updates:
     directory: "/ycrdt"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       rust-dependencies:
         patterns:
@@ -25,6 +29,8 @@ updates:
     directory: "/example-fullstack/frontend"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       npm-dependencies:
         patterns:
@@ -35,6 +41,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       github-actions:
         patterns:
