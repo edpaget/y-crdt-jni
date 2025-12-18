@@ -51,7 +51,7 @@ Thumbs.db
 Desktop.ini
 
 # OS - Linux
-*~
+# (backup files already covered by Vim section)
 
 # Native libraries (but keep in module resources)
 *.so
@@ -71,12 +71,15 @@ test-results/
 *.swp
 .~*
 
+# Node.js / npm (for frontend examples)
+**/node_modules/
+**/.vite/
+examples/**/dist/
+
 # Planning and research documents (not committed)
 plans/
 
 # Claude Code temporary files
 .claude/*
-!.claude/Claude.md
+!.claude/CLAUDE.md
 !.claude/commands/
-
-examples/**/node_modules/*
