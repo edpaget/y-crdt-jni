@@ -1,18 +1,11 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
-use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring, DocWrapper};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jlong, jstring};
 use jni::{Executor, JNIEnv};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use yrs::types::map::MapEvent;
 use yrs::types::{EntryChange, ToJson};
 use yrs::{Doc, Map, MapRef, Observable, Out, TransactionMut};
-
-// Global storage for Java YMap objects (needed for callbacks)
-lazy_static::lazy_static! {
-    static ref MAP_JAVA_OBJECTS: Arc<Mutex<HashMap<jlong, GlobalRef>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
 
 /// Gets or creates a YMap instance from a YDoc
 ///
@@ -50,8 +43,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetMap(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
-        let map = doc.get_or_insert_map(name_str.as_str());
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        let map = wrapper.doc.get_or_insert_map(name_str.as_str());
         to_java_ptr(map)
     }
 }
@@ -811,59 +804,71 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeObserve(
         }
     };
 
-    // Store the global reference
-    {
-        let mut java_objects = MAP_JAVA_OBJECTS.lock().unwrap();
-        java_objects.insert(subscription_id, global_ref);
-    }
-
     unsafe {
-        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
         let map = from_java_ptr::<MapRef>(map_ptr);
 
         // Create observer closure
         let subscription = map.observe(move |txn, event| {
             // Use Executor for thread attachment with automatic local frame management
             let _ = executor
-                .with_attached(|env| dispatch_map_event(env, map_ptr, subscription_id, txn, event));
+                .with_attached(|env| dispatch_map_event(env, doc_ptr, subscription_id, txn, event));
         });
 
-        // Leak the subscription to keep it alive - we'll clean up on unobserve
-        // This is a simplified approach; in production we'd use a better mechanism
-        Box::leak(Box::new(subscription));
+        // Store subscription and GlobalRef in the DocWrapper
+        wrapper.add_subscription(subscription_id, subscription, global_ref);
     }
 }
 
 /// Unregisters an observer for the YMap
 ///
 /// # Parameters
-/// - `doc_ptr`: Pointer to the YDoc instance (unused but kept for consistency)
+/// - `doc_ptr`: Pointer to the YDoc instance
 /// - `map_ptr`: Pointer to the YMap instance (unused but kept for consistency)
 /// - `subscription_id`: The subscription ID to remove
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeUnobserve(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
-    _doc_ptr: jlong,
+    doc_ptr: jlong,
     _map_ptr: jlong,
     subscription_id: jlong,
 ) {
-    // Remove the global reference to allow the Java object to be GC'd
-    let mut java_objects = MAP_JAVA_OBJECTS.lock().unwrap();
-    java_objects.remove(&subscription_id);
-    // The GlobalRef is dropped here, releasing the reference
-    // Note: The Subscription is still leaked from observe()
-    // This is acceptable for now but should be fixed in production
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+
+    unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        // Remove subscription and GlobalRef from DocWrapper
+        // Both the Subscription and GlobalRef are dropped here
+        wrapper.remove_subscription(subscription_id);
+    }
 }
 
 /// Helper function to dispatch a map event to Java
 fn dispatch_map_event(
     env: &mut JNIEnv,
-    _map_ptr: jlong,
+    doc_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
     event: &MapEvent,
 ) -> Result<(), jni::errors::Error> {
+    // Get the Java YMap object from DocWrapper
+    let ymap_ref = unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        match wrapper.get_java_ref(subscription_id) {
+            Some(r) => r,
+            None => {
+                eprintln!("No Java object found for subscription {}", subscription_id);
+                return Ok(());
+            }
+        }
+    };
+
+    let ymap_obj = ymap_ref.as_obj();
+
     // Get the keys that changed
     let keys = event.keys(txn);
 
@@ -951,18 +956,6 @@ fn dispatch_map_event(
             &[JValue::Object(&change_obj)],
         )?;
     }
-
-    // Get the Java YMap object from our global storage
-    let java_objects = MAP_JAVA_OBJECTS.lock().unwrap();
-    let ymap_ref = match java_objects.get(&subscription_id) {
-        Some(r) => r,
-        None => {
-            eprintln!("No Java object found for subscription {}", subscription_id);
-            return Ok(());
-        }
-    };
-
-    let ymap_obj = ymap_ref.as_obj();
 
     // Create YEvent
     let event_class = env.find_class("net/carcdr/ycrdt/YEvent")?;

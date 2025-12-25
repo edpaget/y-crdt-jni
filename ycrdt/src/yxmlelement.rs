@@ -1,23 +1,17 @@
 use crate::{
     free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
+    DocWrapper,
 };
-use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
 use jni::{Executor, JNIEnv};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use yrs::types::xml::XmlEvent;
 use yrs::types::Change;
 use yrs::{
-    Doc, GetString, Observable, Transact, TransactionMut, Xml, XmlElementPrelim, XmlElementRef,
+    GetString, Observable, Transact, TransactionMut, Xml, XmlElementPrelim, XmlElementRef,
     XmlFragment,
 };
-
-// Global storage for Java YXmlElement objects (needed for callbacks)
-lazy_static::lazy_static! {
-    static ref XMLELEMENT_JAVA_OBJECTS: Arc<Mutex<HashMap<jlong, GlobalRef>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
 
 /// Gets or creates a YXmlElement instance from a YDoc
 ///
@@ -55,21 +49,21 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetXmlElement(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
-        let fragment = doc.get_or_insert_xml_fragment(name_str.as_str());
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        let fragment = wrapper.doc.get_or_insert_xml_fragment(name_str.as_str());
 
         // Ensure the fragment has an element child at index 0
         {
-            let txn = doc.transact();
+            let txn = wrapper.doc.transact();
             if fragment.len(&txn) == 0 {
                 drop(txn);
-                let mut txn = doc.transact_mut();
+                let mut txn = wrapper.doc.transact_mut();
                 fragment.insert(&mut txn, 0, XmlElementPrelim::empty(name_str.as_str()));
             }
         }
 
         // Return a pointer to the element at index 0, not the fragment
-        let txn = doc.transact();
+        let txn = wrapper.doc.transact();
         if let Some(child) = fragment.get(&txn, 0) {
             if let Some(element) = child.into_xml_element() {
                 return to_java_ptr(element);
@@ -1034,60 +1028,72 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeObserve(
         }
     };
 
-    // Store the global reference
-    {
-        let mut java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
-        java_objects.insert(subscription_id, global_ref);
-    }
-
     unsafe {
-        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
         let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
 
         // Create observer closure
         let subscription = element.observe(move |txn, event| {
             // Use Executor for thread attachment with automatic local frame management
             let _ = executor.with_attached(|env| {
-                dispatch_xmlelement_event(env, xml_element_ptr, subscription_id, txn, event)
+                dispatch_xmlelement_event(env, doc_ptr, subscription_id, txn, event)
             });
         });
 
-        // Leak the subscription to keep it alive - we'll clean up on unobserve
-        // This is a simplified approach; in production we'd use a better mechanism
-        Box::leak(Box::new(subscription));
+        // Store subscription and GlobalRef in the DocWrapper
+        wrapper.add_subscription(subscription_id, subscription, global_ref);
     }
 }
 
 /// Unregisters an observer for the YXmlElement
 ///
 /// # Parameters
-/// - `doc_ptr`: Pointer to the YDoc instance (unused but kept for consistency)
+/// - `doc_ptr`: Pointer to the YDoc instance
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance (unused but kept for consistency)
 /// - `subscription_id`: The subscription ID to remove
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeUnobserve(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
-    _doc_ptr: jlong,
+    doc_ptr: jlong,
     _xml_element_ptr: jlong,
     subscription_id: jlong,
 ) {
-    // Remove the global reference to allow the Java object to be GC'd
-    let mut java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
-    java_objects.remove(&subscription_id);
-    // The GlobalRef is dropped here, releasing the reference
-    // Note: The Subscription is still leaked from observe()
-    // This is acceptable for now but should be fixed in production
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+
+    unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        // Remove subscription and GlobalRef from DocWrapper
+        // Both the Subscription and GlobalRef are dropped here
+        wrapper.remove_subscription(subscription_id);
+    }
 }
 
 /// Helper function to dispatch an XML element event to Java
 fn dispatch_xmlelement_event(
     env: &mut JNIEnv,
-    _xml_element_ptr: jlong,
+    doc_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
     event: &XmlEvent,
 ) -> Result<(), jni::errors::Error> {
+    // Get the Java YXmlElement object from DocWrapper
+    let yxmlelement_ref = unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        match wrapper.get_java_ref(subscription_id) {
+            Some(r) => r,
+            None => {
+                eprintln!("No Java object found for subscription {}", subscription_id);
+                return Ok(());
+            }
+        }
+    };
+
+    let yxmlelement_obj = yxmlelement_ref.as_obj();
+
     // Create a Java ArrayList for changes
     let changes_list = env.new_object("java/util/ArrayList", "()V", &[])?;
 
@@ -1236,18 +1242,6 @@ fn dispatch_xmlelement_event(
             &[JValue::Object(&attr_change_obj)],
         )?;
     }
-
-    // Get the Java YXmlElement object from our global storage
-    let java_objects = XMLELEMENT_JAVA_OBJECTS.lock().unwrap();
-    let yxmlelement_ref = match java_objects.get(&subscription_id) {
-        Some(r) => r,
-        None => {
-            eprintln!("No Java object found for subscription {}", subscription_id);
-            return Ok(());
-        }
-    };
-
-    let yxmlelement_obj = yxmlelement_ref.as_obj();
 
     // Create YEvent
     let event_class = env.find_class("net/carcdr/ycrdt/YEvent")?;

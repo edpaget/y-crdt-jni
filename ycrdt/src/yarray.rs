@@ -1,20 +1,14 @@
 use crate::{
     free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
+    DocWrapper,
 };
-use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jint, jlong, jstring};
 use jni::{Executor, JNIEnv};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use yrs::types::array::ArrayEvent;
 use yrs::types::{Change, ToJson};
 use yrs::{Array, ArrayRef, Doc, Observable, Out, TransactionMut};
-
-// Global storage for Java YArray objects (needed for callbacks)
-lazy_static::lazy_static! {
-    static ref ARRAY_JAVA_OBJECTS: Arc<Mutex<HashMap<jlong, GlobalRef>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
 
 /// Gets or creates a YArray instance from a YDoc
 ///
@@ -52,8 +46,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetArray(
     };
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(doc_ptr);
-        let array = doc.get_or_insert_array(name_str.as_str());
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        let array = wrapper.doc.get_or_insert_array(name_str.as_str());
         to_java_ptr(array)
     }
 }
@@ -710,60 +704,72 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeObserve(
         }
     };
 
-    // Store the global reference
-    {
-        let mut java_objects = ARRAY_JAVA_OBJECTS.lock().unwrap();
-        java_objects.insert(subscription_id, global_ref);
-    }
-
     unsafe {
-        let _doc = from_java_ptr::<Doc>(doc_ptr);
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
         let array = from_java_ptr::<ArrayRef>(array_ptr);
 
         // Create observer closure
         let subscription = array.observe(move |txn, event| {
             // Use Executor for thread attachment with automatic local frame management
             let _ = executor.with_attached(|env| {
-                dispatch_array_event(env, array_ptr, subscription_id, txn, event)
+                dispatch_array_event(env, doc_ptr, subscription_id, txn, event)
             });
         });
 
-        // Leak the subscription to keep it alive - we'll clean up on unobserve
-        // This is a simplified approach; in production we'd use a better mechanism
-        Box::leak(Box::new(subscription));
+        // Store subscription and GlobalRef in the DocWrapper
+        wrapper.add_subscription(subscription_id, subscription, global_ref);
     }
 }
 
 /// Unregisters an observer for the YArray
 ///
 /// # Parameters
-/// - `doc_ptr`: Pointer to the YDoc instance (unused but kept for consistency)
+/// - `doc_ptr`: Pointer to the YDoc instance
 /// - `array_ptr`: Pointer to the YArray instance (unused but kept for consistency)
 /// - `subscription_id`: The subscription ID to remove
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeUnobserve(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
-    _doc_ptr: jlong,
+    doc_ptr: jlong,
     _array_ptr: jlong,
     subscription_id: jlong,
 ) {
-    // Remove the global reference to allow the Java object to be GC'd
-    let mut java_objects = ARRAY_JAVA_OBJECTS.lock().unwrap();
-    java_objects.remove(&subscription_id);
-    // The GlobalRef is dropped here, releasing the reference
-    // Note: The Subscription is still leaked from observe()
-    // This is acceptable for now but should be fixed in production
+    if doc_ptr == 0 {
+        throw_exception(&mut env, "Invalid YDoc pointer");
+        return;
+    }
+
+    unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        // Remove subscription and GlobalRef from DocWrapper
+        // Both the Subscription and GlobalRef are dropped here
+        wrapper.remove_subscription(subscription_id);
+    }
 }
 
 /// Helper function to dispatch an array event to Java
 fn dispatch_array_event(
     env: &mut JNIEnv,
-    _array_ptr: jlong,
+    doc_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
     event: &ArrayEvent,
 ) -> Result<(), jni::errors::Error> {
+    // Get the Java YArray object from DocWrapper
+    let yarray_ref = unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        match wrapper.get_java_ref(subscription_id) {
+            Some(r) => r,
+            None => {
+                eprintln!("No Java object found for subscription {}", subscription_id);
+                return Ok(());
+            }
+        }
+    };
+
+    let yarray_obj = yarray_ref.as_obj();
+
     // Get the delta
     let delta = event.delta(txn);
 
@@ -830,18 +836,6 @@ fn dispatch_array_event(
             &[JValue::Object(&change_obj)],
         )?;
     }
-
-    // Get the Java YArray object from our global storage
-    let java_objects = ARRAY_JAVA_OBJECTS.lock().unwrap();
-    let yarray_ref = match java_objects.get(&subscription_id) {
-        Some(r) => r,
-        None => {
-            eprintln!("No Java object found for subscription {}", subscription_id);
-            return Ok(());
-        }
-    };
-
-    let yarray_obj = yarray_ref.as_obj();
 
     // Create YEvent
     let event_class = env.find_class("net/carcdr/ycrdt/YEvent")?;

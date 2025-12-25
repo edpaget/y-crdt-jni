@@ -1,6 +1,9 @@
+use jni::objects::GlobalRef;
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
-use yrs::TransactionMut;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use yrs::{Doc, Subscription, TransactionMut};
 
 mod yarray;
 mod ydoc;
@@ -17,6 +20,63 @@ pub use ytext::*;
 pub use yxmlelement::*;
 pub use yxmlfragment::*;
 pub use yxmltext::*;
+
+/// Wrapper around yrs::Doc that owns subscriptions and Java GlobalRefs.
+/// This ensures subscriptions are properly cleaned up when the document is destroyed,
+/// avoiding the need for global static storage and eliminating potential deadlocks.
+pub struct DocWrapper {
+    /// The underlying yrs document
+    pub doc: Doc,
+    /// Subscriptions keyed by subscription ID
+    /// Using RefCell since JNI calls are serialized per-document
+    subscriptions: RefCell<HashMap<jlong, Subscription>>,
+    /// Java GlobalRefs for callback objects, keyed by subscription ID
+    java_refs: RefCell<HashMap<jlong, GlobalRef>>,
+}
+
+impl DocWrapper {
+    /// Create a new DocWrapper with a new document
+    pub fn new() -> Self {
+        Self {
+            doc: Doc::new(),
+            subscriptions: RefCell::new(HashMap::new()),
+            java_refs: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Create a new DocWrapper with a document using the given options
+    pub fn with_options(options: yrs::Options) -> Self {
+        Self {
+            doc: Doc::with_options(options),
+            subscriptions: RefCell::new(HashMap::new()),
+            java_refs: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Store a subscription and its associated Java GlobalRef
+    pub fn add_subscription(&self, id: jlong, subscription: Subscription, java_ref: GlobalRef) {
+        self.subscriptions.borrow_mut().insert(id, subscription);
+        self.java_refs.borrow_mut().insert(id, java_ref);
+    }
+
+    /// Remove a subscription and its associated Java GlobalRef
+    /// Returns the removed subscription (if any) so it can be dropped outside any locks
+    pub fn remove_subscription(&self, id: jlong) -> Option<Subscription> {
+        self.java_refs.borrow_mut().remove(&id);
+        self.subscriptions.borrow_mut().remove(&id)
+    }
+
+    /// Get a reference to a Java GlobalRef by subscription ID
+    pub fn get_java_ref(&self, id: jlong) -> Option<GlobalRef> {
+        self.java_refs.borrow().get(&id).cloned()
+    }
+}
+
+impl Default for DocWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Retrieve a mutable reference to a transaction from a raw pointer
 ///
@@ -80,16 +140,15 @@ pub unsafe fn free_java_ptr<T>(ptr: jlong) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use yrs::Doc;
 
     #[test]
     fn test_pointer_conversion() {
-        let doc = Doc::new();
+        let doc = DocWrapper::new();
         let ptr = to_java_ptr(doc);
         assert_ne!(ptr, 0);
 
         unsafe {
-            free_java_ptr::<Doc>(ptr);
+            free_java_ptr::<DocWrapper>(ptr);
         }
     }
 }

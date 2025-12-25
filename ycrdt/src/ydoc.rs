@@ -1,18 +1,13 @@
-use crate::{free_java_ptr, free_transaction, from_java_ptr, throw_exception, to_java_ptr};
-use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JValue};
+use crate::{
+    free_java_ptr, free_transaction, from_java_ptr, throw_exception, to_java_ptr, DocWrapper,
+};
+use jni::objects::{JByteArray, JClass, JObject, JValue};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::{Executor, JNIEnv};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
-use yrs::{Doc, ReadTxn, Transact};
-
-// Global storage for Java YDoc objects (needed for update callbacks)
-lazy_static::lazy_static! {
-    static ref DOC_JAVA_OBJECTS: Arc<Mutex<HashMap<jlong, GlobalRef>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
+use yrs::{ReadTxn, Transact};
 
 /// Creates a new YDoc instance
 ///
@@ -23,7 +18,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeCreate(
     _env: JNIEnv,
     _class: JClass,
 ) -> jlong {
-    let doc = Doc::new();
+    let doc = DocWrapper::new();
     to_java_ptr(doc)
 }
 
@@ -44,7 +39,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeCreateWithClientId(
         client_id: client_id as u64,
         ..Default::default()
     };
-    let doc = Doc::with_options(options);
+    let doc = DocWrapper::with_options(options);
     to_java_ptr(doc)
 }
 
@@ -63,7 +58,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeDestroy(
 ) {
     if ptr != 0 {
         unsafe {
-            free_java_ptr::<Doc>(ptr);
+            // When DocWrapper is dropped, all subscriptions and GlobalRefs are automatically cleaned up
+            free_java_ptr::<DocWrapper>(ptr);
         }
     }
 }
@@ -87,8 +83,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeGetClientId(
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(ptr);
-        doc.client_id() as jlong
+        let wrapper = from_java_ptr::<DocWrapper>(ptr);
+        wrapper.doc.client_id() as jlong
     }
 }
 
@@ -111,8 +107,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeGetGuid(
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(ptr);
-        let guid = doc.guid().to_string();
+        let wrapper = from_java_ptr::<DocWrapper>(ptr);
+        let guid = wrapper.doc.guid().to_string();
         crate::to_jstring(&mut env, &guid)
     }
 }
@@ -142,7 +138,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateAsUpdateWithT
     }
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(ptr);
+        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
 
         // Retrieve existing transaction
         match crate::get_transaction_mut(txn_ptr) {
@@ -204,7 +200,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdateWithTx
     };
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(ptr);
+        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
 
         // Retrieve existing transaction
         match crate::get_transaction_mut(txn_ptr) {
@@ -250,7 +246,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVectorWithTxn
     }
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(ptr);
+        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
 
         // Retrieve existing transaction
         match crate::get_transaction_mut(txn_ptr) {
@@ -315,7 +311,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiffWithTxn
     };
 
     unsafe {
-        let _doc = from_java_ptr::<Doc>(ptr);
+        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
 
         // Decode the state vector
         let sv = match yrs::StateVector::decode_v1(&sv_bytes) {
@@ -491,8 +487,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeBeginTransaction(
     }
 
     unsafe {
-        let doc = from_java_ptr::<Doc>(ptr);
-        let txn = doc.transact_mut();
+        let wrapper = from_java_ptr::<DocWrapper>(ptr);
+        let txn = wrapper.doc.transact_mut();
 
         // Return raw transaction pointer
         Box::into_raw(Box::new(txn)) as jlong
@@ -602,52 +598,55 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeObserveUpdateV1(
         }
     };
 
-    // Store the global reference
-    {
-        let mut java_objects = DOC_JAVA_OBJECTS.lock().unwrap();
-        java_objects.insert(subscription_id, global_ref);
-    }
-
     unsafe {
-        let doc = from_java_ptr::<Doc>(ptr);
+        let wrapper = from_java_ptr::<DocWrapper>(ptr);
 
         // Create observer closure
-        let subscription = doc.observe_update_v1(move |_txn, event| {
+        let subscription = match wrapper.doc.observe_update_v1(move |_txn, event| {
             // Use Executor for thread attachment with automatic local frame management
             let _ = executor.with_attached(|env| {
-                dispatch_update_event(env, subscription_id, event.update.as_ref())
+                dispatch_update_event(env, ptr, subscription_id, event.update.as_ref())
             });
-        });
+        }) {
+            Ok(sub) => sub,
+            Err(e) => {
+                eprintln!("Failed to observe update: {:?}", e);
+                return;
+            }
+        };
 
-        // Leak the subscription to keep it alive - we'll clean up on unobserve
-        // This is a simplified approach; in production we'd use a better mechanism
-        Box::leak(Box::new(subscription));
+        // Store subscription and global ref in the DocWrapper
+        wrapper.add_subscription(subscription_id, subscription, global_ref);
     }
 }
 
 /// Unregisters an update observer for the YDoc
 ///
 /// # Parameters
-/// - `ptr`: Pointer to the YDoc instance (unused but kept for consistency)
+/// - `ptr`: Pointer to the YDoc instance
 /// - `subscription_id`: The subscription ID to remove
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeUnobserveUpdateV1(
     _env: JNIEnv,
     _class: JClass,
-    _ptr: jlong,
+    ptr: jlong,
     subscription_id: jlong,
 ) {
-    // Remove the global reference to allow the Java object to be GC'd
-    let mut java_objects = DOC_JAVA_OBJECTS.lock().unwrap();
-    java_objects.remove(&subscription_id);
-    // The GlobalRef is dropped here, releasing the reference
-    // Note: The Subscription is still leaked from observe()
-    // This is acceptable for now but should be fixed in production
+    if ptr == 0 {
+        return;
+    }
+
+    unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(ptr);
+        // Remove and drop subscription - this properly unregisters the observer
+        wrapper.remove_subscription(subscription_id);
+    }
 }
 
 /// Helper function to dispatch an update event to Java
 fn dispatch_update_event(
     env: &mut JNIEnv,
+    doc_ptr: jlong,
     subscription_id: jlong,
     update: &[u8],
 ) -> Result<(), jni::errors::Error> {
@@ -657,13 +656,15 @@ fn dispatch_update_event(
     // Get origin (if any) - yrs update events don't have origin, so we'll use null
     let origin_jstr = JObject::null();
 
-    // Get the Java YDoc object from our global storage
-    let java_objects = DOC_JAVA_OBJECTS.lock().unwrap();
-    let ydoc_ref = match java_objects.get(&subscription_id) {
-        Some(r) => r,
-        None => {
-            eprintln!("No Java object found for subscription {}", subscription_id);
-            return Ok(());
+    // Get the Java YDoc object from DocWrapper
+    let ydoc_ref = unsafe {
+        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
+        match wrapper.get_java_ref(subscription_id) {
+            Some(r) => r,
+            None => {
+                eprintln!("No Java object found for subscription {}", subscription_id);
+                return Ok(());
+            }
         }
     };
 
@@ -691,12 +692,12 @@ mod tests {
 
     #[test]
     fn test_doc_creation() {
-        let doc = Doc::new();
-        let ptr = to_java_ptr(doc);
+        let wrapper = DocWrapper::new();
+        let ptr = to_java_ptr(wrapper);
         assert_ne!(ptr, 0);
 
         unsafe {
-            free_java_ptr::<Doc>(ptr);
+            free_java_ptr::<DocWrapper>(ptr);
         }
     }
 
@@ -706,20 +707,20 @@ mod tests {
             client_id: 12345,
             ..Default::default()
         };
-        let doc = Doc::with_options(options);
-        assert_eq!(doc.client_id(), 12345);
+        let wrapper = DocWrapper::with_options(options);
+        assert_eq!(wrapper.doc.client_id(), 12345);
     }
 
     #[test]
     fn test_state_encoding() {
-        let doc = Doc::new();
-        let text = doc.get_or_insert_text("test");
+        let wrapper = DocWrapper::new();
+        let text = wrapper.doc.get_or_insert_text("test");
         {
-            let mut txn = doc.transact_mut();
+            let mut txn = wrapper.doc.transact_mut();
             text.push(&mut txn, "Hello, World!");
         }
 
-        let txn = doc.transact();
+        let txn = wrapper.doc.transact();
         let empty_sv = yrs::StateVector::default();
         let update = txn.encode_state_as_update_v1(&empty_sv);
         assert!(!update.is_empty());
