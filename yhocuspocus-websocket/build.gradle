@@ -46,7 +46,7 @@ checkstyle {
 test {
     testLogging {
         events 'passed', 'skipped', 'failed'
-        exceptionFormat 'full'
+        exceptionFormat = 'full'
         showStandardStreams = false
     }
 }
