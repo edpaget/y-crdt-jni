@@ -1,7 +1,7 @@
 use crate::{free_java_ptr, free_transaction, from_java_ptr, throw_exception, to_java_ptr};
 use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JValue};
 use jni::sys::{jbyteArray, jlong, jstring};
-use jni::JNIEnv;
+use jni::{Executor, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::updates::decoder::Decode;
@@ -584,9 +584,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeObserveUpdateV1(
         return;
     }
 
-    // Get JavaVM for later callback
-    let jvm = match env.get_java_vm() {
-        Ok(vm) => Arc::new(vm),
+    // Get JavaVM and create Executor for callback handling
+    let executor = match env.get_java_vm() {
+        Ok(vm) => Executor::new(Arc::new(vm)),
         Err(e) => {
             throw_exception(&mut env, &format!("Failed to get JavaVM: {:?}", e));
             return;
@@ -612,54 +612,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeObserveUpdateV1(
         let doc = from_java_ptr::<Doc>(ptr);
 
         // Create observer closure
-        let jvm_clone = Arc::clone(&jvm);
         let subscription = doc.observe_update_v1(move |_txn, event| {
-            // Attach to JVM for this thread
-            let mut env = match jvm_clone.attach_current_thread() {
-                Ok(env) => env,
-                Err(_) => return, // Can't do much if we can't attach
-            };
-
-            // Get the update bytes
-            let update = event.update.as_ref();
-
-            // Convert update to Java byte array
-            let update_array = match env.byte_array_from_slice(update) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    eprintln!("Failed to create byte array: {:?}", e);
-                    return;
-                }
-            };
-
-            // Get origin (if any) - yrs update events don't have origin, so we'll use null
-            let origin_jstr = JObject::null();
-
-            // Get the Java YDoc object from our global storage
-            let java_objects = DOC_JAVA_OBJECTS.lock().unwrap();
-            let ydoc_ref = match java_objects.get(&subscription_id) {
-                Some(r) => r,
-                None => {
-                    eprintln!("No Java object found for subscription {}", subscription_id);
-                    return;
-                }
-            };
-
-            let ydoc_obj = ydoc_ref.as_obj();
-
-            // Call YDoc.onUpdateCallback(subscriptionId, update, origin)
-            if let Err(e) = env.call_method(
-                ydoc_obj,
-                "onUpdateCallback",
-                "(J[BLjava/lang/String;)V",
-                &[
-                    JValue::Long(subscription_id),
-                    JValue::Object(&update_array),
-                    JValue::Object(&origin_jstr),
-                ],
-            ) {
-                eprintln!("Failed to call onUpdateCallback: {:?}", e);
-            }
+            // Use Executor for thread attachment with automatic local frame management
+            let _ = executor.with_attached(|env| {
+                dispatch_update_event(env, subscription_id, event.update.as_ref())
+            });
         });
 
         // Leak the subscription to keep it alive - we'll clean up on unobserve
@@ -686,6 +643,45 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeUnobserveUpdateV1(
     // The GlobalRef is dropped here, releasing the reference
     // Note: The Subscription is still leaked from observe()
     // This is acceptable for now but should be fixed in production
+}
+
+/// Helper function to dispatch an update event to Java
+fn dispatch_update_event(
+    env: &mut JNIEnv,
+    subscription_id: jlong,
+    update: &[u8],
+) -> Result<(), jni::errors::Error> {
+    // Convert update to Java byte array
+    let update_array = env.byte_array_from_slice(update)?;
+
+    // Get origin (if any) - yrs update events don't have origin, so we'll use null
+    let origin_jstr = JObject::null();
+
+    // Get the Java YDoc object from our global storage
+    let java_objects = DOC_JAVA_OBJECTS.lock().unwrap();
+    let ydoc_ref = match java_objects.get(&subscription_id) {
+        Some(r) => r,
+        None => {
+            eprintln!("No Java object found for subscription {}", subscription_id);
+            return Ok(());
+        }
+    };
+
+    let ydoc_obj = ydoc_ref.as_obj();
+
+    // Call YDoc.onUpdateCallback(subscriptionId, update, origin)
+    env.call_method(
+        ydoc_obj,
+        "onUpdateCallback",
+        "(J[BLjava/lang/String;)V",
+        &[
+            JValue::Long(subscription_id),
+            JValue::Object(&update_array),
+            JValue::Object(&origin_jstr),
+        ],
+    )?;
+
+    Ok(())
 }
 
 #[cfg(test)]

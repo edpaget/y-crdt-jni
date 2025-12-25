@@ -1,7 +1,7 @@
 use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jlong, jstring};
-use jni::{AttachGuard, JNIEnv};
+use jni::{Executor, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::map::MapEvent;
@@ -793,9 +793,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeObserve(
         return;
     }
 
-    // Get JavaVM for later callback
-    let jvm = match env.get_java_vm() {
-        Ok(vm) => Arc::new(vm),
+    // Get JavaVM and create Executor for callback handling
+    let executor = match env.get_java_vm() {
+        Ok(vm) => Executor::new(Arc::new(vm)),
         Err(e) => {
             throw_exception(&mut env, &format!("Failed to get JavaVM: {:?}", e));
             return;
@@ -822,18 +822,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeObserve(
         let map = from_java_ptr::<MapRef>(map_ptr);
 
         // Create observer closure
-        let jvm_clone = Arc::clone(&jvm);
         let subscription = map.observe(move |txn, event| {
-            // Attach to JVM for this thread
-            let mut env = match jvm_clone.attach_current_thread() {
-                Ok(env) => env,
-                Err(_) => return, // Can't do much if we can't attach
-            };
-
-            // Dispatch event to Java
-            if let Err(e) = dispatch_map_event(&mut env, map_ptr, subscription_id, txn, event) {
-                eprintln!("Failed to dispatch map event: {:?}", e);
-            }
+            // Use Executor for thread attachment with automatic local frame management
+            let _ = executor
+                .with_attached(|env| dispatch_map_event(env, map_ptr, subscription_id, txn, event));
         });
 
         // Leak the subscription to keep it alive - we'll clean up on unobserve
@@ -866,7 +858,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeUnobserve(
 
 /// Helper function to dispatch a map event to Java
 fn dispatch_map_event(
-    env: &mut AttachGuard,
+    env: &mut JNIEnv,
     _map_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
@@ -1000,7 +992,7 @@ fn dispatch_map_event(
 
 /// Helper function to convert yrs Out to JObject
 fn out_to_jobject<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     value: &Out,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     match value {
@@ -1052,7 +1044,7 @@ fn out_to_jobject<'local>(
 
 /// Helper function to convert yrs Any to JObject
 fn any_to_jobject<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     value: &yrs::Any,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     use yrs::Any;

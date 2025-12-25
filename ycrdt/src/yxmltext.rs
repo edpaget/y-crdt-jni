@@ -3,7 +3,7 @@ use crate::{
 };
 use jni::objects::{GlobalRef, JClass, JMap, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
-use jni::{AttachGuard, JNIEnv};
+use jni::{Executor, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::xml::XmlTextEvent;
@@ -788,9 +788,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeObserve(
         return;
     }
 
-    // Get JavaVM for later callback
-    let jvm = match env.get_java_vm() {
-        Ok(vm) => Arc::new(vm),
+    // Get JavaVM and create Executor for callback handling
+    let executor = match env.get_java_vm() {
+        Ok(vm) => Executor::new(Arc::new(vm)),
         Err(e) => {
             throw_exception(&mut env, &format!("Failed to get JavaVM: {:?}", e));
             return;
@@ -817,20 +817,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeObserve(
         let xmltext = from_java_ptr::<XmlTextRef>(xmltext_ptr);
 
         // Create observer closure
-        let jvm_clone = Arc::clone(&jvm);
         let subscription = xmltext.observe(move |txn, event| {
-            // Attach to JVM for this thread
-            let mut env = match jvm_clone.attach_current_thread() {
-                Ok(env) => env,
-                Err(_) => return, // Can't do much if we can't attach
-            };
-
-            // Dispatch event to Java
-            if let Err(e) =
-                dispatch_xmltext_event(&mut env, xmltext_ptr, subscription_id, txn, event)
-            {
-                eprintln!("Failed to dispatch xmltext event: {:?}", e);
-            }
+            // Use Executor for thread attachment with automatic local frame management
+            let _ = executor.with_attached(|env| {
+                dispatch_xmltext_event(env, xmltext_ptr, subscription_id, txn, event)
+            });
         });
 
         // Leak the subscription to keep it alive - we'll clean up on unobserve
@@ -863,7 +854,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeUnobserve(
 
 /// Helper function to dispatch an xmltext event to Java
 fn dispatch_xmltext_event(
-    env: &mut AttachGuard,
+    env: &mut JNIEnv,
     _xmltext_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
@@ -985,7 +976,7 @@ fn dispatch_xmltext_event(
 
 /// Helper function to create a Java HashMap from yrs Attrs
 fn create_java_hashmap_from_attrs<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     attrs: &yrs::types::Attrs,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     let hashmap = env.new_object("java/util/HashMap", "()V", &[])?;
@@ -1007,7 +998,7 @@ fn create_java_hashmap_from_attrs<'local>(
 
 /// Helper function to convert yrs Any to JObject (for XmlText)
 fn any_to_jobject_xmltext<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     value: &yrs::Any,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     use yrs::Any;

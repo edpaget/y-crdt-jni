@@ -3,7 +3,7 @@ use crate::{
 };
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
-use jni::{AttachGuard, JNIEnv};
+use jni::{Executor, JNIEnv};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use yrs::types::text::TextEvent;
@@ -346,9 +346,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeObserve(
         return;
     }
 
-    // Get JavaVM for later callback
-    let jvm = match env.get_java_vm() {
-        Ok(vm) => Arc::new(vm),
+    // Get JavaVM and create Executor for callback handling
+    let executor = match env.get_java_vm() {
+        Ok(vm) => Executor::new(Arc::new(vm)),
         Err(e) => {
             throw_exception(&mut env, &format!("Failed to get JavaVM: {:?}", e));
             return;
@@ -375,18 +375,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeObserve(
         let text = from_java_ptr::<TextRef>(text_ptr);
 
         // Create observer closure
-        let jvm_clone = Arc::clone(&jvm);
         let subscription = text.observe(move |txn, event| {
-            // Attach to JVM for this thread
-            let mut env = match jvm_clone.attach_current_thread() {
-                Ok(env) => env,
-                Err(_) => return, // Can't do much if we can't attach
-            };
-
-            // Dispatch event to Java
-            if let Err(e) = dispatch_text_event(&mut env, text_ptr, subscription_id, txn, event) {
-                eprintln!("Failed to dispatch text event: {:?}", e);
-            }
+            // Use Executor for thread attachment with automatic local frame management
+            let _ = executor.with_attached(|env| {
+                dispatch_text_event(env, text_ptr, subscription_id, txn, event)
+            });
         });
 
         // Leak the subscription to keep it alive - we'll clean up on unobserve
@@ -419,7 +412,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeUnobserve(
 
 /// Helper function to dispatch a text event to Java
 fn dispatch_text_event(
-    env: &mut AttachGuard,
+    env: &mut JNIEnv,
     _text_ptr: jlong,
     subscription_id: jlong,
     txn: &TransactionMut,
@@ -541,7 +534,7 @@ fn dispatch_text_event(
 
 /// Helper function to create a Java HashMap from yrs Attrs
 fn create_java_hashmap<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     attrs: &yrs::types::Attrs,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     let hashmap = env.new_object("java/util/HashMap", "()V", &[])?;
@@ -563,7 +556,7 @@ fn create_java_hashmap<'local>(
 
 /// Helper function to convert yrs Any to JObject
 fn any_to_jobject<'local>(
-    env: &mut AttachGuard<'local>,
+    env: &mut JNIEnv<'local>,
     value: &yrs::Any,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     use yrs::Any;
