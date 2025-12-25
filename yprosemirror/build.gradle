@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'org.jetbrains.kotlin.jvm' version '2.2.21'
+    id 'org.jetbrains.kotlin.jvm' version '2.3.0'
     id 'checkstyle'
     id 'maven-publish'
 }
@@ -40,16 +40,16 @@ dependencies {
     api project(':ycrdt')
 
     // ProseMirror Kotlin libraries (consumed from Java)
-    implementation 'com.atlassian.prosemirror:model:1.1.14'
-    implementation 'com.atlassian.prosemirror:state:1.1.14'
-    implementation 'com.atlassian.prosemirror:transform:1.1.14'
+    implementation 'com.atlassian.prosemirror:model:1.1.15'
+    implementation 'com.atlassian.prosemirror:state:1.1.15'
+    implementation 'com.atlassian.prosemirror:transform:1.1.15'
 
     // Kotlin standard library (required for Kotlin-Java interoperability)
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.3.0'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'com.atlassian.prosemirror:test-builder:1.1.14'
+    testImplementation 'com.atlassian.prosemirror:test-builder:1.1.15'
 }
 
 // Test configuration
