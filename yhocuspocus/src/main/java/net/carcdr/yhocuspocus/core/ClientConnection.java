@@ -4,7 +4,10 @@ import net.carcdr.yhocuspocus.transport.ReceiveListener;
 import net.carcdr.yhocuspocus.transport.Transport;
 import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
+import net.carcdr.yhocuspocus.extension.Extension;
+import net.carcdr.yhocuspocus.extension.OnAuthenticatePayload;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -91,22 +94,26 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
      */
     private void handleAuthentication(IncomingMessage message) {
         String documentName = message.getDocumentName();
+        String token = message.getToken();
 
         // Queue message until authenticated
         messageQueues.computeIfAbsent(documentName, k -> new ConcurrentLinkedQueue<>())
             .add(message.getRawData());
 
-        // Run authentication hooks (simplified - no hooks yet)
-        // For Phase 2, we'll do simple authentication
-        authenticateDocument(documentName)
-            .thenAccept(document -> {
+        // Run authentication hooks
+        authenticateDocument(documentName, token)
+            .thenAccept(result -> {
                 // Authentication succeeded - create document connection
                 DocumentConnection docConn = new DocumentConnection(
                     this,
-                    document,
+                    result.document,
                     documentName,
                     context
                 );
+
+                // Apply read-only mode if set by extensions
+                docConn.setReadOnly(result.readOnly);
+
                 documentConnections.put(documentName, docConn);
 
                 // Process queued messages
@@ -131,20 +138,47 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
     }
 
     /**
+     * Result of authentication containing both the document and access mode.
+     */
+    private static class AuthResult {
+        final YDocument document;
+        final boolean readOnly;
+
+        AuthResult(YDocument document, boolean readOnly) {
+            this.document = document;
+            this.readOnly = readOnly;
+        }
+    }
+
+    /**
      * Authenticates access to a document.
      *
-     * <p>For Phase 2, this is simplified. Full hook integration will be
-     * added in Phase 5.</p>
+     * <p>Runs the onAuthenticate hook for all extensions, allowing them to:
+     * <ul>
+     *   <li>Reject access by throwing an exception (completes exceptionally)</li>
+     *   <li>Set read-only mode via payload.setReadOnly(true)</li>
+     *   <li>Enrich context with user information</li>
+     * </ul>
      *
      * @param documentName the document name
-     * @return future that completes with the document
+     * @param token authentication token (may be null)
+     * @return future that completes with the document and access mode
      */
-    private java.util.concurrent.CompletableFuture<YDocument> authenticateDocument(
-        String documentName
+    private CompletableFuture<AuthResult> authenticateDocument(
+        String documentName,
+        String token
     ) {
-        // For now, all requests are authenticated
-        // Phase 5 will add extension hooks here
-        return server.getOrCreateDocument(documentName, context);
+        OnAuthenticatePayload payload = new OnAuthenticatePayload(
+            transport.getConnectionId(),
+            documentName,
+            token,
+            context
+        );
+
+        // Run onAuthenticate hooks - extensions can reject by throwing
+        return server.runHooks(payload, Extension::onAuthenticate)
+            .thenCompose(v -> server.getOrCreateDocument(documentName, context))
+            .thenApply(document -> new AuthResult(document, payload.isReadOnly()));
     }
 
     /**
