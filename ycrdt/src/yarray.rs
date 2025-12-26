@@ -1,6 +1,6 @@
 use crate::{
     free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
-    to_jstring, ArrayPtr, DocPtr, DocWrapper, TxnPtr,
+    to_jstring, ArrayPtr, DocPtr, DocWrapper, JniEnvExt, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jint, jlong, jstring};
@@ -28,16 +28,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetArray(
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
-    let name_str = match env.get_string(&name) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in name");
-                return 0;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get name string");
+    let name_str = match env.get_rust_string(&name) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return 0;
         }
     };
@@ -185,14 +179,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertStringWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
-    let value_jstring = match env.get_string(&value) {
+    let value_str = match env.get_rust_string(&value) {
         Ok(s) => s,
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get value string");
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
-    let value_str: String = value_jstring.into();
 
     array.insert(txn, index as u32, value_str);
 }
@@ -243,14 +236,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushStringWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
-    let value_jstring = match env.get_string(&value) {
+    let value_str = match env.get_rust_string(&value) {
         Ok(s) => s,
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get value string");
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
-    let value_str: String = value_jstring.into();
 
     array.push_back(txn, value_str);
 }

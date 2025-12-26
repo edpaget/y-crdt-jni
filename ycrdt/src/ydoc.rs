@@ -1,6 +1,6 @@
 use crate::{
     free_if_valid, free_transaction, get_mut_or_throw, get_ref_or_throw, throw_exception,
-    to_java_ptr, DocPtr, DocWrapper, TxnPtr,
+    to_java_ptr, DocPtr, DocWrapper, JniEnvExt, JniResultExt, TxnPtr,
 };
 use jni::objects::{JByteArray, JClass, JObject, JValue};
 use jni::sys::{jbyteArray, jlong, jstring};
@@ -133,13 +133,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateAsUpdateWithT
     let empty_sv = yrs::StateVector::default();
     let update = txn.encode_state_as_update_v1(&empty_sv);
 
-    match env.byte_array_from_slice(&update) {
-        Ok(arr) => arr.into_raw(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to create byte array");
-            std::ptr::null_mut()
-        }
-    }
+    env.create_byte_array(&update).unwrap_or_throw(&mut env)
 }
 
 /// Applies an update to the document from a byte array using an existing transaction
@@ -215,13 +209,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVectorWithTxn
     let state_vector = txn.state_vector();
     let encoded = state_vector.encode_v1();
 
-    match env.byte_array_from_slice(&encoded) {
-        Ok(arr) => arr.into_raw(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to create byte array");
-            std::ptr::null_mut()
-        }
-    }
+    env.create_byte_array(&encoded).unwrap_or_throw(&mut env)
 }
 
 /// Encodes a differential update containing only changes not yet observed by the remote peer
@@ -280,13 +268,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiffWithTxn
     // Encode the differential update
     let diff = txn.encode_diff_v1(&sv);
 
-    match env.byte_array_from_slice(&diff) {
-        Ok(arr) => arr.into_raw(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to create byte array");
-            std::ptr::null_mut()
-        }
-    }
+    env.create_byte_array(&diff).unwrap_or_throw(&mut env)
 }
 
 /// Merges multiple updates into a single compact update
@@ -354,13 +336,7 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeMergeUpdates(
         }
     };
 
-    match env.byte_array_from_slice(&merged) {
-        Ok(arr) => arr.into_raw(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to create byte array");
-            std::ptr::null_mut()
-        }
-    }
+    env.create_byte_array(&merged).unwrap_or_throw(&mut env)
 }
 
 /// Extracts the state vector from an encoded update
@@ -401,13 +377,8 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVector
         }
     };
 
-    match env.byte_array_from_slice(&state_vector) {
-        Ok(arr) => arr.into_raw(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to create byte array");
-            std::ptr::null_mut()
-        }
-    }
+    env.create_byte_array(&state_vector)
+        .unwrap_or_throw(&mut env)
 }
 
 /// Begins a new transaction for batching operations

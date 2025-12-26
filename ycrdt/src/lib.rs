@@ -233,6 +233,167 @@ macro_rules! free_if_valid {
     };
 }
 
+//=============================================================================
+// Result-based Error Handling
+//=============================================================================
+
+use jni::objects::JString;
+use jni::sys::{jbyteArray, jdouble, jint};
+use std::fmt;
+
+/// Error type for JNI operations
+#[derive(Debug)]
+pub enum JniError {
+    /// JNI operation failed
+    Jni(jni::errors::Error),
+    /// Invalid pointer provided from Java
+    InvalidPointer(&'static str),
+    /// String conversion failed
+    StringConversion(&'static str),
+    /// UTF-8 encoding error
+    Utf8Error,
+    /// Y-CRDT operation failed
+    Yrs(String),
+    /// Generic error with message
+    Other(String),
+}
+
+impl fmt::Display for JniError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            JniError::Jni(e) => write!(f, "JNI error: {:?}", e),
+            JniError::InvalidPointer(name) => write!(f, "Invalid {} pointer", name),
+            JniError::StringConversion(ctx) => write!(f, "Failed to get {} string", ctx),
+            JniError::Utf8Error => write!(f, "Invalid UTF-8 in string"),
+            JniError::Yrs(msg) => write!(f, "Y-CRDT error: {}", msg),
+            JniError::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for JniError {}
+
+impl From<jni::errors::Error> for JniError {
+    fn from(e: jni::errors::Error) -> Self {
+        JniError::Jni(e)
+    }
+}
+
+impl From<std::str::Utf8Error> for JniError {
+    fn from(_: std::str::Utf8Error) -> Self {
+        JniError::Utf8Error
+    }
+}
+
+/// Result type for JNI operations
+pub type JniResult<T> = Result<T, JniError>;
+
+/// Trait for types that have a default "error" value for JNI returns
+pub trait JniDefault {
+    /// The default value to return when an error occurs
+    fn jni_default() -> Self;
+}
+
+impl JniDefault for () {
+    fn jni_default() -> Self {}
+}
+
+impl JniDefault for jlong {
+    fn jni_default() -> Self {
+        0
+    }
+}
+
+impl JniDefault for jint {
+    fn jni_default() -> Self {
+        0
+    }
+}
+
+impl JniDefault for jdouble {
+    fn jni_default() -> Self {
+        0.0
+    }
+}
+
+// Note: jstring and jbyteArray are both *mut _jobject, so one impl covers both
+impl JniDefault for jstring {
+    fn jni_default() -> Self {
+        std::ptr::null_mut()
+    }
+}
+
+impl JniDefault for bool {
+    fn jni_default() -> Self {
+        false
+    }
+}
+
+impl<'a> JniDefault for jni::objects::JObject<'a> {
+    fn jni_default() -> Self {
+        jni::objects::JObject::null()
+    }
+}
+
+/// Extension trait for JniResult to handle throwing exceptions
+pub trait JniResultExt<T> {
+    /// Unwrap the result or throw an exception and return the default value
+    fn unwrap_or_throw(self, env: &mut JNIEnv) -> T
+    where
+        T: JniDefault;
+}
+
+impl<T> JniResultExt<T> for JniResult<T> {
+    fn unwrap_or_throw(self, env: &mut JNIEnv) -> T
+    where
+        T: JniDefault,
+    {
+        match self {
+            Ok(v) => v,
+            Err(e) => {
+                throw_exception(env, &e.to_string());
+                T::jni_default()
+            }
+        }
+    }
+}
+
+//=============================================================================
+// JNI Helper Extension Traits
+//=============================================================================
+
+/// Extension trait for JNIEnv to simplify common operations
+pub trait JniEnvExt<'local> {
+    /// Get a Rust String from a JString, with proper error handling
+    fn get_rust_string(&mut self, s: &JString) -> JniResult<String>;
+
+    /// Create a jstring from a Rust str
+    fn create_jstring(&mut self, s: &str) -> JniResult<jstring>;
+
+    /// Create a byte array from a slice
+    fn create_byte_array(&mut self, data: &[u8]) -> JniResult<jbyteArray>;
+}
+
+impl<'local> JniEnvExt<'local> for JNIEnv<'local> {
+    fn get_rust_string(&mut self, s: &JString) -> JniResult<String> {
+        let jstr = self
+            .get_string(s)
+            .map_err(|_| JniError::StringConversion("java string"))?;
+        let rust_str = jstr.to_str().map_err(|_| JniError::Utf8Error)?;
+        Ok(rust_str.to_string())
+    }
+
+    fn create_jstring(&mut self, s: &str) -> JniResult<jstring> {
+        let jstr = self.new_string(s)?;
+        Ok(jstr.into_raw())
+    }
+
+    fn create_byte_array(&mut self, data: &[u8]) -> JniResult<jbyteArray> {
+        let arr = self.byte_array_from_slice(data)?;
+        Ok(arr.into_raw())
+    }
+}
+
 /// Retrieve a mutable reference to a transaction from a raw pointer
 ///
 /// # Safety

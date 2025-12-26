@@ -1,6 +1,6 @@
 use crate::{
     free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
-    to_jstring, DocPtr, DocWrapper, MapPtr, TxnPtr,
+    to_jstring, DocPtr, DocWrapper, JniEnvExt, MapPtr, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jlong, jstring};
@@ -28,16 +28,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetMap(
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
-    let name_str = match env.get_string(&name) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in name");
-                return 0;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get name string");
+    let name_str = match env.get_rust_string(&name) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return 0;
         }
     };
@@ -125,16 +119,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetStringWithTxn(
     );
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in key");
-                return std::ptr::null_mut();
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return std::ptr::null_mut();
         }
     };
@@ -172,16 +160,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoubleWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0.0);
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in key");
-                return 0.0;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return 0.0;
         }
     };
@@ -215,19 +197,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetStringWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
 
     // Convert value to Rust string
-    let value_str: String = match env.get_string(&value) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get value string");
+    let value_str = match env.get_rust_string(&value) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -258,10 +240,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoubleWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -290,10 +272,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemoveWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -325,16 +307,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKeyWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", false);
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in key");
-                return false;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return false;
         }
     };
@@ -494,10 +470,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDocWithTxn(
     let subdoc_wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(subdoc_ptr), "subdocument");
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -541,16 +517,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDocWithTxn(
     }
 
     // Convert key to Rust string
-    let key_str: String = match env.get_string(&key) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in key");
-                return 0;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get key string");
+    let key_str = match env.get_rust_string(&key) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return 0;
         }
     };

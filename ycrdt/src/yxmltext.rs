@@ -1,6 +1,6 @@
 use crate::{
     free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
-    to_jstring, DocPtr, DocWrapper, TxnPtr, XmlTextPtr,
+    to_jstring, DocPtr, DocWrapper, JniEnvExt, TxnPtr, XmlTextPtr,
 };
 use jni::objects::{JClass, JMap, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
@@ -31,16 +31,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeGetXmlText(
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
-    let name_str = match env.get_string(&name) {
-        Ok(s) => match s.to_str() {
-            Ok(s) => s.to_string(),
-            Err(_) => {
-                throw_exception(&mut env, "Invalid UTF-8 in name");
-                return 0;
-            }
-        },
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get name string");
+    let name_str = match env.get_rust_string(&name) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return 0;
         }
     };
@@ -170,10 +164,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert chunk to Rust string
-    let chunk_str: String = match env.get_string(&chunk) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get chunk string");
+    let chunk_str = match env.get_rust_string(&chunk) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -202,10 +196,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativePushWithTxn(
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert chunk to Rust string
-    let chunk_str: String = match env.get_string(&chunk) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get chunk string");
+    let chunk_str = match env.get_rust_string(&chunk) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
@@ -266,10 +260,10 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YXmlText_nativeInsertWithAtt
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert chunk to Rust string
-    let chunk_str: String = match env.get_string(&chunk) {
-        Ok(s) => s.into(),
-        Err(_) => {
-            throw_exception(&mut env, "Failed to get chunk string");
+    let chunk_str = match env.get_rust_string(&chunk) {
+        Ok(s) => s,
+        Err(e) => {
+            throw_exception(&mut env, &e.to_string());
             return;
         }
     };
