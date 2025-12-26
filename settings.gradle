@@ -1,5 +1,6 @@
 rootProject.name = 'y-crdt-jni'
 
+include 'ycrdt-core'
 include 'ycrdt'
 include 'yprosemirror'
 include 'yhocuspocus'
