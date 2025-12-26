@@ -1,6 +1,6 @@
 use crate::{
-    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
-    DocWrapper,
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
+    to_jstring, ArrayPtr, DocPtr, DocWrapper, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jint, jlong, jstring};
@@ -25,10 +25,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetArray(
     doc_ptr: jlong,
     name: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
     let name_str = match env.get_string(&name) {
@@ -45,11 +42,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetArray(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let array = wrapper.doc.get_or_insert_array(name_str.as_str());
-        to_java_ptr(array)
-    }
+    let array = wrapper.doc.get_or_insert_array(name_str.as_str());
+    to_java_ptr(array)
 }
 
 /// Destroys a YArray instance and frees its memory
@@ -65,11 +59,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            free_java_ptr::<ArrayRef>(ptr);
-        }
-    }
+    free_if_valid!(ArrayPtr::from_raw(ptr), ArrayRef);
 }
 
 /// Gets the length of the array using an existing transaction
@@ -89,29 +79,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeLengthWithTxn(
     array_ptr: jlong,
     txn_ptr: jlong,
 ) -> jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray", 0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => array.len(txn) as jint,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    array.len(txn) as jint
 }
 
 /// Gets a string value from the array at the specified index using an existing transaction
@@ -133,34 +105,31 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetStringWithTxn(
     txn_ptr: jlong,
     index: jint,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _doc = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let array = get_ref_or_throw!(
+        &mut env,
+        ArrayPtr::from_raw(array_ptr),
+        "YArray",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => match array.get(txn, index as u32) {
-                Some(value) => {
-                    let s = value.to_string(txn);
-                    to_jstring(&mut env, &s)
-                }
-                None => std::ptr::null_mut(),
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
+    match array.get(txn, index as u32) {
+        Some(value) => {
+            let s = value.to_string(txn);
+            to_jstring(&mut env, &s)
         }
+        None => std::ptr::null_mut(),
     }
 }
 
@@ -183,31 +152,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetDoubleWithTxn(
     txn_ptr: jlong,
     index: jint,
 ) -> jdouble {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0.0;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return 0.0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0.0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0.0);
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray", 0.0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0.0);
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => match array.get(txn, index as u32) {
-                Some(value) => value.cast::<f64>().unwrap_or(0.0),
-                None => 0.0,
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0.0
-            }
-        }
+    match array.get(txn, index as u32) {
+        Some(value) => value.cast::<f64>().unwrap_or(0.0),
+        None => 0.0,
     }
 }
 
@@ -229,18 +180,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertStringWithTxn(
     index: jint,
     value: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
     let value_jstring = match env.get_string(&value) {
@@ -252,19 +194,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertStringWithTxn(
     };
     let value_str: String = value_jstring.into();
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.insert(txn, index as u32, value_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    array.insert(txn, index as u32, value_str);
 }
 
 /// Inserts a double value at the specified index using an existing transaction
@@ -285,32 +215,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertDoubleWithTxn(
     index: jint,
     value: jdouble,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.insert(txn, index as u32, value);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    array.insert(txn, index as u32, value);
 }
 
 /// Pushes a string value to the end of the array using an existing transaction
@@ -329,18 +238,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushStringWithTxn(
     txn_ptr: jlong,
     value: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
     let value_jstring = match env.get_string(&value) {
@@ -352,19 +252,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushStringWithTxn(
     };
     let value_str: String = value_jstring.into();
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.push_back(txn, value_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    array.push_back(txn, value_str);
 }
 
 /// Pushes a double value to the end of the array using an existing transaction
@@ -383,32 +271,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushDoubleWithTxn(
     txn_ptr: jlong,
     value: jdouble,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.push_back(txn, value);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    array.push_back(txn, value);
 }
 
 /// Removes a range of elements from the array using an existing transaction
@@ -429,32 +296,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeRemoveWithTxn(
     index: jint,
     length: jint,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.remove_range(txn, index as u32, length as u32);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    array.remove_range(txn, index as u32, length as u32);
 }
 
 /// Converts the array to a JSON string representation using an existing transaction
@@ -474,32 +320,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeToJsonWithTxn(
     array_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _doc = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let array = get_ref_or_throw!(
+        &mut env,
+        ArrayPtr::from_raw(array_ptr),
+        "YArray",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let json = array.to_json(txn).to_string();
-                to_jstring(&mut env, &json)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
-    }
+    let json = array.to_json(txn).to_string();
+    to_jstring(&mut env, &json)
 }
 
 /// Inserts a YDoc subdocument at the specified index using an existing transaction
@@ -520,40 +361,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeInsertDocWithTxn(
     index: jint,
     subdoc_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
-    if subdoc_ptr == 0 {
-        throw_exception(&mut env, "Invalid subdocument pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
+    // subdoc_ptr comes from Java YDoc which stores DocWrapper, not raw Doc
+    let subdoc_wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(subdoc_ptr), "subdocument");
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
-
-        // Clone the subdoc for insertion (Doc implements Prelim)
-        let subdoc_clone = subdoc.clone();
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.insert(txn, index as u32, subdoc_clone);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    // Clone the inner doc for insertion (Doc implements Prelim)
+    let subdoc_clone = subdoc_wrapper.doc.clone();
+    array.insert(txn, index as u32, subdoc_clone);
 }
 
 /// Pushes a YDoc subdocument to the end of the array using an existing transaction
@@ -572,40 +388,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativePushDocWithTxn(
     txn_ptr: jlong,
     subdoc_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
-    if subdoc_ptr == 0 {
-        throw_exception(&mut env, "Invalid subdocument pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
+    // subdoc_ptr comes from Java YDoc which stores DocWrapper, not raw Doc
+    let subdoc_wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(subdoc_ptr), "subdocument");
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
-
-        // Clone the subdoc for insertion (Doc implements Prelim)
-        let subdoc_clone = subdoc.clone();
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                array.push_back(txn, subdoc_clone);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    // Clone the inner doc for insertion (Doc implements Prelim)
+    let subdoc_clone = subdoc_wrapper.doc.clone();
+    array.push_back(txn, subdoc_clone);
 }
 
 /// Gets a YDoc subdocument from the array at the specified index using an existing transaction
@@ -627,37 +418,20 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeGetDocWithTxn(
     txn_ptr: jlong,
     index: jint,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray", 0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => match array.get(txn, index as u32) {
-                Some(value) => {
-                    // Try to cast to Doc
-                    match value.cast::<Doc>() {
-                        Ok(subdoc) => to_java_ptr(subdoc.clone()),
-                        Err(_) => 0,
-                    }
-                }
-                None => 0,
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
+    match array.get(txn, index as u32) {
+        Some(value) => {
+            // Try to cast to Doc
+            match value.cast::<Doc>() {
+                // Wrap in DocWrapper so nativeDestroy can properly free it
+                Ok(subdoc) => to_java_ptr(DocWrapper::from_doc(subdoc.clone())),
+                Err(_) => 0,
             }
         }
+        None => 0,
     }
 }
 
@@ -677,14 +451,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeObserve(
     subscription_id: jlong,
     yarray_obj: JObject,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if array_ptr == 0 {
-        throw_exception(&mut env, "Invalid YArray pointer");
-        return;
-    }
+    let wrapper = get_mut_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
 
     // Get JavaVM and create Executor for callback handling
     let executor = match env.get_java_vm() {
@@ -704,21 +472,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeObserve(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let array = from_java_ptr::<ArrayRef>(array_ptr);
+    // Create observer closure
+    let subscription = array.observe(move |txn, event| {
+        // Use Executor for thread attachment with automatic local frame management
+        let _ = executor
+            .with_attached(|env| dispatch_array_event(env, doc_ptr, subscription_id, txn, event));
+    });
 
-        // Create observer closure
-        let subscription = array.observe(move |txn, event| {
-            // Use Executor for thread attachment with automatic local frame management
-            let _ = executor.with_attached(|env| {
-                dispatch_array_event(env, doc_ptr, subscription_id, txn, event)
-            });
-        });
-
-        // Store subscription and GlobalRef in the DocWrapper
-        wrapper.add_subscription(subscription_id, subscription, global_ref);
-    }
+    // Store subscription and GlobalRef in the DocWrapper
+    wrapper.add_subscription(subscription_id, subscription, global_ref);
 }
 
 /// Unregisters an observer for the YArray
@@ -735,17 +497,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YArray_nativeUnobserve(
     _array_ptr: jlong,
     subscription_id: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
+    let wrapper = get_mut_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        // Remove subscription and GlobalRef from DocWrapper
-        // Both the Subscription and GlobalRef are dropped here
-        wrapper.remove_subscription(subscription_id);
-    }
+    // Remove subscription and GlobalRef from DocWrapper
+    // Both the Subscription and GlobalRef are dropped here
+    wrapper.remove_subscription(subscription_id);
 }
 
 /// Helper function to dispatch an array event to Java
@@ -958,6 +714,7 @@ fn any_to_jobject<'local>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::free_java_ptr;
     use yrs::{Doc, Transact};
 
     #[test]

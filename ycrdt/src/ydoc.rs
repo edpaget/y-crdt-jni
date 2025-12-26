@@ -1,5 +1,6 @@
 use crate::{
-    free_java_ptr, free_transaction, from_java_ptr, throw_exception, to_java_ptr, DocWrapper,
+    free_if_valid, free_transaction, get_mut_or_throw, get_ref_or_throw, throw_exception,
+    to_java_ptr, DocPtr, DocWrapper, TxnPtr,
 };
 use jni::objects::{JByteArray, JClass, JObject, JValue};
 use jni::sys::{jbyteArray, jlong, jstring};
@@ -56,12 +57,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            // When DocWrapper is dropped, all subscriptions and GlobalRefs are automatically cleaned up
-            free_java_ptr::<DocWrapper>(ptr);
-        }
-    }
+    // When DocWrapper is dropped, all subscriptions and GlobalRefs are automatically cleaned up
+    free_if_valid!(DocPtr::from_raw(ptr), DocWrapper);
 }
 
 /// Gets the client ID of a YDoc instance
@@ -77,15 +74,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeGetClientId(
     _class: JClass,
     ptr: jlong,
 ) -> jlong {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(ptr);
-        wrapper.doc.client_id() as jlong
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(ptr), "YDoc", 0);
+    wrapper.doc.client_id() as jlong
 }
 
 /// Gets a unique identifier (GUID) for the YDoc instance
@@ -101,16 +91,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeGetGuid(
     _class: JClass,
     ptr: jlong,
 ) -> jstring {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(ptr);
-        let guid = wrapper.doc.guid().to_string();
-        crate::to_jstring(&mut env, &guid)
-    }
+    let wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let guid = wrapper.doc.guid().to_string();
+    crate::to_jstring(&mut env, &guid)
 }
 
 /// Encodes the current state of the document as a byte array using an existing transaction
@@ -128,37 +116,28 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateAsUpdateWithT
     ptr: jlong,
     txn_ptr: jlong,
 ) -> jbyteArray {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
+    // Encode against an empty state vector to get the full document state
+    let empty_sv = yrs::StateVector::default();
+    let update = txn.encode_state_as_update_v1(&empty_sv);
 
-        // Retrieve existing transaction
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                // Encode against an empty state vector to get the full document state
-                let empty_sv = yrs::StateVector::default();
-                let update = txn.encode_state_as_update_v1(&empty_sv);
-
-                match env.byte_array_from_slice(&update) {
-                    Ok(arr) => arr.into_raw(),
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to create byte array");
-                        std::ptr::null_mut()
-                    }
-                }
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
+    match env.byte_array_from_slice(&update) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create byte array");
+            std::ptr::null_mut()
         }
     }
 }
@@ -180,14 +159,8 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdateWithTx
     txn_ptr: jlong,
     update: jbyteArray,
 ) {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(ptr), "YDoc");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java byte array to Rust Vec<u8>
     let update_array = JByteArray::from_raw(update);
@@ -199,24 +172,14 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeApplyUpdateWithTx
         }
     };
 
-    unsafe {
-        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
-
-        // Retrieve existing transaction
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => match yrs::Update::decode_v1(&update_bytes) {
-                Ok(update) => {
-                    if let Err(e) = txn.apply_update(update) {
-                        throw_exception(&mut env, &format!("Failed to apply update: {:?}", e));
-                    }
-                }
-                Err(e) => {
-                    throw_exception(&mut env, &format!("Failed to decode update: {:?}", e));
-                }
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
+    match yrs::Update::decode_v1(&update_bytes) {
+        Ok(update) => {
+            if let Err(e) = txn.apply_update(update) {
+                throw_exception(&mut env, &format!("Failed to apply update: {:?}", e));
             }
+        }
+        Err(e) => {
+            throw_exception(&mut env, &format!("Failed to decode update: {:?}", e));
         }
     }
 }
@@ -236,36 +199,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeStateVectorWithTxn
     ptr: jlong,
     txn_ptr: jlong,
 ) -> jbyteArray {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
+    let state_vector = txn.state_vector();
+    let encoded = state_vector.encode_v1();
 
-        // Retrieve existing transaction
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let state_vector = txn.state_vector();
-                let encoded = state_vector.encode_v1();
-
-                match env.byte_array_from_slice(&encoded) {
-                    Ok(arr) => arr.into_raw(),
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to create byte array");
-                        std::ptr::null_mut()
-                    }
-                }
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
+    match env.byte_array_from_slice(&encoded) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create byte array");
+            std::ptr::null_mut()
         }
     }
 }
@@ -291,14 +245,18 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiffWithTxn
     txn_ptr: jlong,
     state_vector: jbyteArray,
 ) -> jbyteArray {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
     // Convert Java byte array to Rust Vec<u8>
     let sv_array = JByteArray::from_raw(state_vector);
@@ -310,35 +268,23 @@ pub unsafe extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeEncodeDiffWithTxn
         }
     };
 
-    unsafe {
-        let _wrapper = from_java_ptr::<DocWrapper>(ptr);
+    // Decode the state vector
+    let sv = match yrs::StateVector::decode_v1(&sv_bytes) {
+        Ok(sv) => sv,
+        Err(e) => {
+            throw_exception(&mut env, &format!("Failed to decode state vector: {:?}", e));
+            return std::ptr::null_mut();
+        }
+    };
 
-        // Decode the state vector
-        let sv = match yrs::StateVector::decode_v1(&sv_bytes) {
-            Ok(sv) => sv,
-            Err(e) => {
-                throw_exception(&mut env, &format!("Failed to decode state vector: {:?}", e));
-                return std::ptr::null_mut();
-            }
-        };
+    // Encode the differential update
+    let diff = txn.encode_diff_v1(&sv);
 
-        // Retrieve existing transaction and encode the differential update
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let diff = txn.encode_diff_v1(&sv);
-
-                match env.byte_array_from_slice(&diff) {
-                    Ok(arr) => arr.into_raw(),
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to create byte array");
-                        std::ptr::null_mut()
-                    }
-                }
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
+    match env.byte_array_from_slice(&diff) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create byte array");
+            std::ptr::null_mut()
         }
     }
 }
@@ -481,18 +427,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeBeginTransaction(
     _class: JClass,
     ptr: jlong,
 ) -> jlong {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(ptr), "YDoc", 0);
+    let txn = wrapper.doc.transact_mut();
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(ptr);
-        let txn = wrapper.doc.transact_mut();
-
-        // Return raw transaction pointer
-        Box::into_raw(Box::new(txn)) as jlong
-    }
+    // Return raw transaction pointer
+    Box::into_raw(Box::new(txn)) as jlong
 }
 
 /// Commits a transaction, applying all batched operations
@@ -510,17 +449,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeCommit(
     doc_ptr: jlong,
     txn_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let _txn = get_ref_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
+    // Free transaction - this will drop it and commit
     unsafe {
-        // Free transaction - this will drop it and commit
         free_transaction(txn_ptr);
     }
 }
@@ -544,19 +477,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YTransaction_nativeRollback(
     doc_ptr: jlong,
     txn_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let _txn = get_ref_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
+    // Free transaction
+    // Note: yrs doesn't support true rollback - dropping the transaction commits it
+    // In the future, we might need to track changes and implement manual rollback
     unsafe {
-        // Free transaction
-        // Note: yrs doesn't support true rollback - dropping the transaction commits it
-        // In the future, we might need to track changes and implement manual rollback
         free_transaction(txn_ptr);
     }
 }
@@ -575,10 +502,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeObserveUpdateV1(
     subscription_id: jlong,
     ydoc_obj: JObject,
 ) {
-    if ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(ptr), "YDoc");
 
     // Get JavaVM and create Executor for callback handling
     let executor = match env.get_java_vm() {
@@ -598,26 +522,22 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeObserveUpdateV1(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(ptr);
+    // Create observer closure
+    let subscription = match wrapper.doc.observe_update_v1(move |_txn, event| {
+        // Use Executor for thread attachment with automatic local frame management
+        let _ = executor.with_attached(|env| {
+            dispatch_update_event(env, ptr, subscription_id, event.update.as_ref())
+        });
+    }) {
+        Ok(sub) => sub,
+        Err(e) => {
+            eprintln!("Failed to observe update: {:?}", e);
+            return;
+        }
+    };
 
-        // Create observer closure
-        let subscription = match wrapper.doc.observe_update_v1(move |_txn, event| {
-            // Use Executor for thread attachment with automatic local frame management
-            let _ = executor.with_attached(|env| {
-                dispatch_update_event(env, ptr, subscription_id, event.update.as_ref())
-            });
-        }) {
-            Ok(sub) => sub,
-            Err(e) => {
-                eprintln!("Failed to observe update: {:?}", e);
-                return;
-            }
-        };
-
-        // Store subscription and global ref in the DocWrapper
-        wrapper.add_subscription(subscription_id, subscription, global_ref);
-    }
+    // Store subscription and global ref in the DocWrapper
+    wrapper.add_subscription(subscription_id, subscription, global_ref);
 }
 
 /// Unregisters an update observer for the YDoc
@@ -632,13 +552,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YDoc_nativeUnobserveUpdateV1(
     ptr: jlong,
     subscription_id: jlong,
 ) {
-    if ptr == 0 {
+    let doc_ptr = DocPtr::from_raw(ptr);
+    if doc_ptr.is_null() {
         return;
     }
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(ptr);
-        // Remove and drop subscription - this properly unregisters the observer
+    // Remove and drop subscription - this properly unregisters the observer
+    if let Some(wrapper) = unsafe { doc_ptr.as_ref() } {
         wrapper.remove_subscription(subscription_id);
     }
 }
@@ -657,14 +577,18 @@ fn dispatch_update_event(
     let origin_jstr = JObject::null();
 
     // Get the Java YDoc object from DocWrapper
-    let ydoc_ref = unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        match wrapper.get_java_ref(subscription_id) {
+    let ptr = DocPtr::from_raw(doc_ptr);
+    let ydoc_ref = match unsafe { ptr.as_ref() } {
+        Some(wrapper) => match wrapper.get_java_ref(subscription_id) {
             Some(r) => r,
             None => {
                 eprintln!("No Java object found for subscription {}", subscription_id);
                 return Ok(());
             }
+        },
+        None => {
+            eprintln!("Invalid doc pointer in dispatch_update_event");
+            return Ok(());
         }
     };
 
@@ -696,9 +620,7 @@ mod tests {
         let ptr = to_java_ptr(wrapper);
         assert_ne!(ptr, 0);
 
-        unsafe {
-            free_java_ptr::<DocWrapper>(ptr);
-        }
+        free_if_valid!(DocPtr::from_raw(ptr), DocWrapper);
     }
 
     #[test]

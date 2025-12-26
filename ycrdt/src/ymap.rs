@@ -1,4 +1,7 @@
-use crate::{free_java_ptr, from_java_ptr, throw_exception, to_java_ptr, to_jstring, DocWrapper};
+use crate::{
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
+    to_jstring, DocPtr, DocWrapper, MapPtr, TxnPtr,
+};
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jlong, jstring};
 use jni::{Executor, JNIEnv};
@@ -22,10 +25,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetMap(
     doc_ptr: jlong,
     name: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
     let name_str = match env.get_string(&name) {
@@ -42,11 +42,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetMap(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let map = wrapper.doc.get_or_insert_map(name_str.as_str());
-        to_java_ptr(map)
-    }
+    let map = wrapper.doc.get_or_insert_map(name_str.as_str());
+    to_java_ptr(map)
 }
 
 /// Destroys a YMap instance and frees its memory
@@ -62,11 +59,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            free_java_ptr::<MapRef>(ptr);
-        }
-    }
+    free_if_valid!(MapPtr::from_raw(ptr), MapRef);
 }
 
 /// Gets the size of the map (number of entries) with transaction
@@ -86,29 +79,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSizeWithTxn(
     map_ptr: jlong,
     txn_ptr: jlong,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", 0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => map.len(txn) as jlong,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    map.len(txn) as jlong
 }
 
 /// Gets a string value from the map by key with transaction
@@ -130,18 +105,24 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetStringWithTxn(
     txn_ptr: jlong,
     key: JString,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let map = get_ref_or_throw!(
+        &mut env,
+        MapPtr::from_raw(map_ptr),
+        "YMap",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -158,21 +139,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetStringWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => match map.get(txn, &key_str) {
-                Some(value) => {
-                    let s = value.to_string(txn);
-                    to_jstring(&mut env, &s)
-                }
-                None => std::ptr::null_mut(),
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
+    match map.get(txn, &key_str) {
+        Some(value) => {
+            let s = value.to_string(txn);
+            to_jstring(&mut env, &s)
         }
+        None => std::ptr::null_mut(),
     }
 }
 
@@ -195,18 +167,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoubleWithTxn(
     txn_ptr: jlong,
     key: JString,
 ) -> jdouble {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0.0;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return 0.0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0.0;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0.0);
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", 0.0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0.0);
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -223,18 +186,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDoubleWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => match map.get(txn, &key_str) {
-                Some(value) => value.cast::<f64>().unwrap_or(0.0),
-                None => 0.0,
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0.0
-            }
-        }
+    match map.get(txn, &key_str) {
+        Some(value) => value.cast::<f64>().unwrap_or(0.0),
+        None => 0.0,
     }
 }
 
@@ -256,18 +210,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetStringWithTxn(
     key: JString,
     value: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -287,17 +232,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetStringWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                map.insert(txn, key_str, value_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    map.insert(txn, key_str, value_str);
 }
 
 /// Sets a double value in the map with transaction
@@ -318,18 +253,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoubleWithTxn(
     key: JString,
     value: jdouble,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -340,17 +266,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDoubleWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                map.insert(txn, key_str, value);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    map.insert(txn, key_str, value);
 }
 
 /// Removes a key from the map with transaction
@@ -369,18 +285,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemoveWithTxn(
     txn_ptr: jlong,
     key: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -391,17 +298,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeRemoveWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                map.remove(txn, &key_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    map.remove(txn, &key_str);
 }
 
 /// Checks if a key exists in the map with transaction
@@ -423,18 +320,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKeyWithTxn(
     txn_ptr: jlong,
     key: JString,
 ) -> bool {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return false;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return false;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return false;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", false);
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", false);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", false);
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -451,16 +339,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeContainsKeyWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => map.contains_key(txn, &key_str),
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                false
-            }
-        }
-    }
+    map.contains_key(txn, &key_str)
 }
 
 /// Gets all keys from the map as a Java array with transaction
@@ -480,70 +359,54 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeKeysWithTxn<'a>(
     map_ptr: jlong,
     txn_ptr: jlong,
 ) -> JObject<'a> {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return JObject::null();
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return JObject::null();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return JObject::null();
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", JObject::null());
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", JObject::null());
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        JObject::null()
+    );
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                // Collect all keys
-                let keys: Vec<String> = map.keys(txn).map(|k| k.to_string()).collect();
+    // Collect all keys
+    let keys: Vec<String> = map.keys(txn).map(|k| k.to_string()).collect();
 
-                // Create Java String array
-                let string_class = match env.find_class("java/lang/String") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find String class");
-                        return JObject::null();
-                    }
-                };
+    // Create Java String array
+    let string_class = match env.find_class("java/lang/String") {
+        Ok(cls) => cls,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to find String class");
+            return JObject::null();
+        }
+    };
 
-                let array =
-                    match env.new_object_array(keys.len() as i32, string_class, JObject::null()) {
-                        Ok(arr) => arr,
-                        Err(_) => {
-                            throw_exception(&mut env, "Failed to create String array");
-                            return JObject::null();
-                        }
-                    };
+    let array = match env.new_object_array(keys.len() as i32, string_class, JObject::null()) {
+        Ok(arr) => arr,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create String array");
+            return JObject::null();
+        }
+    };
 
-                // Fill the array
-                for (i, key) in keys.iter().enumerate() {
-                    let jkey = match env.new_string(key) {
-                        Ok(s) => s,
-                        Err(_) => {
-                            throw_exception(&mut env, "Failed to create Java string");
-                            return JObject::null();
-                        }
-                    };
-                    if env
-                        .set_object_array_element(&array, i as i32, &jkey)
-                        .is_err()
-                    {
-                        throw_exception(&mut env, "Failed to set array element");
-                        return JObject::null();
-                    }
-                }
-
-                JObject::from(array)
+    // Fill the array
+    for (i, key) in keys.iter().enumerate() {
+        let jkey = match env.new_string(key) {
+            Ok(s) => s,
+            Err(_) => {
+                throw_exception(&mut env, "Failed to create Java string");
+                return JObject::null();
             }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                JObject::null()
-            }
+        };
+        if env
+            .set_object_array_element(&array, i as i32, &jkey)
+            .is_err()
+        {
+            throw_exception(&mut env, "Failed to set array element");
+            return JObject::null();
         }
     }
+
+    JObject::from(array)
 }
 
 /// Clears all entries from the map with transaction
@@ -560,30 +423,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeClearWithTxn(
     map_ptr: jlong,
     txn_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                map.clear(txn);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    map.clear(txn);
 }
 
 /// Converts the map to a JSON string representation with transaction
@@ -603,32 +447,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeToJsonWithTxn(
     map_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _wrapper = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let map = get_ref_or_throw!(
+        &mut env,
+        MapPtr::from_raw(map_ptr),
+        "YMap",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let json = map.to_json(txn).to_string();
-                to_jstring(&mut env, &json)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
-    }
+    let json = map.to_json(txn).to_string();
+    to_jstring(&mut env, &json)
 }
 
 /// Sets a YDoc subdocument value in the map with transaction
@@ -649,22 +488,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDocWithTxn(
     key: JString,
     subdoc_ptr: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if map_ptr == 0 {
-        throw_exception(&mut env, "Invalid YMap pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
-    if subdoc_ptr == 0 {
-        throw_exception(&mut env, "Invalid subdocument pointer");
-        return;
-    }
+    let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
+    let subdoc_wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(subdoc_ptr), "subdocument");
 
     // Convert key to Rust string
     let key_str: String = match env.get_string(&key) {
@@ -675,22 +502,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeSetDocWithTxn(
         }
     };
 
-    unsafe {
-        let map = from_java_ptr::<MapRef>(map_ptr);
-        let subdoc = from_java_ptr::<Doc>(subdoc_ptr);
+    // Clone the inner doc for insertion (Doc implements Prelim)
+    let subdoc_clone = subdoc_wrapper.doc.clone();
 
-        // Clone the subdoc for insertion (Doc implements Prelim)
-        let subdoc_clone = subdoc.clone();
-
-        match crate::get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                map.insert(txn, key_str, subdoc_clone);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    map.insert(txn, key_str, subdoc_clone);
 }
 
 /// Gets a YDoc subdocument value from the map by key with transaction
@@ -747,7 +562,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YMap_nativeGetDocWithTxn(
                 Some(value) => {
                     // Try to cast to Doc
                     match value.cast::<Doc>() {
-                        Ok(subdoc) => to_java_ptr(subdoc.clone()),
+                        // Wrap in DocWrapper so nativeDestroy can properly free it
+                        Ok(subdoc) => to_java_ptr(DocWrapper::from_doc(subdoc.clone())),
                         Err(_) => 0,
                     }
                 }
@@ -1078,6 +894,7 @@ fn any_to_jobject<'local>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::free_java_ptr;
     use yrs::{Doc, Transact};
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::{
-    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
-    DocWrapper,
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
+    to_jstring, DocPtr, DocWrapper, TxnPtr, XmlElementPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
@@ -28,10 +28,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetXmlElement(
     doc_ptr: jlong,
     name: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
     let name_str = match env.get_string(&name) {
@@ -48,29 +45,26 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetXmlElement(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let fragment = wrapper.doc.get_or_insert_xml_fragment(name_str.as_str());
+    let fragment = wrapper.doc.get_or_insert_xml_fragment(name_str.as_str());
 
-        // Ensure the fragment has an element child at index 0
-        {
-            let txn = wrapper.doc.transact();
-            if fragment.len(&txn) == 0 {
-                drop(txn);
-                let mut txn = wrapper.doc.transact_mut();
-                fragment.insert(&mut txn, 0, XmlElementPrelim::empty(name_str.as_str()));
-            }
-        }
-
-        // Return a pointer to the element at index 0, not the fragment
+    // Ensure the fragment has an element child at index 0
+    {
         let txn = wrapper.doc.transact();
-        if let Some(child) = fragment.get(&txn, 0) {
-            if let Some(element) = child.into_xml_element() {
-                return to_java_ptr(element);
-            }
+        if fragment.len(&txn) == 0 {
+            drop(txn);
+            let mut txn = wrapper.doc.transact_mut();
+            fragment.insert(&mut txn, 0, XmlElementPrelim::empty(name_str.as_str()));
         }
-        0
     }
+
+    // Return a pointer to the element at index 0, not the fragment
+    let txn = wrapper.doc.transact();
+    if let Some(child) = fragment.get(&txn, 0) {
+        if let Some(element) = child.into_xml_element() {
+            return to_java_ptr(element);
+        }
+    }
+    0
 }
 
 /// Destroys a YXmlElement instance and frees its memory
@@ -87,15 +81,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            // Try to free as XmlElementRef (new pattern from getElement())
-            // If that fails, free as XmlFragmentRef (old pattern from getXmlElement())
-            // Note: We can't easily distinguish between them at runtime,
-            // but since they both use BranchPtr internally, freeing as either should work
-            free_java_ptr::<XmlElementRef>(ptr);
-        }
-    }
+    free_if_valid!(XmlElementPtr::from_raw(ptr), XmlElementRef);
 }
 
 /// Gets the tag name of the XML element
@@ -114,24 +100,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetTagWithTxn(
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _doc = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        std::ptr::null_mut()
+    );
+    let _txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let element_ref = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        let tag = element_ref.tag();
-        to_jstring(&mut env, tag.as_ref())
-    }
+    let tag = element.tag();
+    to_jstring(&mut env, tag.as_ref())
 }
 
 /// Gets an attribute value by name using an existing transaction
@@ -153,18 +142,24 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeWithT
     txn_ptr: jlong,
     name: JString,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _doc = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
     // Convert name to Rust string
     let name_str: String = match env.get_string(&name) {
@@ -181,19 +176,10 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeWithT
         }
     };
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => match element.get_attribute(txn, &name_str) {
-                Some(yrs::Out::Any(yrs::Any::String(s))) => to_jstring(&mut env, s.as_ref()),
-                Some(_) => std::ptr::null_mut(), // Non-string attribute value
-                None => std::ptr::null_mut(),
-            },
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
+    match element.get_attribute(txn, &name_str) {
+        Some(yrs::Out::Any(yrs::Any::String(s))) => to_jstring(&mut env, s.as_ref()),
+        Some(_) => std::ptr::null_mut(), // Non-string attribute value
+        None => std::ptr::null_mut(),
     }
 }
 
@@ -215,18 +201,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttributeWithT
     name: JString,
     value: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert name to Rust string
     let name_str: String = match env.get_string(&name) {
@@ -246,17 +227,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeSetAttributeWithT
         }
     };
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                element.insert_attribute(txn, name_str, value_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    element.insert_attribute(txn, name_str, value_str);
 }
 
 /// Removes an attribute using an existing transaction
@@ -275,18 +246,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttributeWi
     txn_ptr: jlong,
     name: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert name to Rust string
     let name_str: String = match env.get_string(&name) {
@@ -297,17 +263,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveAttributeWi
         }
     };
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                element.remove_attribute(txn, &name_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    element.remove_attribute(txn, &name_str);
 }
 
 /// Gets all attribute names using an existing transaction
@@ -327,72 +283,61 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetAttributeNames
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> JObject<'a> {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return JObject::null();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return JObject::null();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return JObject::null();
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", JObject::null());
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        JObject::null()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        JObject::null()
+    );
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+    let names: Vec<String> = element
+        .attributes(txn)
+        .map(|(k, _)| k.to_string())
+        .collect();
 
-        let txn = match get_transaction_mut(txn_ptr) {
-            Some(t) => t,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                return JObject::null();
-            }
-        };
-
-        let names: Vec<String> = element
-            .attributes(txn)
-            .map(|(k, _)| k.to_string())
-            .collect();
-
-        // Create Java String array
-        let string_class = match env.find_class("java/lang/String") {
-            Ok(cls) => cls,
-            Err(_) => {
-                throw_exception(&mut env, "Failed to find String class");
-                return JObject::null();
-            }
-        };
-
-        let array = match env.new_object_array(names.len() as i32, string_class, JObject::null()) {
-            Ok(arr) => arr,
-            Err(_) => {
-                throw_exception(&mut env, "Failed to create String array");
-                return JObject::null();
-            }
-        };
-
-        // Fill the array
-        for (i, name) in names.iter().enumerate() {
-            let jname = match env.new_string(name) {
-                Ok(s) => s,
-                Err(_) => {
-                    throw_exception(&mut env, "Failed to create Java string");
-                    return JObject::null();
-                }
-            };
-            if env
-                .set_object_array_element(&array, i as i32, &jname)
-                .is_err()
-            {
-                throw_exception(&mut env, "Failed to set array element");
-                return JObject::null();
-            }
+    // Create Java String array
+    let string_class = match env.find_class("java/lang/String") {
+        Ok(cls) => cls,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to find String class");
+            return JObject::null();
         }
+    };
 
-        JObject::from(array)
+    let array = match env.new_object_array(names.len() as i32, string_class, JObject::null()) {
+        Ok(arr) => arr,
+        Err(_) => {
+            throw_exception(&mut env, "Failed to create String array");
+            return JObject::null();
+        }
+    };
+
+    // Fill the array
+    for (i, name) in names.iter().enumerate() {
+        let jname = match env.new_string(name) {
+            Ok(s) => s,
+            Err(_) => {
+                throw_exception(&mut env, "Failed to create Java string");
+                return JObject::null();
+            }
+        };
+        if env
+            .set_object_array_element(&array, i as i32, &jname)
+            .is_err()
+        {
+            throw_exception(&mut env, "Failed to set array element");
+            return JObject::null();
+        }
     }
+
+    JObject::from(array)
 }
 
 /// Returns the XML string representation of the element using an existing transaction
@@ -412,32 +357,27 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeToStringWithTxn(
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let _doc = get_ref_or_throw!(
+        &mut env,
+        DocPtr::from_raw(doc_ptr),
+        "YDoc",
+        std::ptr::null_mut()
+    );
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let xml_string = element.get_string(txn);
-                to_jstring(&mut env, &xml_string)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
-    }
+    let xml_string = element.get_string(txn);
+    to_jstring(&mut env, &xml_string)
 }
 
 /// Gets the number of child nodes in this element using an existing transaction
@@ -457,29 +397,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeChildCountWithTxn
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> jni::sys::jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => element.len(txn) as jni::sys::jint,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    element.len(txn) as jni::sys::jint
 }
 
 /// Inserts an XML element child at the specified index using an existing transaction
@@ -503,18 +430,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElementWith
     index: jni::sys::jint,
     tag: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
+
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return 0;
@@ -535,20 +459,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertElementWith
         }
     };
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let new_element =
-                    element.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
-                to_java_ptr(new_element)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    let new_element = element.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
+    to_java_ptr(new_element)
 }
 
 /// Inserts an XML text child at the specified index using an existing transaction
@@ -570,38 +482,23 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeInsertTextWithTxn
     txn_ptr: jlong,
     index: jni::sys::jint,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
+
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return 0;
     }
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        use yrs::XmlTextPrelim;
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let new_text = element.insert(txn, index as u32, XmlTextPrelim::new(""));
-                to_java_ptr(new_text)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    use yrs::XmlTextPrelim;
+    let new_text = element.insert(txn, index as u32, XmlTextPrelim::new(""));
+    to_java_ptr(new_text)
 }
 
 /// Gets the child node at the specified index using an existing transaction
@@ -623,117 +520,107 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetChildWithTxn<'
     txn_ptr: jlong,
     index: jni::sys::jint,
 ) -> JObject<'a> {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return JObject::null();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return JObject::null();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return JObject::null();
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", JObject::null());
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        JObject::null()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        JObject::null()
+    );
+
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return JObject::null();
     }
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+    match element.get(txn, index as u32) {
+        Some(child) => {
+            use yrs::XmlOut;
 
-        let txn = match get_transaction_mut(txn_ptr) {
-            Some(t) => t,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
+            // Create Object array [type, pointer]
+            let object_class = match env.find_class("java/lang/Object") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Object class");
+                    return JObject::null();
+                }
+            };
+
+            let array = match env.new_object_array(2, object_class, JObject::null()) {
+                Ok(arr) => arr,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to create Object array");
+                    return JObject::null();
+                }
+            };
+
+            let (type_val, ptr) = match child {
+                XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
+                XmlOut::Text(text) => (1i32, to_java_ptr(text)),
+                XmlOut::Fragment(_) => {
+                    throw_exception(&mut env, "Unexpected XmlFragment as child");
+                    return JObject::null();
+                }
+            };
+
+            // Set type as Integer
+            let integer_class = match env.find_class("java/lang/Integer") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Integer class");
+                    return JObject::null();
+                }
+            };
+
+            let type_obj = match env.new_object(
+                integer_class,
+                "(I)V",
+                &[jni::objects::JValue::Int(type_val)],
+            ) {
+                Ok(obj) => obj,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to create Integer object");
+                    return JObject::null();
+                }
+            };
+
+            if env.set_object_array_element(&array, 0, &type_obj).is_err() {
+                throw_exception(&mut env, "Failed to set type in array");
                 return JObject::null();
             }
-        };
 
-        match element.get(txn, index as u32) {
-            Some(child) => {
-                use yrs::XmlOut;
+            // Set pointer as Long
+            let long_class = match env.find_class("java/lang/Long") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Long class");
+                    return JObject::null();
+                }
+            };
 
-                // Create Object array [type, pointer]
-                let object_class = match env.find_class("java/lang/Object") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Object class");
-                        return JObject::null();
-                    }
-                };
-
-                let array = match env.new_object_array(2, object_class, JObject::null()) {
-                    Ok(arr) => arr,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to create Object array");
-                        return JObject::null();
-                    }
-                };
-
-                let (type_val, ptr) = match child {
-                    XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
-                    XmlOut::Text(text) => (1i32, to_java_ptr(text)),
-                    XmlOut::Fragment(_) => {
-                        throw_exception(&mut env, "Unexpected XmlFragment as child");
-                        return JObject::null();
-                    }
-                };
-
-                // Set type as Integer
-                let integer_class = match env.find_class("java/lang/Integer") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Integer class");
-                        return JObject::null();
-                    }
-                };
-
-                let type_obj = match env.new_object(
-                    integer_class,
-                    "(I)V",
-                    &[jni::objects::JValue::Int(type_val)],
-                ) {
+            let ptr_obj =
+                match env.new_object(long_class, "(J)V", &[jni::objects::JValue::Long(ptr)]) {
                     Ok(obj) => obj,
                     Err(_) => {
-                        throw_exception(&mut env, "Failed to create Integer object");
+                        throw_exception(&mut env, "Failed to create Long object");
                         return JObject::null();
                     }
                 };
 
-                if env.set_object_array_element(&array, 0, &type_obj).is_err() {
-                    throw_exception(&mut env, "Failed to set type in array");
-                    return JObject::null();
-                }
-
-                // Set pointer as Long
-                let long_class = match env.find_class("java/lang/Long") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Long class");
-                        return JObject::null();
-                    }
-                };
-
-                let ptr_obj =
-                    match env.new_object(long_class, "(J)V", &[jni::objects::JValue::Long(ptr)]) {
-                        Ok(obj) => obj,
-                        Err(_) => {
-                            throw_exception(&mut env, "Failed to create Long object");
-                            return JObject::null();
-                        }
-                    };
-
-                if env.set_object_array_element(&array, 1, &ptr_obj).is_err() {
-                    throw_exception(&mut env, "Failed to set pointer in array");
-                    return JObject::null();
-                }
-
-                JObject::from(array)
+            if env.set_object_array_element(&array, 1, &ptr_obj).is_err() {
+                throw_exception(&mut env, "Failed to set pointer in array");
+                return JObject::null();
             }
-            None => JObject::null(),
+
+            JObject::from(array)
         }
+        None => JObject::null(),
     }
 }
 
@@ -753,34 +640,20 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeRemoveChildWithTx
     txn_ptr: jlong,
     index: jni::sys::jint,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
+
     if index < 0 {
         throw_exception(&mut env, "Index cannot be negative");
         return;
     }
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                element.remove(txn, index as u32);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    element.remove(txn, index as u32);
 }
 
 /// Gets the parent node of this element using an existing transaction
@@ -800,105 +673,102 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetParentWithTxn<
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> JObject<'a> {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return JObject::null();
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return JObject::null();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return JObject::null();
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", JObject::null());
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        JObject::null()
+    );
+    let _txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        JObject::null()
+    );
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+    match element.parent() {
+        Some(parent) => {
+            use yrs::XmlOut;
 
-        match element.parent() {
-            Some(parent) => {
-                use yrs::XmlOut;
+            // Create Object array [type, pointer]
+            let object_class = match env.find_class("java/lang/Object") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Object class");
+                    return JObject::null();
+                }
+            };
 
-                // Create Object array [type, pointer]
-                let object_class = match env.find_class("java/lang/Object") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Object class");
-                        return JObject::null();
-                    }
-                };
+            let array = match env.new_object_array(2, object_class, JObject::null()) {
+                Ok(arr) => arr,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to create Object array");
+                    return JObject::null();
+                }
+            };
 
-                let array = match env.new_object_array(2, object_class, JObject::null()) {
-                    Ok(arr) => arr,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to create Object array");
-                        return JObject::null();
-                    }
-                };
+            let (type_val, ptr) = match parent {
+                XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
+                XmlOut::Fragment(frag) => (1i32, to_java_ptr(frag)),
+                XmlOut::Text(_) => {
+                    throw_exception(&mut env, "Unexpected XmlText as parent");
+                    return JObject::null();
+                }
+            };
 
-                let (type_val, ptr) = match parent {
-                    XmlOut::Element(elem) => (0i32, to_java_ptr(elem)),
-                    XmlOut::Fragment(frag) => (1i32, to_java_ptr(frag)),
-                    XmlOut::Text(_) => {
-                        throw_exception(&mut env, "Unexpected XmlText as parent");
-                        return JObject::null();
-                    }
-                };
+            // Set type as Integer
+            let integer_class = match env.find_class("java/lang/Integer") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Integer class");
+                    return JObject::null();
+                }
+            };
 
-                // Set type as Integer
-                let integer_class = match env.find_class("java/lang/Integer") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Integer class");
-                        return JObject::null();
-                    }
-                };
+            let type_obj = match env.new_object(
+                integer_class,
+                "(I)V",
+                &[jni::objects::JValue::Int(type_val)],
+            ) {
+                Ok(obj) => obj,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to create Integer object");
+                    return JObject::null();
+                }
+            };
 
-                let type_obj = match env.new_object(
-                    integer_class,
-                    "(I)V",
-                    &[jni::objects::JValue::Int(type_val)],
-                ) {
+            if env.set_object_array_element(&array, 0, &type_obj).is_err() {
+                throw_exception(&mut env, "Failed to set type in array");
+                return JObject::null();
+            }
+
+            // Set pointer as Long
+            let long_class = match env.find_class("java/lang/Long") {
+                Ok(cls) => cls,
+                Err(_) => {
+                    throw_exception(&mut env, "Failed to find Long class");
+                    return JObject::null();
+                }
+            };
+
+            let ptr_obj =
+                match env.new_object(long_class, "(J)V", &[jni::objects::JValue::Long(ptr)]) {
                     Ok(obj) => obj,
                     Err(_) => {
-                        throw_exception(&mut env, "Failed to create Integer object");
+                        throw_exception(&mut env, "Failed to create Long object");
                         return JObject::null();
                     }
                 };
 
-                if env.set_object_array_element(&array, 0, &type_obj).is_err() {
-                    throw_exception(&mut env, "Failed to set type in array");
-                    return JObject::null();
-                }
-
-                // Set pointer as Long
-                let long_class = match env.find_class("java/lang/Long") {
-                    Ok(cls) => cls,
-                    Err(_) => {
-                        throw_exception(&mut env, "Failed to find Long class");
-                        return JObject::null();
-                    }
-                };
-
-                let ptr_obj =
-                    match env.new_object(long_class, "(J)V", &[jni::objects::JValue::Long(ptr)]) {
-                        Ok(obj) => obj,
-                        Err(_) => {
-                            throw_exception(&mut env, "Failed to create Long object");
-                            return JObject::null();
-                        }
-                    };
-
-                if env.set_object_array_element(&array, 1, &ptr_obj).is_err() {
-                    throw_exception(&mut env, "Failed to set pointer in array");
-                    return JObject::null();
-                }
-
-                JObject::from(array)
+            if env.set_object_array_element(&array, 1, &ptr_obj).is_err() {
+                throw_exception(&mut env, "Failed to set pointer in array");
+                return JObject::null();
             }
-            None => JObject::null(),
+
+            JObject::from(array)
         }
+        None => JObject::null(),
     }
 }
 
@@ -919,69 +789,53 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeGetIndexInParentW
     xml_element_ptr: jlong,
     txn_ptr: jlong,
 ) -> jni::sys::jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return -1;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return -1;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return -1;
-    }
+    let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", -1);
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement",
+        -1
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", -1);
 
-    unsafe {
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
+    // Get parent and iterate through children to find index
+    match element.parent() {
+        Some(parent) => {
+            use yrs::XmlOut;
 
-        let txn = match get_transaction_mut(txn_ptr) {
-            Some(t) => t,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                return -1;
-            }
-        };
+            use yrs::branch::Branch;
+            let my_id = <XmlElementRef as AsRef<Branch>>::as_ref(element).id();
 
-        // Get parent and iterate through children to find index
-        match element.parent() {
-            Some(parent) => {
-                use yrs::XmlOut;
-
-                use yrs::branch::Branch;
-                let my_id = <XmlElementRef as AsRef<Branch>>::as_ref(element).id();
-
-                // Match on parent type and iterate children directly
-                match parent {
-                    XmlOut::Element(elem) => {
-                        // Iterate through parent's children to find our index
-                        for index in 0..elem.len(txn) {
-                            if let Some(child) = elem.get(txn, index) {
-                                let child_id = child.as_ptr().id();
-                                if child_id == my_id {
-                                    return index as jni::sys::jint;
-                                }
+            // Match on parent type and iterate children directly
+            match parent {
+                XmlOut::Element(elem) => {
+                    // Iterate through parent's children to find our index
+                    for index in 0..elem.len(txn) {
+                        if let Some(child) = elem.get(txn, index) {
+                            let child_id = child.as_ptr().id();
+                            if child_id == my_id {
+                                return index as jni::sys::jint;
                             }
                         }
-                        -1
                     }
-                    XmlOut::Fragment(frag) => {
-                        // Iterate through parent's children to find our index
-                        for index in 0..frag.len(txn) {
-                            if let Some(child) = frag.get(txn, index) {
-                                let child_id = child.as_ptr().id();
-                                if child_id == my_id {
-                                    return index as jni::sys::jint;
-                                }
-                            }
-                        }
-                        -1
-                    }
-                    XmlOut::Text(_) => -1, // Text can't be a parent
+                    -1
                 }
+                XmlOut::Fragment(frag) => {
+                    // Iterate through parent's children to find our index
+                    for index in 0..frag.len(txn) {
+                        if let Some(child) = frag.get(txn, index) {
+                            let child_id = child.as_ptr().id();
+                            if child_id == my_id {
+                                return index as jni::sys::jint;
+                            }
+                        }
+                    }
+                    -1
+                }
+                XmlOut::Text(_) => -1, // Text can't be a parent
             }
-            None => -1, // No parent
         }
+        None => -1, // No parent
     }
 }
 
@@ -1001,14 +855,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeObserve(
     subscription_id: jlong,
     yxmlelement_obj: JObject,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if xml_element_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlElement pointer");
-        return;
-    }
+    let wrapper = get_mut_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let element = get_ref_or_throw!(
+        &mut env,
+        XmlElementPtr::from_raw(xml_element_ptr),
+        "YXmlElement"
+    );
 
     // Get JavaVM and create Executor for callback handling
     let executor = match env.get_java_vm() {
@@ -1028,21 +880,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeObserve(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let element = from_java_ptr::<XmlElementRef>(xml_element_ptr);
-
-        // Create observer closure
-        let subscription = element.observe(move |txn, event| {
-            // Use Executor for thread attachment with automatic local frame management
-            let _ = executor.with_attached(|env| {
-                dispatch_xmlelement_event(env, doc_ptr, subscription_id, txn, event)
-            });
+    // Create observer closure
+    let subscription = element.observe(move |txn, event| {
+        // Use Executor for thread attachment with automatic local frame management
+        let _ = executor.with_attached(|env| {
+            dispatch_xmlelement_event(env, doc_ptr, subscription_id, txn, event)
         });
+    });
 
-        // Store subscription and GlobalRef in the DocWrapper
-        wrapper.add_subscription(subscription_id, subscription, global_ref);
-    }
+    // Store subscription and GlobalRef in the DocWrapper
+    wrapper.add_subscription(subscription_id, subscription, global_ref);
 }
 
 /// Unregisters an observer for the YXmlElement
@@ -1059,17 +906,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlElement_nativeUnobserve(
     _xml_element_ptr: jlong,
     subscription_id: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
+    let wrapper = get_mut_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        // Remove subscription and GlobalRef from DocWrapper
-        // Both the Subscription and GlobalRef are dropped here
-        wrapper.remove_subscription(subscription_id);
-    }
+    // Remove subscription and GlobalRef from DocWrapper
+    // Both the Subscription and GlobalRef are dropped here
+    wrapper.remove_subscription(subscription_id);
 }
 
 /// Helper function to dispatch an XML element event to Java
@@ -1364,6 +1205,7 @@ fn any_to_jobject<'local>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::free_java_ptr;
     use yrs::{Doc, Transact, XmlFragment, XmlFragmentRef};
 
     #[test]

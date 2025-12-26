@@ -1,6 +1,6 @@
 use crate::{
-    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
-    DocWrapper,
+    free_if_valid, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr, to_jstring,
+    DocPtr, TextPtr, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
@@ -24,10 +24,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeGetText(
     doc_ptr: jlong,
     name: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
     let name_str = match env.get_string(&name) {
@@ -44,11 +41,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeGetText(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let text = wrapper.doc.get_or_insert_text(name_str.as_str());
-        to_java_ptr(text)
-    }
+    let text = wrapper.doc.get_or_insert_text(name_str.as_str());
+    to_java_ptr(text)
 }
 
 /// Destroys a YText instance and frees its memory
@@ -64,11 +58,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            free_java_ptr::<TextRef>(ptr);
-        }
-    }
+    free_if_valid!(TextPtr::from_raw(ptr), TextRef);
 }
 
 /// Gets the length of the text with an existing transaction
@@ -84,34 +74,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeDestroy(
 pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeLengthWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     text_ptr: jlong,
     txn_ptr: jlong,
 ) -> jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid YTransaction pointer");
-        return 0;
-    }
+    let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText", 0);
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let text = from_java_ptr::<TextRef>(text_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => text.len(txn) as jint,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    text.len(txn) as jint
 }
 
 /// Gets the string content of the text using an existing transaction
@@ -127,36 +97,25 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeLengthWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeToStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     text_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid YTransaction pointer");
-        return std::ptr::null_mut();
-    }
+    let text = get_ref_or_throw!(
+        &mut env,
+        TextPtr::from_raw(text_ptr),
+        "YText",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let text = from_java_ptr::<TextRef>(text_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let content = text.get_string(txn);
-                to_jstring(&mut env, &content)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
-    }
+    let content = text.get_string(txn);
+    to_jstring(&mut env, &content)
 }
 
 /// Inserts text at the specified index using an existing transaction
@@ -171,24 +130,14 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeToStringWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeInsertWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     text_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
     chunk: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
     let chunk_jstring = match env.get_string(&chunk) {
@@ -200,19 +149,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeInsertWithTxn(
     };
     let chunk_str: String = chunk_jstring.into();
 
-    unsafe {
-        let text = from_java_ptr::<TextRef>(text_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                text.insert(txn, index as u32, &chunk_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    text.insert(txn, index as u32, &chunk_str);
 }
 
 /// Appends text to the end using an existing transaction
@@ -226,23 +163,13 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeInsertWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativePushWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     text_ptr: jlong,
     txn_ptr: jlong,
     chunk: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert Java string to Rust string
     let chunk_jstring = match env.get_string(&chunk) {
@@ -254,19 +181,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativePushWithTxn(
     };
     let chunk_str: String = chunk_jstring.into();
 
-    unsafe {
-        let text = from_java_ptr::<TextRef>(text_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                text.push(txn, &chunk_str);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    text.push(txn, &chunk_str);
 }
 
 /// Deletes a range of text using an existing transaction
@@ -281,38 +196,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativePushWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeDeleteWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     text_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
     length: jint,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let text = from_java_ptr::<TextRef>(text_ptr);
-
-        // Retrieve existing transaction
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                text.remove_range(txn, index as u32, length as u32);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    text.remove_range(txn, index as u32, length as u32);
 }
 
 /// Registers an observer for the YText
@@ -331,14 +224,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeObserve(
     subscription_id: jlong,
     ytext_obj: JObject,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if text_ptr == 0 {
-        throw_exception(&mut env, "Invalid YText pointer");
-        return;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
 
     // Get JavaVM and create Executor for callback handling
     let executor = match env.get_java_vm() {
@@ -358,21 +245,15 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeObserve(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let text = from_java_ptr::<TextRef>(text_ptr);
+    // Create observer closure
+    let subscription = text.observe(move |txn, event| {
+        // Use Executor for thread attachment with automatic local frame management
+        let _ = executor
+            .with_attached(|env| dispatch_text_event(env, doc_ptr, subscription_id, txn, event));
+    });
 
-        // Create observer closure
-        let subscription = text.observe(move |txn, event| {
-            // Use Executor for thread attachment with automatic local frame management
-            let _ = executor.with_attached(|env| {
-                dispatch_text_event(env, doc_ptr, subscription_id, txn, event)
-            });
-        });
-
-        // Store subscription and GlobalRef in the DocWrapper
-        wrapper.add_subscription(subscription_id, subscription, global_ref);
-    }
+    // Store subscription and GlobalRef in the DocWrapper
+    wrapper.add_subscription(subscription_id, subscription, global_ref);
 }
 
 /// Unregisters an observer for the YText
@@ -389,17 +270,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YText_nativeUnobserve(
     _text_ptr: jlong,
     subscription_id: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        // Remove subscription and GlobalRef from DocWrapper
-        // Both the Subscription and GlobalRef are dropped here
-        wrapper.remove_subscription(subscription_id);
-    }
+    // Remove subscription and GlobalRef from DocWrapper
+    // Both the Subscription and GlobalRef are dropped here
+    wrapper.remove_subscription(subscription_id);
 }
 
 /// Helper function to dispatch a text event to Java
@@ -411,14 +286,18 @@ fn dispatch_text_event(
     event: &TextEvent,
 ) -> Result<(), jni::errors::Error> {
     // Get the Java YText object from DocWrapper
-    let ytext_ref = unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        match wrapper.get_java_ref(subscription_id) {
-            Some(r) => r,
-            None => {
-                eprintln!("No Java object found for subscription {}", subscription_id);
-                return Ok(());
-            }
+    let wrapper = match unsafe { DocPtr::from_raw(doc_ptr).as_ref() } {
+        Some(w) => w,
+        None => {
+            eprintln!("Invalid YDoc pointer in dispatch_text_event");
+            return Ok(());
+        }
+    };
+    let ytext_ref = match wrapper.get_java_ref(subscription_id) {
+        Some(r) => r,
+        None => {
+            eprintln!("No Java object found for subscription {}", subscription_id);
+            return Ok(());
         }
     };
 
@@ -591,6 +470,7 @@ fn any_to_jobject<'local>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::free_java_ptr;
     use yrs::{Doc, Transact};
 
     #[test]

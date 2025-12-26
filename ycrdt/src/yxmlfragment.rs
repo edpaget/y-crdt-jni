@@ -1,6 +1,6 @@
 use crate::{
-    free_java_ptr, from_java_ptr, get_transaction_mut, throw_exception, to_java_ptr, to_jstring,
-    DocWrapper,
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
+    to_jstring, DocPtr, DocWrapper, TxnPtr, XmlFragmentPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
@@ -28,10 +28,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetFragment(
     doc_ptr: jlong,
     name: JString,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
 
     // Convert Java string to Rust string
     let name_str = match env.get_string(&name) {
@@ -48,11 +45,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetFragment(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let fragment = wrapper.doc.get_or_insert_xml_fragment(name_str.as_str());
-        to_java_ptr(fragment)
-    }
+    let fragment = wrapper.doc.get_or_insert_xml_fragment(name_str.as_str());
+    to_java_ptr(fragment)
 }
 
 /// Destroys a YXmlFragment instance and frees its memory
@@ -68,11 +62,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeDestroy(
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        unsafe {
-            free_java_ptr::<XmlFragmentRef>(ptr);
-        }
-    }
+    free_if_valid!(XmlFragmentPtr::from_raw(ptr), XmlFragmentRef);
 }
 
 /// Gets the number of children in the fragment using an existing transaction
@@ -88,33 +78,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeDestroy(
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeLengthWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
 ) -> jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => fragment.len(txn) as jint,
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
-        }
-    }
+    fragment.len(txn) as jint
 }
 
 /// Inserts an XML element as a child at the specified index using an existing transaction
@@ -129,24 +105,18 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeLengthWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElementWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
     tag: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert tag to Rust string
     let tag_str: String = match env.get_string(&tag) {
@@ -157,18 +127,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElementWit
         }
     };
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                fragment.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    fragment.insert(txn, index as u32, XmlElementPrelim::empty(tag_str.as_str()));
 }
 
 /// Inserts an XML text node as a child at the specified index using an existing transaction
@@ -183,24 +142,18 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertElementWit
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertTextWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
     content: JString,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
     // Convert content to Rust string
     let content_str: String = match env.get_string(&content) {
@@ -211,18 +164,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertTextWithTx
         }
     };
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                fragment.insert(txn, index as u32, XmlTextPrelim::new(content_str.as_str()));
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    fragment.insert(txn, index as u32, XmlTextPrelim::new(content_str.as_str()));
 }
 
 /// Removes children from the fragment using an existing transaction
@@ -237,37 +179,20 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeInsertTextWithTx
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeRemoveWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
     length: jint,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment"
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                fragment.remove_range(txn, index as u32, length as u32);
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-            }
-        }
-    }
+    fragment.remove_range(txn, index as u32, length as u32);
 }
 
 /// Gets the type of child node at the specified index using an existing transaction
@@ -284,45 +209,28 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeRemoveWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetNodeTypeWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
 ) -> jint {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return -1;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return -1;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return -1;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment",
+        -1
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", -1);
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                if let Some(child) = fragment.get(txn, index as u32) {
-                    // Check element first, then text
-                    if child.clone().into_xml_element().is_some() {
-                        return 0; // ELEMENT
-                    } else if child.into_xml_text().is_some() {
-                        return 1; // TEXT
-                    }
-                }
-                -1 // No node at index
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                -1
-            }
+    if let Some(child) = fragment.get(txn, index as u32) {
+        // Check element first, then text
+        if child.clone().into_xml_element().is_some() {
+            return 0; // ELEMENT
+        } else if child.into_xml_text().is_some() {
+            return 1; // TEXT
         }
     }
+    -1 // No node at index
 }
 
 /// Gets the XML element at the specified index (if it is an element) using an existing transaction
@@ -339,46 +247,29 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetNodeTypeWithT
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetElementWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                // Get child at index
-                if let Some(child) = fragment.get(txn, index as u32) {
-                    // Extract element if it's an element type
-                    if let Some(element) = child.into_xml_element() {
-                        // element is XmlElementRef containing a BranchPtr
-                        // BranchPtr is reference-counted, so we can safely return a pointer to it
-                        return to_java_ptr(element);
-                    }
-                }
-                0
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
+    // Get child at index
+    if let Some(child) = fragment.get(txn, index as u32) {
+        // Extract element if it's an element type
+        if let Some(element) = child.into_xml_element() {
+            // element is XmlElementRef containing a BranchPtr
+            // BranchPtr is reference-counted, so we can safely return a pointer to it
+            return to_java_ptr(element);
         }
     }
+    0
 }
 
 /// Gets the XML text at the specified index (if it is text) using an existing transaction
@@ -395,46 +286,29 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetElementWithTx
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetTextWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
     index: jint,
 ) -> jlong {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return 0;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return 0;
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return 0;
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment",
+        0
+    );
+    let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0);
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                // Get child at index
-                if let Some(child) = fragment.get(txn, index as u32) {
-                    // Extract text if it's a text type
-                    if let Some(text) = child.into_xml_text() {
-                        // text is XmlTextRef containing a BranchPtr
-                        // BranchPtr is reference-counted, so we can safely return a pointer to it
-                        return to_java_ptr(text);
-                    }
-                }
-                0
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                0
-            }
+    // Get child at index
+    if let Some(child) = fragment.get(txn, index as u32) {
+        // Extract text if it's a text type
+        if let Some(text) = child.into_xml_text() {
+            // text is XmlTextRef containing a BranchPtr
+            // BranchPtr is reference-counted, so we can safely return a pointer to it
+            return to_java_ptr(text);
         }
     }
+    0
 }
 
 /// Returns the XML string representation of the fragment using an existing transaction
@@ -450,37 +324,25 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeGetTextWithTxn(
 pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeToXmlStringWithTxn(
     mut env: JNIEnv,
     _class: JClass,
-    doc_ptr: jlong,
+    _doc_ptr: jlong,
     fragment_ptr: jlong,
     txn_ptr: jlong,
 ) -> jstring {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return std::ptr::null_mut();
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return std::ptr::null_mut();
-    }
-    if txn_ptr == 0 {
-        throw_exception(&mut env, "Invalid transaction pointer");
-        return std::ptr::null_mut();
-    }
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment",
+        std::ptr::null_mut()
+    );
+    let txn = get_mut_or_throw!(
+        &mut env,
+        TxnPtr::from_raw(txn_ptr),
+        "YTransaction",
+        std::ptr::null_mut()
+    );
 
-    unsafe {
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        match get_transaction_mut(txn_ptr) {
-            Some(txn) => {
-                let xml_string = fragment.get_string(txn);
-                to_jstring(&mut env, &xml_string)
-            }
-            None => {
-                throw_exception(&mut env, "Transaction not found");
-                std::ptr::null_mut()
-            }
-        }
-    }
+    let xml_string = fragment.get_string(txn);
+    to_jstring(&mut env, &xml_string)
 }
 
 /// Registers an observer for the YXmlFragment
@@ -499,14 +361,12 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeObserve(
     subscription_id: jlong,
     fragment_obj: JObject,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
-    if fragment_ptr == 0 {
-        throw_exception(&mut env, "Invalid YXmlFragment pointer");
-        return;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
+    let fragment = get_ref_or_throw!(
+        &mut env,
+        XmlFragmentPtr::from_raw(fragment_ptr),
+        "YXmlFragment"
+    );
 
     // Get JavaVM and create Executor for callback handling
     let executor = match env.get_java_vm() {
@@ -526,21 +386,16 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeObserve(
         }
     };
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        let fragment = from_java_ptr::<XmlFragmentRef>(fragment_ptr);
-
-        // Create observer closure
-        let subscription = fragment.observe(move |txn, event| {
-            // Use Executor for thread attachment with automatic local frame management
-            let _ = executor.with_attached(|env| {
-                dispatch_xmlfragment_event(env, doc_ptr, subscription_id, txn, event)
-            });
+    // Create observer closure
+    let subscription = fragment.observe(move |txn, event| {
+        // Use Executor for thread attachment with automatic local frame management
+        let _ = executor.with_attached(|env| {
+            dispatch_xmlfragment_event(env, doc_ptr, subscription_id, txn, event)
         });
+    });
 
-        // Store subscription and GlobalRef in the DocWrapper
-        wrapper.add_subscription(subscription_id, subscription, global_ref);
-    }
+    // Store subscription and GlobalRef in the DocWrapper
+    wrapper.add_subscription(subscription_id, subscription, global_ref);
 }
 
 /// Unregisters an observer for the YXmlFragment
@@ -557,17 +412,11 @@ pub extern "system" fn Java_net_carcdr_ycrdt_YXmlFragment_nativeUnobserve(
     _fragment_ptr: jlong,
     subscription_id: jlong,
 ) {
-    if doc_ptr == 0 {
-        throw_exception(&mut env, "Invalid YDoc pointer");
-        return;
-    }
+    let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
 
-    unsafe {
-        let wrapper = from_java_ptr::<DocWrapper>(doc_ptr);
-        // Remove subscription and GlobalRef from DocWrapper
-        // Both the Subscription and GlobalRef are dropped here
-        wrapper.remove_subscription(subscription_id);
-    }
+    // Remove subscription and GlobalRef from DocWrapper
+    // Both the Subscription and GlobalRef are dropped here
+    wrapper.remove_subscription(subscription_id);
 }
 
 /// Helper function to dispatch an XML fragment event to Java
@@ -780,6 +629,7 @@ fn any_to_jobject<'local>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{free_java_ptr, from_java_ptr};
     use yrs::{Doc, Transact, XmlElementRef, XmlFragment, XmlFragmentRef, XmlTextRef};
 
     #[test]
