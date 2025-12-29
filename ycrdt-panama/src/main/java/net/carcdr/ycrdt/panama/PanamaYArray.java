@@ -2,6 +2,7 @@ package net.carcdr.ycrdt.panama;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import net.carcdr.ycrdt.YArray;
 import net.carcdr.ycrdt.YDoc;
@@ -143,14 +144,43 @@ public class PanamaYArray implements YArray {
     @Override
     public double getDouble(int index) {
         ensureNotClosed();
-        // TODO: Implement reading double from YOutput
-        throw new UnsupportedOperationException("getDouble not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getDouble(activeTxn, index);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getDouble(txn, index);
+        }
     }
 
     @Override
     public double getDouble(YTransaction txn, int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getDouble not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment output = Yrs.yarrayGet(branchPtr, ptxn.getTxnPtr(), index);
+        if (output.equals(MemorySegment.NULL)) {
+            throw new IndexOutOfBoundsException("Index " + index + " out of bounds");
+        }
+        try {
+            // Try reading as double first
+            MemorySegment doublePtr = Yrs.youtputReadFloat(output);
+            if (!doublePtr.equals(MemorySegment.NULL)) {
+                MemorySegment reinterpreted = doublePtr.reinterpret(Double.BYTES);
+                return reinterpreted.get(ValueLayout.JAVA_DOUBLE, 0);
+            }
+            // Fall back to reading as long and converting
+            MemorySegment longPtr = Yrs.youtputReadLong(output);
+            if (!longPtr.equals(MemorySegment.NULL)) {
+                MemorySegment reinterpreted = longPtr.reinterpret(Long.BYTES);
+                return (double) reinterpreted.get(ValueLayout.JAVA_LONG, 0);
+            }
+            throw new ClassCastException("Value at index " + index + " is not a number");
+        } finally {
+            Yrs.youtputDestroy(output);
+        }
     }
 
     @Override
@@ -200,37 +230,38 @@ public class PanamaYArray implements YArray {
     @Override
     public YDoc getDoc(int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getDoc not yet implemented");
+        // Subdocument support requires complex lifecycle management
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
     public YDoc getDoc(YTransaction txn, int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getDoc not yet implemented");
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
     public void insertDoc(int index, YDoc subdoc) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertDoc not yet implemented");
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
     public void insertDoc(YTransaction txn, int index, YDoc subdoc) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertDoc not yet implemented");
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
     public void pushDoc(YDoc subdoc) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("pushDoc not yet implemented");
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
     public void pushDoc(YTransaction txn, YDoc subdoc) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("pushDoc not yet implemented");
+        throw new UnsupportedOperationException("Subdocuments not yet implemented");
     }
 
     @Override
@@ -259,14 +290,24 @@ public class PanamaYArray implements YArray {
     @Override
     public String toJson() {
         ensureNotClosed();
-        // TODO: Implement using yarray_get_json
-        throw new UnsupportedOperationException("toJson not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return toJson(activeTxn);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return toJson(txn);
+        }
     }
 
     @Override
     public String toJson(YTransaction txn) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("toJson not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment jsonPtr = Yrs.ybranchJson(branchPtr, ptxn.getTxnPtr());
+        return Yrs.readAndFreeString(jsonPtr);
     }
 
     @Override

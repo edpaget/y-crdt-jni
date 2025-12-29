@@ -27,6 +27,7 @@ public class PanamaYDoc implements YDoc {
 
     private MemorySegment docPtr;
     private volatile boolean closed = false;
+    private final boolean ownsPointer;
     private final ThreadLocal<PanamaYTransaction> activeTransaction = new ThreadLocal<>();
 
     /**
@@ -37,6 +38,7 @@ public class PanamaYDoc implements YDoc {
         if (this.docPtr.equals(MemorySegment.NULL)) {
             throw new RuntimeException("Failed to create YDoc: native pointer is null");
         }
+        this.ownsPointer = true;
     }
 
     /**
@@ -52,6 +54,21 @@ public class PanamaYDoc implements YDoc {
         if (this.docPtr.equals(MemorySegment.NULL)) {
             throw new RuntimeException("Failed to create YDoc: native pointer is null");
         }
+        this.ownsPointer = true;
+    }
+
+    /**
+     * Wraps an existing native document pointer.
+     *
+     * @param docPtr the native document pointer
+     * @param ownsPointer if true, close() will destroy the native document
+     */
+    PanamaYDoc(MemorySegment docPtr, boolean ownsPointer) {
+        if (docPtr.equals(MemorySegment.NULL)) {
+            throw new IllegalArgumentException("Document pointer cannot be null");
+        }
+        this.docPtr = docPtr;
+        this.ownsPointer = ownsPointer;
     }
 
     /**
@@ -130,9 +147,14 @@ public class PanamaYDoc implements YDoc {
         if (update == null) {
             throw new IllegalArgumentException("Update cannot be null");
         }
-        // yffi uses ytransaction_apply_v1 for applying updates
-        // TODO: Add ytransaction_apply_v1 binding
-        throw new UnsupportedOperationException("applyUpdate not yet implemented");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment updatePtr = Yrs.createBinary(arena, update);
+            byte result = Yrs.ytransactionApply(ptxn.getTxnPtr(), updatePtr, update.length);
+            if (result != 0) {
+                throw new RuntimeException("Failed to apply update: error code " + result);
+            }
+        }
     }
 
     @Override
@@ -311,7 +333,9 @@ public class PanamaYDoc implements YDoc {
         if (!closed) {
             synchronized (this) {
                 if (!closed && !docPtr.equals(MemorySegment.NULL)) {
-                    Yrs.ydocDestroy(docPtr);
+                    if (ownsPointer) {
+                        Yrs.ydocDestroy(docPtr);
+                    }
                     docPtr = MemorySegment.NULL;
                     closed = true;
                 }

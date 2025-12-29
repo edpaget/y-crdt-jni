@@ -230,6 +230,33 @@ public final class Yrs {
         }
     }
 
+    // uint8_t ytransaction_apply(YTransaction *txn, const char *diff, uint32_t diff_len)
+    private static final MethodHandle YTRANSACTION_APPLY = LINKER.downcallHandle(
+        LOOKUP.find("ytransaction_apply").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.JAVA_BYTE,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT
+        )
+    );
+
+    /**
+     * Applies an update diff to a transaction's document.
+     *
+     * @param txn pointer to the transaction
+     * @param diff pointer to the update diff
+     * @param diffLen length of the diff
+     * @return 0 on success, error code on failure
+     */
+    public static byte ytransactionApply(MemorySegment txn, MemorySegment diff, int diffLen) {
+        try {
+            return (byte) YTRANSACTION_APPLY.invokeExact(txn, diff, diffLen);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ytransaction_apply", t);
+        }
+    }
+
     // =========================================================================
     // YText Functions
     // =========================================================================
@@ -699,6 +726,7 @@ public final class Yrs {
     private static final byte Y_JSON_NUM = -7;  // double
     private static final byte Y_JSON_INT = -6;  // int64
     private static final byte Y_JSON_STR = -5;  // string
+    private static final byte Y_DOC = 7;        // subdocument
 
     /**
      * Layout for the YInput struct.
@@ -802,6 +830,24 @@ public final class Yrs {
         return yinput;
     }
 
+    /**
+     * Creates a YInput containing a subdocument.
+     *
+     * <p>This constructs the YInput struct manually in Java to avoid ARM64 ABI issues
+     * with the native yinput_ydoc function.</p>
+     *
+     * @param arena the arena to allocate the struct in
+     * @param docPtr pointer to the YDoc
+     * @return the YInput struct as a MemorySegment
+     */
+    public static MemorySegment yinputYdoc(Arena arena, MemorySegment docPtr) {
+        MemorySegment yinput = arena.allocate(YINPUT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_DOC);
+        YINPUT_LEN.set(yinput, 0L, 1);
+        YINPUT_VALUE_PTR.set(yinput, 0L, docPtr);
+        return yinput;
+    }
+
     // =========================================================================
     // YOutput Functions (for reading values from arrays/maps)
     // =========================================================================
@@ -872,6 +918,177 @@ public final class Yrs {
         }
     }
 
+    // const double *youtput_read_float(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_FLOAT = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_float").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads a double from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the double, or null if not a double
+     */
+    public static MemorySegment youtputReadFloat(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_FLOAT.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_float", t);
+        }
+    }
+
+    // const int64_t *youtput_read_long(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_LONG = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_long").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads a long from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the long, or null if not a long
+     */
+    public static MemorySegment youtputReadLong(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_LONG.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_long", t);
+        }
+    }
+
+    // YDoc *youtput_read_ydoc(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_YDOC = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_ydoc").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads a subdocument from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the YDoc, or null if not a subdocument
+     */
+    public static MemorySegment youtputReadYdoc(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_YDOC.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_ydoc", t);
+        }
+    }
+
+    // =========================================================================
+    // YMap Iterator Functions
+    // =========================================================================
+
+    // YMapIter *ymap_iter(const Branch *map, const YTransaction *txn)
+    private static final MethodHandle YMAP_ITER = LINKER.downcallHandle(
+        LOOKUP.find("ymap_iter").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Creates an iterator over map entries.
+     *
+     * @param map pointer to the map branch
+     * @param txn pointer to the transaction
+     * @return pointer to the iterator
+     */
+    public static MemorySegment ymapIter(MemorySegment map, MemorySegment txn) {
+        try {
+            return (MemorySegment) YMAP_ITER.invokeExact(map, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ymap_iter", t);
+        }
+    }
+
+    // void ymap_iter_destroy(YMapIter *iter)
+    private static final MethodHandle YMAP_ITER_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("ymap_iter_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Destroys a map iterator.
+     *
+     * @param iter pointer to the iterator
+     */
+    public static void ymapIterDestroy(MemorySegment iter) {
+        try {
+            YMAP_ITER_DESTROY.invokeExact(iter);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ymap_iter_destroy", t);
+        }
+    }
+
+    // struct YMapEntry *ymap_iter_next(YMapIter *iter)
+    private static final MethodHandle YMAP_ITER_NEXT = LINKER.downcallHandle(
+        LOOKUP.find("ymap_iter_next").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the next entry from the iterator.
+     *
+     * @param iter pointer to the iterator
+     * @return pointer to the entry, or null if no more entries
+     */
+    public static MemorySegment ymapIterNext(MemorySegment iter) {
+        try {
+            return (MemorySegment) YMAP_ITER_NEXT.invokeExact(iter);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ymap_iter_next", t);
+        }
+    }
+
+    // void ymap_entry_destroy(struct YMapEntry *value)
+    private static final MethodHandle YMAP_ENTRY_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("ymap_entry_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Destroys a map entry.
+     *
+     * @param entry pointer to the entry
+     */
+    public static void ymapEntryDestroy(MemorySegment entry) {
+        try {
+            YMAP_ENTRY_DESTROY.invokeExact(entry);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ymap_entry_destroy", t);
+        }
+    }
+
+    /**
+     * Layout for YMapEntry struct.
+     * The struct is: const char *key (8 bytes) + const struct YOutput *value (8 bytes)
+     */
+    public static final StructLayout YMAP_ENTRY_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.ADDRESS.withName("key"),
+        ValueLayout.ADDRESS.withName("value")
+    );
+
+    private static final java.lang.invoke.VarHandle YMAP_ENTRY_KEY =
+        YMAP_ENTRY_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("key"));
+
+    /**
+     * Reads the key from a YMapEntry.
+     *
+     * @param entry pointer to the entry
+     * @return the key string
+     */
+    public static String ymapEntryReadKey(MemorySegment entry) {
+        MemorySegment reinterpreted = entry.reinterpret(YMAP_ENTRY_LAYOUT.byteSize());
+        MemorySegment keyPtr = (MemorySegment) YMAP_ENTRY_KEY.get(reinterpreted, 0L);
+        if (keyPtr.equals(MemorySegment.NULL)) {
+            return null;
+        }
+        MemorySegment keyReinterpreted = keyPtr.reinterpret(Long.MAX_VALUE);
+        return keyReinterpreted.getString(0);
+    }
+
     // struct YOutput *ymap_get(const Branch *map, const YTransaction *txn, const char *key)
     private static final MethodHandle YMAP_GET = LINKER.downcallHandle(
         LOOKUP.find("ymap_get").orElseThrow(),
@@ -896,6 +1113,31 @@ public final class Yrs {
             return (MemorySegment) YMAP_GET.invokeExact(map, txn, key);
         } catch (Throwable t) {
             throw new RuntimeException("Failed to call ymap_get", t);
+        }
+    }
+
+    // =========================================================================
+    // Branch Functions
+    // =========================================================================
+
+    // char *ybranch_json(Branch *branch, YTransaction *txn)
+    private static final MethodHandle YBRANCH_JSON = LINKER.downcallHandle(
+        LOOKUP.find("ybranch_json").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the JSON representation of a branch.
+     *
+     * @param branch pointer to the branch
+     * @param txn pointer to the transaction
+     * @return pointer to the JSON string (must be freed with ystringDestroy)
+     */
+    public static MemorySegment ybranchJson(MemorySegment branch, MemorySegment txn) {
+        try {
+            return (MemorySegment) YBRANCH_JSON.invokeExact(branch, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ybranch_json", t);
         }
     }
 
