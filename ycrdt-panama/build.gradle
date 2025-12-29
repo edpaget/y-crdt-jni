@@ -1,0 +1,152 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id 'maven-publish'
+}
+
+group = 'net.carcdr'
+version = rootProject.version
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(22)
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.author = true
+    options.version = true
+    options.links = [
+        'https://docs.oracle.com/en/java/javase/22/docs/api/'
+    ]
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':ycrdt-core')
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test {
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+        showStandardStreams = false
+    }
+    // Enable native access for Panama FFM API
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+checkstyleMain {
+    source = 'src/main/java'
+}
+
+checkstyleTest {
+    source = 'src/test/java'
+}
+
+tasks.named('check') {
+    dependsOn 'checkstyleMain', 'checkstyleTest'
+}
+
+// Task to build the yffi library from upstream
+task buildYffi(type: Exec) {
+    group = 'build'
+    description = 'Builds the yffi native library from upstream y-crdt'
+
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'scripts/build-yffi.sh'
+
+    doLast {
+        println "yffi library built successfully"
+    }
+}
+
+// Task to copy the native library to resources
+task copyNativeLibrary(type: Copy, dependsOn: buildYffi) {
+    group = 'build'
+    description = 'Copies the native library to Java resources'
+
+    def osName
+    if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
+        osName = 'linux'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+        osName = 'macos'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        osName = 'windows'
+    } else {
+        throw new GradleException("Unsupported OS")
+    }
+
+    def osArch = System.getProperty("os.arch").toLowerCase()
+    if (osArch.contains("amd64") || osArch.contains("x86_64")) {
+        osArch = 'x86_64'
+    } else if (osArch.contains("aarch64") || osArch.contains("arm64")) {
+        osArch = 'aarch64'
+    } else {
+        throw new GradleException("Unsupported architecture: " + osArch)
+    }
+
+    from("${rootProject.buildDir}/native") {
+        include 'libyrs.so'
+        include 'libyrs.dylib'
+        include 'yrs.dll'
+    }
+    into "${project.buildDir}/resources/main/native/${osName}/${osArch}"
+
+    doLast {
+        println "Native library copied to resources"
+    }
+}
+
+// Make processResources depend on copying the native library
+processResources.dependsOn copyNativeLibrary
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'ycrdt-panama'
+            from components.java
+
+            pom {
+                name = 'Y-CRDT Panama'
+                description = 'Panama FFM bindings for the y-crdt (yrs) Rust library'
+                url = 'https://github.com/edpaget/y-crdt-jni'
+
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'edpaget'
+                        name = 'Edward Paget'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
+                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
+                    url = 'https://github.com/edpaget/y-crdt-jni'
+                }
+            }
+        }
+    }
+}

@@ -2,6 +2,7 @@ rootProject.name = 'y-crdt-jni'
 
 include 'ycrdt-core'
 include 'ycrdt-jni'
+include 'ycrdt-panama'
 include 'yprosemirror'
 include 'yhocuspocus'
 include 'yhocuspocus-websocket'
