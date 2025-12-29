@@ -8,14 +8,13 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import net.carcdr.ycrdt.YArray;
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.YMap;
 import net.carcdr.ycrdt.YText;
 
 /**
  * Tests for the Panama FFM implementation of YDoc.
- *
- * <p>Note: Tests for YArray and YMap operations that use YInput structs
- * are disabled until the struct-by-value return handling is fixed.</p>
  */
 public class PanamaYDocTest {
 
@@ -82,15 +81,80 @@ public class PanamaYDocTest {
 
     @Test
     public void testGetArray() {
-        try (YDoc doc = new PanamaYDoc()) {
-            assertNotNull(doc.getArray("myarray"));
+        try (YDoc doc = new PanamaYDoc();
+             YArray array = doc.getArray("myarray")) {
+            assertNotNull(array);
+            assertEquals(0, array.length());
+        }
+    }
+
+    @Test
+    public void testArrayInsertString() {
+        try (YDoc doc = new PanamaYDoc();
+             YArray array = doc.getArray("myarray")) {
+            array.insertString(0, "first");
+            array.insertString(1, "second");
+            assertEquals(2, array.length());
+        }
+    }
+
+    @Test
+    public void testArrayPushString() {
+        try (YDoc doc = new PanamaYDoc();
+             YArray array = doc.getArray("myarray")) {
+            array.pushString("first");
+            array.pushString("second");
+            assertEquals(2, array.length());
+        }
+    }
+
+    @Test
+    public void testArrayRemove() {
+        try (YDoc doc = new PanamaYDoc();
+             YArray array = doc.getArray("myarray")) {
+            array.pushString("first");
+            array.pushString("second");
+            array.pushString("third");
+            assertEquals(3, array.length());
+
+            array.remove(1, 1);
+            assertEquals(2, array.length());
         }
     }
 
     @Test
     public void testGetMap() {
-        try (YDoc doc = new PanamaYDoc()) {
-            assertNotNull(doc.getMap("mymap"));
+        try (YDoc doc = new PanamaYDoc();
+             YMap map = doc.getMap("mymap")) {
+            assertNotNull(map);
+            assertEquals(0, map.size());
+            assertTrue(map.isEmpty());
+        }
+    }
+
+    @Test
+    public void testMapSetString() {
+        try (YDoc doc = new PanamaYDoc();
+             YMap map = doc.getMap("mymap")) {
+            map.setString("key1", "value1");
+            assertEquals(1, map.size());
+            assertFalse(map.isEmpty());
+            assertTrue(map.containsKey("key1"));
+        }
+    }
+
+    @Test
+    public void testMapRemove() {
+        try (YDoc doc = new PanamaYDoc();
+             YMap map = doc.getMap("mymap")) {
+            map.setString("key1", "value1");
+            map.setString("key2", "value2");
+            assertEquals(2, map.size());
+
+            map.remove("key1");
+            assertEquals(1, map.size());
+            assertFalse(map.containsKey("key1"));
+            assertTrue(map.containsKey("key2"));
         }
     }
 

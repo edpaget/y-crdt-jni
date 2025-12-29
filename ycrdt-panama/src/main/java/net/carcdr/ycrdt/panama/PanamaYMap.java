@@ -131,8 +131,14 @@ public class PanamaYMap implements YMap {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        // TODO: Fix YInput struct-by-value return handling in Panama FFM
-        throw new UnsupportedOperationException("setString not yet implemented");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyPtr = Yrs.createString(arena, key);
+            MemorySegment valuePtr = value != null ? Yrs.createString(arena, value) : MemorySegment.NULL;
+            // yinputString returns struct by value, allocated by the arena
+            MemorySegment yinput = Yrs.yinputString(arena, valuePtr);
+            Yrs.ymapInsert(branchPtr, ptxn.getTxnPtr(), keyPtr, yinput);
+        }
     }
 
     @Override
@@ -172,8 +178,13 @@ public class PanamaYMap implements YMap {
         if (key == null) {
             throw new IllegalArgumentException("Key cannot be null");
         }
-        // TODO: Fix YInput struct-by-value return handling in Panama FFM
-        throw new UnsupportedOperationException("setDouble not yet implemented");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyPtr = Yrs.createString(arena, key);
+            // yinputFloat returns struct by value, allocated by the arena
+            MemorySegment yinput = Yrs.yinputFloat(arena, value);
+            Yrs.ymapInsert(branchPtr, ptxn.getTxnPtr(), keyPtr, yinput);
+        }
     }
 
     @Override

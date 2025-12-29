@@ -108,8 +108,13 @@ public class PanamaYArray implements YArray {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        // TODO: Fix YInput struct-by-value return handling in Panama FFM
-        throw new UnsupportedOperationException("insertString not yet implemented");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment strPtr = Yrs.createString(arena, value);
+            // yinputString returns struct by value, allocated by the arena
+            MemorySegment yinput = Yrs.yinputString(arena, strPtr);
+            Yrs.yarrayInsertRange(branchPtr, ptxn.getTxnPtr(), index, yinput, 1);
+        }
     }
 
     @Override
@@ -167,8 +172,12 @@ public class PanamaYArray implements YArray {
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
         }
-        // TODO: Fix YInput struct-by-value return handling in Panama FFM
-        throw new UnsupportedOperationException("insertDouble not yet implemented");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            // yinputFloat returns struct by value, allocated by the arena
+            MemorySegment yinput = Yrs.yinputFloat(arena, value);
+            Yrs.yarrayInsertRange(branchPtr, ptxn.getTxnPtr(), index, yinput, 1);
+        }
     }
 
     @Override

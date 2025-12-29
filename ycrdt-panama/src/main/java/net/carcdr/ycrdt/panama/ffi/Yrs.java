@@ -5,7 +5,7 @@ import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SegmentAllocator;
+import java.lang.foreign.StructLayout;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -695,100 +695,111 @@ public final class Yrs {
     // YInput Functions (for creating values to insert into arrays/maps)
     // =========================================================================
 
-    /**
-     * Size of the YInput struct.
-     * tag (1) + padding (3) + len (4) + union value (8 on 64-bit) = 16 bytes
-     */
-    public static final long YINPUT_SIZE = 16;
+    // YInput tag constants from libyrs.h
+    private static final byte Y_JSON_NUM = -7;  // double
+    private static final byte Y_JSON_INT = -6;  // int64
+    private static final byte Y_JSON_STR = -5;  // string
 
-    // struct YInput yinput_string(const char *str)
-    private static final MethodHandle YINPUT_STRING = LINKER.downcallHandle(
-        LOOKUP.find("yinput_string").orElseThrow(),
-        FunctionDescriptor.of(
-            MemoryLayout.structLayout(
-                ValueLayout.JAVA_BYTE.withName("tag"),
-                MemoryLayout.paddingLayout(3),
-                ValueLayout.JAVA_INT.withName("len"),
-                ValueLayout.ADDRESS.withName("value")
-            ),
-            ValueLayout.ADDRESS
-        )
+    /**
+     * Layout for the YInput struct.
+     * The struct is: tag (1) + padding (3) + len (4) + union value (8 for ptr/double/long).
+     *
+     * <p>Note: The actual C struct is 24 bytes (union is 16 bytes for YMapInputData),
+     * but for simple values (string, double, long) only the first 8 bytes of the union
+     * are used. We construct these structs manually to avoid ARM64 ABI issues with
+     * struct-by-value returns > 16 bytes.</p>
+     */
+    public static final StructLayout YINPUT_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.ADDRESS.withName("value")
     );
+
+    /**
+     * Layout for YInput with double value in the union.
+     */
+    private static final StructLayout YINPUT_FLOAT_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.JAVA_DOUBLE.withName("value")
+    );
+
+    /**
+     * Layout for YInput with long value in the union.
+     */
+    private static final StructLayout YINPUT_LONG_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.JAVA_LONG.withName("value")
+    );
+
+    // VarHandles for accessing YInput struct fields
+    private static final java.lang.invoke.VarHandle YINPUT_TAG =
+        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("tag"));
+    private static final java.lang.invoke.VarHandle YINPUT_LEN =
+        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("len"));
+    private static final java.lang.invoke.VarHandle YINPUT_VALUE_PTR =
+        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
+    private static final java.lang.invoke.VarHandle YINPUT_VALUE_DOUBLE =
+        YINPUT_FLOAT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
+    private static final java.lang.invoke.VarHandle YINPUT_VALUE_LONG =
+        YINPUT_LONG_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
 
     /**
      * Creates a YInput containing a string value.
      *
-     * @param arena the arena to allocate the result in
-     * @param str pointer to the string
-     * @return the YInput struct
+     * <p>This constructs the YInput struct manually in Java to avoid ARM64 ABI issues
+     * with the native yinput_string function, which returns a 24-byte struct via sret.</p>
+     *
+     * @param arena the arena to allocate the struct in
+     * @param str pointer to the null-terminated string
+     * @return the YInput struct as a MemorySegment
      */
     public static MemorySegment yinputString(Arena arena, MemorySegment str) {
-        try {
-            return (MemorySegment) YINPUT_STRING.invokeExact(
-                (SegmentAllocator) arena, str);
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to call yinput_string", t);
-        }
+        MemorySegment yinput = arena.allocate(YINPUT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_STR);
+        YINPUT_LEN.set(yinput, 0L, 1);
+        YINPUT_VALUE_PTR.set(yinput, 0L, str);
+        return yinput;
     }
-
-    // struct YInput yinput_float(double num)
-    private static final MethodHandle YINPUT_FLOAT = LINKER.downcallHandle(
-        LOOKUP.find("yinput_float").orElseThrow(),
-        FunctionDescriptor.of(
-            MemoryLayout.structLayout(
-                ValueLayout.JAVA_BYTE.withName("tag"),
-                MemoryLayout.paddingLayout(3),
-                ValueLayout.JAVA_INT.withName("len"),
-                ValueLayout.JAVA_DOUBLE.withName("value")
-            ),
-            ValueLayout.JAVA_DOUBLE
-        )
-    );
 
     /**
-     * Creates a YInput containing a float value.
+     * Creates a YInput containing a double value.
      *
-     * @param arena the arena to allocate the result in
+     * <p>This constructs the YInput struct manually in Java to avoid ARM64 ABI issues
+     * with the native yinput_float function.</p>
+     *
+     * @param arena the arena to allocate the struct in
      * @param num the double value
-     * @return the YInput struct
+     * @return the YInput struct as a MemorySegment
      */
     public static MemorySegment yinputFloat(Arena arena, double num) {
-        try {
-            return (MemorySegment) YINPUT_FLOAT.invokeExact(
-                (SegmentAllocator) arena, num);
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to call yinput_float", t);
-        }
+        MemorySegment yinput = arena.allocate(YINPUT_FLOAT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_NUM);
+        YINPUT_LEN.set(yinput, 0L, 1);
+        YINPUT_VALUE_DOUBLE.set(yinput, 0L, num);
+        return yinput;
     }
-
-    // struct YInput yinput_long(int64_t integer)
-    private static final MethodHandle YINPUT_LONG = LINKER.downcallHandle(
-        LOOKUP.find("yinput_long").orElseThrow(),
-        FunctionDescriptor.of(
-            MemoryLayout.structLayout(
-                ValueLayout.JAVA_BYTE.withName("tag"),
-                MemoryLayout.paddingLayout(3),
-                ValueLayout.JAVA_INT.withName("len"),
-                ValueLayout.JAVA_LONG.withName("value")
-            ),
-            ValueLayout.JAVA_LONG
-        )
-    );
 
     /**
      * Creates a YInput containing a long value.
      *
-     * @param arena the arena to allocate the result in
+     * <p>This constructs the YInput struct manually in Java to avoid ARM64 ABI issues
+     * with the native yinput_long function.</p>
+     *
+     * @param arena the arena to allocate the struct in
      * @param num the long value
-     * @return the YInput struct
+     * @return the YInput struct as a MemorySegment
      */
     public static MemorySegment yinputLong(Arena arena, long num) {
-        try {
-            return (MemorySegment) YINPUT_LONG.invokeExact(
-                (SegmentAllocator) arena, num);
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to call yinput_long", t);
-        }
+        MemorySegment yinput = arena.allocate(YINPUT_LONG_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_INT);
+        YINPUT_LEN.set(yinput, 0L, 1);
+        YINPUT_VALUE_LONG.set(yinput, 0L, num);
+        return yinput;
     }
 
     // =========================================================================
