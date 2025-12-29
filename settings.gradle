@@ -8,6 +8,7 @@ if (!hasProperty('skipPanama') || !skipPanama.toBoolean()) {
 }
 include 'yprosemirror'
 include 'yhocuspocus'
+include 'yhocuspocus-redis'
 include 'yhocuspocus-websocket'
 include 'yhocuspocus-spring-websocket'
 include 'examples:fullstack:backend'
