@@ -1,6 +1,7 @@
 package net.carcdr.yhocuspocus.core;
 
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YText;
 import net.carcdr.yhocuspocus.extension.TestWaiter;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
@@ -161,7 +162,7 @@ public class SyncIntegrationTest {
         transport3.getSentMessages().clear();
 
         // Connection 1 makes a change
-        YDoc tempDoc = new YDoc();
+        YDoc tempDoc = new JniYDoc();
         try {
             YText tempText = tempDoc.getText("content");
             tempText.insert(0, "Update from conn1");
@@ -221,8 +222,8 @@ public class SyncIntegrationTest {
         waitForCondition(() -> serverDoc.getConnectionCount() == 2, 1000);
 
         // Both clients make concurrent edits
-        YDoc doc1 = new YDoc();
-        YDoc doc2 = new YDoc();
+        YDoc doc1 = new JniYDoc();
+        YDoc doc2 = new JniYDoc();
 
         try {
             YText text1 = doc1.getText("content");
@@ -295,7 +296,7 @@ public class SyncIntegrationTest {
         // For now, we'll test that hasChanges() correctly detects changes
 
         // Create an update
-        YDoc tempDoc = new YDoc();
+        YDoc tempDoc = new JniYDoc();
         try {
             YText text = tempDoc.getText("content");
             text.insert(0, "Attempt to modify");
@@ -345,7 +346,7 @@ public class SyncIntegrationTest {
 
         // Send multiple updates from conn1
         // Each update should be a differential from the previous state
-        YDoc tempDoc = new YDoc();
+        YDoc tempDoc = new JniYDoc();
         try {
             YText text = tempDoc.getText("content");
 
@@ -446,7 +447,7 @@ public class SyncIntegrationTest {
         transport3.getSentMessages().clear();
 
         // Conn1 sends update
-        YDoc tempDoc = new YDoc();
+        YDoc tempDoc = new JniYDoc();
         try {
             YText text = tempDoc.getText("content");
             text.insert(0, "Broadcast test");

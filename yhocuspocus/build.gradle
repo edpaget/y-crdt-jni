@@ -20,7 +20,7 @@ repositories {
 
 dependencies {
     // Y-CRDT bindings (core dependency)
-    api project(':ycrdt')
+    api project(':ycrdt-jni')
 
     // JSON processing (for awareness and debugging)
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.20.1'

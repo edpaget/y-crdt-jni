@@ -11,6 +11,7 @@ import com.atlassian.prosemirror.model.Schema;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YXmlFragment;
 import net.carcdr.yprosemirror.test.TestSchemas;
 import org.junit.Test;
@@ -25,7 +26,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testCreateBindingWithBasicSchema() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -44,7 +45,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testCreateBindingWithRichSchema() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createRichSchema();
 
@@ -61,7 +62,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testBindingWithEmptyDocument() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -78,7 +79,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testCallbackInvokedOnInitialization() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -102,7 +103,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testUpdateFromProseMirrorWithBasicSchema() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -121,7 +122,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testBindingClosesSuccessfully() {
-        YDoc doc = new YDoc();
+        YDoc doc = new JniYDoc();
         YXmlFragment fragment = doc.getXmlFragment("prosemirror");
         Schema schema = TestSchemas.createBasicSchema();
 
@@ -141,7 +142,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testMultipleCallbackInvocations() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -176,7 +177,7 @@ public class YProseMirrorBindingTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testCreateBindingWithNullSchema() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
 
             new YProseMirrorBinding(
@@ -188,7 +189,7 @@ public class YProseMirrorBindingTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testCreateBindingWithNullCallback() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -201,7 +202,7 @@ public class YProseMirrorBindingTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testUpdateFromProseMirrorWithNullDocument() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
             Schema schema = TestSchemas.createBasicSchema();
 
@@ -217,7 +218,7 @@ public class YProseMirrorBindingTest {
 
     @Test(expected = IllegalStateException.class)
     public void testGetCurrentDocumentAfterClose() {
-        YDoc doc = new YDoc();
+        YDoc doc = new JniYDoc();
         YXmlFragment fragment = doc.getXmlFragment("prosemirror");
         Schema schema = TestSchemas.createBasicSchema();
 
@@ -236,7 +237,7 @@ public class YProseMirrorBindingTest {
 
     @Test
     public void testSchemaVariants() {
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = new JniYDoc()) {
             YXmlFragment fragment = doc.getXmlFragment("prosemirror");
 
             // Test basic schema

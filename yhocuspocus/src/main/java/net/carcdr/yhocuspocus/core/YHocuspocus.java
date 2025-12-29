@@ -4,6 +4,7 @@ import net.carcdr.ycrdt.UpdateObserver;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YSubscription;
 import net.carcdr.ycrdt.YTransaction;
+import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.yhocuspocus.extension.AfterLoadDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterStoreDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterUnloadDocumentPayload;
@@ -176,7 +177,7 @@ public final class YHocuspocus implements AutoCloseable {
      * Loads a document from storage via extensions.
      */
     private YDocument loadDocument(String documentName, Map<String, Object> context) {
-        YDoc ydoc = new YDoc();
+        YDoc ydoc = new JniYDoc();
         YDocument document = new YDocument(documentName, ydoc, this);
 
         // Run onCreateDocument hooks

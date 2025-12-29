@@ -33,8 +33,8 @@ repositories {
 }
 
 dependencies {
-    // Depend on the ycrdt module
-    api project(':ycrdt')
+    // Depend on the ycrdt-jni module
+    api project(':ycrdt-jni')
 
     // ProseMirror Kotlin libraries (consumed from Java)
     implementation 'com.atlassian.prosemirror:model:1.1.15'

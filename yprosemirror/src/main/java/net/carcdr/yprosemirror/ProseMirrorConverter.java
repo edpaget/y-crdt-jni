@@ -11,6 +11,7 @@ import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YXmlElement;
 import net.carcdr.ycrdt.YXmlFragment;
 import net.carcdr.ycrdt.YXmlText;
+import net.carcdr.ycrdt.jni.JniYDoc;
 
 /**
  * Converts ProseMirror documents to Y-CRDT structures.
@@ -293,7 +294,7 @@ public final class ProseMirrorConverter {
             throw new IllegalArgumentException("Schema cannot be null");
         }
 
-        YDoc ydoc = new YDoc();
+        YDoc ydoc = new JniYDoc();
         YXmlFragment fragment = ydoc.getXmlFragment("prosemirror");
 
         try {
