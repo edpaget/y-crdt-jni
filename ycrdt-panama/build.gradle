@@ -34,6 +34,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // Include abstract test classes from ycrdt-core
     testImplementation project(':ycrdt-core').sourceSets.test.output
+    // For CrossImplementationSyncTest - needs JNI implementation
+    testImplementation project(':ycrdt-jni')
 }
 
 test {
