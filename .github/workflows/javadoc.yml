@@ -24,30 +24,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Set up JDK 21
+      - name: Set up JDK 22
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '22'
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Generate Javadoc for all modules
-        run: ./gradlew javadoc
+      - name: Generate Javadoc for all modules (excluding Panama)
+        run: ./gradlew javadoc -x :ycrdt-panama:javadoc
 
       - name: Create documentation directory structure
         run: |
           mkdir -p docs-site
-          mkdir -p docs-site/ycrdt
+          mkdir -p docs-site/ycrdt-core
+          mkdir -p docs-site/ycrdt-jni
           mkdir -p docs-site/yprosemirror
           mkdir -p docs-site/yhocuspocus
+          mkdir -p docs-site/yhocuspocus-websocket
+          mkdir -p docs-site/yhocuspocus-spring-websocket
 
       - name: Copy Javadoc for all modules
         run: |
-          cp -r ycrdt/build/docs/javadoc/* docs-site/ycrdt/
+          cp -r ycrdt-core/build/docs/javadoc/* docs-site/ycrdt-core/
+          cp -r ycrdt-jni/build/docs/javadoc/* docs-site/ycrdt-jni/
           cp -r yprosemirror/build/docs/javadoc/* docs-site/yprosemirror/
           cp -r yhocuspocus/build/docs/javadoc/* docs-site/yhocuspocus/
+          cp -r yhocuspocus-websocket/build/docs/javadoc/* docs-site/yhocuspocus-websocket/
+          cp -r yhocuspocus-spring-websocket/build/docs/javadoc/* docs-site/yhocuspocus-spring-websocket/
 
       - name: Create index page
         run: |
@@ -114,9 +120,15 @@ jobs:
             <p>Java bindings for Y-CRDT with multi-module architecture.</p>
 
             <div class="module">
-              <h2>ycrdt</h2>
-              <p>Core Y-CRDT JNI bindings with Rust native library. Provides YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment.</p>
-              <a href="ycrdt/index.html">View Javadoc</a>
+              <h2>ycrdt-core</h2>
+              <p>Core Y-CRDT interfaces and abstract classes for implementation-agnostic usage.</p>
+              <a href="ycrdt-core/index.html">View Javadoc</a>
+            </div>
+
+            <div class="module">
+              <h2>ycrdt-jni</h2>
+              <p>JNI-based Y-CRDT bindings with Rust native library. Provides YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment.</p>
+              <a href="ycrdt-jni/index.html">View Javadoc</a>
             </div>
 
             <div class="module">
@@ -129,6 +141,18 @@ jobs:
               <h2>yhocuspocus</h2>
               <p>Transport-agnostic collaborative editing server for Y-CRDT synchronization.</p>
               <a href="yhocuspocus/index.html">View Javadoc</a>
+            </div>
+
+            <div class="module">
+              <h2>yhocuspocus-websocket</h2>
+              <p>WebSocket transport implementation for yhocuspocus using Jetty 12.</p>
+              <a href="yhocuspocus-websocket/index.html">View Javadoc</a>
+            </div>
+
+            <div class="module">
+              <h2>yhocuspocus-spring-websocket</h2>
+              <p>Spring WebSocket transport implementation for yhocuspocus.</p>
+              <a href="yhocuspocus-spring-websocket/index.html">View Javadoc</a>
             </div>
 
             <div class="links">

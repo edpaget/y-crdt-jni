@@ -68,8 +68,8 @@ jobs:
             ## Changes
             See [CHANGELOG.md](CHANGELOG.md) for details.
 
-  build-and-upload:
-    name: Build and Upload (${{ matrix.os }} - ${{ matrix.arch }})
+  build-and-upload-jni:
+    name: Build JNI (${{ matrix.os }} - ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     needs: create-release
     strategy:
@@ -82,6 +82,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             lib_name: libycrdt_jni.so
             asset_name: libycrdt_jni-linux-x86_64.so
+            resource_path: native/linux/x86_64
 
           # macOS builds
           - os: macos-latest
@@ -89,12 +90,14 @@ jobs:
             target: x86_64-apple-darwin
             lib_name: libycrdt_jni.dylib
             asset_name: libycrdt_jni-macos-x86_64.dylib
+            resource_path: native/macos/x86_64
 
           - os: macos-latest
             arch: aarch64
             target: aarch64-apple-darwin
             lib_name: libycrdt_jni.dylib
             asset_name: libycrdt_jni-macos-aarch64.dylib
+            resource_path: native/macos/aarch64
 
           # Windows builds
           - os: windows-latest
@@ -102,6 +105,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             lib_name: ycrdt_jni.dll
             asset_name: ycrdt_jni-windows-x86_64.dll
+            resource_path: native/windows/x86_64
 
     steps:
       - name: Checkout code
@@ -126,10 +130,91 @@ jobs:
           asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
 
+      - name: Create resource directory
+        run: mkdir -p build/resources/${{ matrix.resource_path }}
+
+      - name: Copy native library (Unix)
+        if: runner.os != 'Windows'
+        run: cp ycrdt/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+
+      - name: Copy native library (Windows)
+        if: runner.os == 'Windows'
+        run: Copy-Item ycrdt\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-lib-jni-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          retention-days: 1
+
+  build-and-upload-panama:
+    name: Build Panama (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            lib_name: libyrs.so
+            asset_name: libyrs-linux-x86_64.so
+            resource_path: native/linux/x86_64
+
+          - os: macos-latest
+            arch: x86_64
+            lib_name: libyrs.dylib
+            asset_name: libyrs-macos-x86_64.dylib
+            resource_path: native/macos/x86_64
+
+          - os: macos-latest
+            arch: aarch64
+            lib_name: libyrs.dylib
+            asset_name: libyrs-macos-aarch64.dylib
+            resource_path: native/macos/aarch64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build yffi native library
+        run: |
+          chmod +x scripts/build-yffi.sh
+          bash scripts/build-yffi.sh
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: build/native/${{ matrix.lib_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
+
+      - name: Create resource directory
+        run: mkdir -p build/resources/${{ matrix.resource_path }}
+
+      - name: Copy native library
+        run: cp build/native/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-lib-panama-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          retention-days: 1
+
   build-release-jar:
-    name: Build and Upload Release JAR
+    name: Build and Upload Release JARs
     runs-on: ubuntu-latest
-    needs: [create-release, build-and-upload]
+    needs: [create-release, build-and-upload-jni, build-and-upload-panama]
 
     steps:
       - name: Checkout code
@@ -139,45 +224,125 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '22'
 
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v7
         with:
-          toolchain: stable
+          path: downloaded-artifacts
 
-      - name: Add Rust targets
+      - name: Organize JNI native libraries
         run: |
-          rustup target add x86_64-unknown-linux-gnu
-          rustup target add x86_64-apple-darwin
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-pc-windows-msvc
+          mkdir -p ycrdt-jni/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/macos/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/macos/aarch64
+          mkdir -p ycrdt-jni/src/main/resources/native/windows/x86_64
 
-      - name: Build native libraries for all platforms
+          find downloaded-artifacts -path "*native-lib-jni*" -name "*.so" -exec cp {} ycrdt-jni/src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -path "*native-lib-jni*" -name "*.dylib" | while read file; do
+            if [[ "$file" == *"aarch64"* ]]; then
+              cp "$file" ycrdt-jni/src/main/resources/native/macos/aarch64/
+            else
+              cp "$file" ycrdt-jni/src/main/resources/native/macos/x86_64/
+            fi
+          done
+          find downloaded-artifacts -path "*native-lib-jni*" -name "*.dll" -exec cp {} ycrdt-jni/src/main/resources/native/windows/x86_64/ \;
+
+      - name: Organize Panama native libraries
         run: |
-          cd ycrdt
-          cargo build --release --target x86_64-unknown-linux-gnu
-          cargo build --release --target x86_64-pc-windows-msvc
-          # Note: Cross-compilation for macOS requires special setup
-          # For now, we'll skip macOS builds on Linux
+          mkdir -p ycrdt-panama/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt-panama/src/main/resources/native/macos/x86_64
+          mkdir -p ycrdt-panama/src/main/resources/native/macos/aarch64
 
-      - name: Organize native libraries
+          find downloaded-artifacts -path "*native-lib-panama*" -name "*.so" -exec cp {} ycrdt-panama/src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -path "*native-lib-panama*" -name "*.dylib" | while read file; do
+            if [[ "$file" == *"aarch64"* ]]; then
+              cp "$file" ycrdt-panama/src/main/resources/native/macos/aarch64/
+            else
+              cp "$file" ycrdt-panama/src/main/resources/native/macos/x86_64/
+            fi
+          done
+
+      - name: Verify native libraries
         run: |
-          mkdir -p ycrdt/src/main/resources/native/linux/x86_64
-          mkdir -p ycrdt/src/main/resources/native/windows/x86_64
+          echo "JNI native libraries:"
+          find ycrdt-jni/src/main/resources/native -type f 2>/dev/null || echo "  (none found)"
+          echo ""
+          echo "Panama native libraries:"
+          find ycrdt-panama/src/main/resources/native -type f 2>/dev/null || echo "  (none found)"
 
-          cp ycrdt/target/x86_64-unknown-linux-gnu/release/libycrdt_jni.so ycrdt/src/main/resources/native/linux/x86_64/
-          cp ycrdt/target/x86_64-pc-windows-msvc/release/ycrdt_jni.dll ycrdt/src/main/resources/native/windows/x86_64/
+      - name: Build all JARs
+        run: ./gradlew jar -Pversion=${{ needs.create-release.outputs.version }}
 
-      - name: Build JAR
-        run: ./gradlew :ycrdt:jar -Pversion=${{ needs.create-release.outputs.version }}
-
-      - name: Upload JAR to Release
+      - name: Upload ycrdt-core JAR
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt/build/libs/ycrdt-${{ needs.create-release.outputs.version }}.jar
-          asset_name: ycrdt-${{ needs.create-release.outputs.version }}.jar
+          asset_path: ycrdt-core/build/libs/ycrdt-core-${{ needs.create-release.outputs.version }}.jar
+          asset_name: ycrdt-core-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload ycrdt-jni JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ycrdt-jni/build/libs/ycrdt-jni-${{ needs.create-release.outputs.version }}.jar
+          asset_name: ycrdt-jni-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload ycrdt-panama JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ycrdt-panama/build/libs/ycrdt-panama-${{ needs.create-release.outputs.version }}.jar
+          asset_name: ycrdt-panama-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload yprosemirror JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: yprosemirror/build/libs/yprosemirror-${{ needs.create-release.outputs.version }}.jar
+          asset_name: yprosemirror-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload yhocuspocus JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: yhocuspocus/build/libs/yhocuspocus-${{ needs.create-release.outputs.version }}.jar
+          asset_name: yhocuspocus-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload yhocuspocus-websocket JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: yhocuspocus-websocket/build/libs/yhocuspocus-websocket-${{ needs.create-release.outputs.version }}.jar
+          asset_name: yhocuspocus-websocket-${{ needs.create-release.outputs.version }}.jar
+          asset_content_type: application/java-archive
+
+      - name: Upload yhocuspocus-spring-websocket JAR
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: yhocuspocus-spring-websocket/build/libs/yhocuspocus-spring-websocket-${{ needs.create-release.outputs.version }}.jar
+          asset_name: yhocuspocus-spring-websocket-${{ needs.create-release.outputs.version }}.jar
           asset_content_type: application/java-archive

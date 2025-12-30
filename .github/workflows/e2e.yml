@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '22'
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -67,7 +67,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build Java modules
-        run: ./gradlew build -x test
+        run: ./gradlew build -x test -x :ycrdt-panama:build
 
       - name: Install frontend dependencies
         working-directory: examples/frontend

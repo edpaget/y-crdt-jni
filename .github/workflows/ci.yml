@@ -39,13 +39,14 @@ jobs:
         run: cd ycrdt && cargo build --release --verbose
 
   test-java:
-    name: Test Java (${{ matrix.os }})
+    name: Test Java (${{ matrix.os }}, Java ${{ matrix.java }})
     runs-on: ${{ matrix.os }}
     needs: test-rust
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        java: ['21', '22', '24']
 
     steps:
       - name: Checkout code
@@ -55,7 +56,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ matrix.java }}
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -82,14 +83,74 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x gradlew
 
-      - name: Build and test with Gradle
-        run: ./gradlew build --info
+      - name: Build and test JNI modules with Gradle
+        run: ./gradlew build --info -x :ycrdt-panama:build -x :ycrdt-panama:test
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: test-reports-${{ matrix.os }}
+          name: test-reports-jni-${{ matrix.os }}-java${{ matrix.java }}
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+
+  test-java-panama:
+    name: Test Panama (${{ matrix.os }}, Java ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
+    needs: test-rust
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        java: ['22', '24']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt/target/
+            build/y-crdt/
+          key: ${{ runner.os }}-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-yffi-
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Grant execute permission for scripts
+        run: chmod +x gradlew scripts/build-yffi.sh
+
+      - name: Build yffi native library
+        run: bash scripts/build-yffi.sh
+
+      - name: Build and test Panama module
+        run: ./gradlew :ycrdt-panama:build --info
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-reports-panama-${{ matrix.os }}-java${{ matrix.java }}
           path: |
             **/build/reports/tests/
             **/build/test-results/
@@ -97,7 +158,7 @@ jobs:
   build-native-libraries:
     name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
-    needs: [test-rust, test-java]
+    needs: [test-rust, test-java, test-java-panama]
     strategy:
       fail-fast: false
       matrix:
@@ -186,7 +247,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '22'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
@@ -198,36 +259,36 @@ jobs:
 
       - name: Organize native libraries
         run: |
-          mkdir -p ycrdt/src/main/resources/native/linux/x86_64
-          mkdir -p ycrdt/src/main/resources/native/macos/x86_64
-          mkdir -p ycrdt/src/main/resources/native/macos/aarch64
-          mkdir -p ycrdt/src/main/resources/native/windows/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/macos/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/macos/aarch64
+          mkdir -p ycrdt-jni/src/main/resources/native/windows/x86_64
 
           # Copy each platform's library to the correct location
-          find downloaded-artifacts -name "*.so" -exec cp {} ycrdt/src/main/resources/native/linux/x86_64/ \;
+          find downloaded-artifacts -name "*.so" -exec cp {} ycrdt-jni/src/main/resources/native/linux/x86_64/ \;
           find downloaded-artifacts -name "*.dylib" | while read file; do
             if [[ "$file" == *"aarch64"* ]]; then
-              cp "$file" ycrdt/src/main/resources/native/macos/aarch64/
+              cp "$file" ycrdt-jni/src/main/resources/native/macos/aarch64/
             else
-              cp "$file" ycrdt/src/main/resources/native/macos/x86_64/
+              cp "$file" ycrdt-jni/src/main/resources/native/macos/x86_64/
             fi
           done
-          find downloaded-artifacts -name "*.dll" -exec cp {} ycrdt/src/main/resources/native/windows/x86_64/ \;
+          find downloaded-artifacts -name "*.dll" -exec cp {} ycrdt-jni/src/main/resources/native/windows/x86_64/ \;
 
       - name: Build JAR with Gradle
-        run: ./gradlew :ycrdt:jar --info
+        run: ./gradlew :ycrdt-jni:jar --info
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v6
         with:
-          name: y-crdt-jni-jar
-          path: ycrdt/build/libs/*.jar
+          name: ycrdt-jni-jar
+          path: ycrdt-jni/build/libs/*.jar
           retention-days: 90
 
       - name: List JAR contents
         run: |
           echo "JAR contents:"
-          jar tf ycrdt/build/libs/*.jar | grep -E "\.so|\.dylib|\.dll" || echo "No native libraries found in JAR"
+          jar tf ycrdt-jni/build/libs/*.jar | grep -E "\.so|\.dylib|\.dll" || echo "No native libraries found in JAR"
 
   check-jar:
     name: Verify JAR Package
@@ -238,7 +299,7 @@ jobs:
       - name: Download JAR
         uses: actions/download-artifact@v7
         with:
-          name: y-crdt-jni-jar
+          name: ycrdt-jni-jar
 
       - name: Verify JAR structure
         run: |
@@ -254,4 +315,4 @@ jobs:
           jar tf *.jar | grep -E "\.class$" || (echo "ERROR: No Java classes found!" && exit 1)
 
           echo ""
-          echo "✅ JAR verification passed!"
+          echo "JAR verification passed!"
