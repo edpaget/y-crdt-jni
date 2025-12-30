@@ -8,8 +8,8 @@ import static org.junit.Assert.assertTrue;
 import com.atlassian.prosemirror.model.Schema;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.carcdr.ycrdt.YBinding;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YXmlElement;
 import net.carcdr.ycrdt.YXmlFragment;
 import net.carcdr.yprosemirror.test.TestSchemas;
@@ -31,7 +31,7 @@ public class IncrementalUpdateTest {
 
     @Before
     public void setUp() {
-        ydoc = new JniYDoc();
+        ydoc = YBinding.getInstance().createDoc();
         schema = TestSchemas.createBasicSchema();
     }
 
@@ -319,8 +319,8 @@ public class IncrementalUpdateTest {
 
     @Test
     public void testIncrementalBindingSynchronization() {
-        try (YDoc doc1 = new JniYDoc();
-             YDoc doc2 = new JniYDoc()) {
+        try (YDoc doc1 = YBinding.getInstance().createDoc();
+             YDoc doc2 = YBinding.getInstance().createDoc()) {
 
             YXmlFragment frag1 = doc1.getXmlFragment("prosemirror");
             YXmlFragment frag2 = doc2.getXmlFragment("prosemirror");

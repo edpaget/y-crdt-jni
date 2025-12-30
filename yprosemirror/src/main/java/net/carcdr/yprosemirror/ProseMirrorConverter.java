@@ -7,11 +7,11 @@ import com.atlassian.prosemirror.model.Schema;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.carcdr.ycrdt.YBinding;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YXmlElement;
 import net.carcdr.ycrdt.YXmlFragment;
 import net.carcdr.ycrdt.YXmlText;
-import net.carcdr.ycrdt.jni.JniYDoc;
 
 /**
  * Converts ProseMirror documents to Y-CRDT structures.
@@ -294,7 +294,7 @@ public final class ProseMirrorConverter {
             throw new IllegalArgumentException("Schema cannot be null");
         }
 
-        YDoc ydoc = new JniYDoc();
+        YDoc ydoc = YBinding.getInstance().createDoc();
         YXmlFragment fragment = ydoc.getXmlFragment("prosemirror");
 
         try {

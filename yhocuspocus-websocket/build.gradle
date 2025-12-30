@@ -7,9 +7,14 @@ plugins {
 group = 'net.carcdr'
 version = rootProject.version
 
+// Test binding selection: -PtestBinding=jni (default) or -PtestBinding=panama
+def testBindingType = project.hasProperty('testBinding') ? project.property('testBinding') : 'jni'
+
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Use Java 22 when testing with Panama (required for FFM API)
+    def javaVersion = testBindingType == 'panama' ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
     withJavadocJar()
     withSourcesJar()
 }
@@ -34,6 +39,12 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-client:12.1.5'
     testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+    // Select implementation for tests based on testBinding property
+    if (testBindingType == 'panama') {
+        testRuntimeOnly project(':ycrdt-panama')
+    } else {
+        testRuntimeOnly project(':ycrdt-jni')
+    }
 }
 
 // Checkstyle configuration
@@ -48,6 +59,10 @@ test {
         events 'passed', 'skipped', 'failed'
         exceptionFormat = 'full'
         showStandardStreams = false
+    }
+    // Enable native access for Panama FFM when testing with Panama
+    if (testBindingType == 'panama') {
+        jvmArgs '--enable-native-access=ALL-UNNAMED'
     }
 }
 

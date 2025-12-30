@@ -4,8 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import net.carcdr.ycrdt.YBinding;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YXmlElement;
 import net.carcdr.ycrdt.YXmlFragment;
 import net.carcdr.ycrdt.YXmlText;
@@ -32,7 +32,7 @@ public class ConversionTest {
      */
     @Before
     public void setUp() {
-        ydoc = new JniYDoc();
+        ydoc = YBinding.getInstance().createDoc();
     }
 
     /**
@@ -243,8 +243,8 @@ public class ConversionTest {
      */
     @Test
     public void testDocumentSynchronization() {
-        try (YDoc doc1 = new JniYDoc();
-             YDoc doc2 = new JniYDoc();
+        try (YDoc doc1 = YBinding.getInstance().createDoc();
+             YDoc doc2 = YBinding.getInstance().createDoc();
              YXmlFragment frag1 = doc1.getXmlFragment("prosemirror");
              YXmlFragment frag2 = doc2.getXmlFragment("prosemirror")) {
 
