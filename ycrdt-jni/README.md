@@ -35,13 +35,18 @@ The JAR will be in `ycrdt/build/libs/ycrdt.jar`.
 
 ## Quick Start
 
+### Using YBindingFactory (Recommended)
+
 ```java
 import net.carcdr.ycrdt.*;
 
 public class Example {
     public static void main(String[] args) {
+        // Get the JNI binding
+        YBinding binding = YBindingFactory.jni();
+
         // Create a document
-        try (YDoc doc = new YDoc()) {
+        try (YDoc doc = binding.createDoc()) {
             // Collaborative text editing
             try (YText text = doc.getText("myText")) {
                 text.push("Hello, ");
@@ -58,12 +63,24 @@ public class Example {
 
             // Synchronize with another document
             byte[] update = doc.encodeStateAsUpdate();
-            try (YDoc doc2 = new YDoc()) {
+            try (YDoc doc2 = binding.createDoc()) {
                 doc2.applyUpdate(update);
                 // doc2 now has the same state as doc
             }
         }
     }
+}
+```
+
+### Direct Instantiation
+
+You can also use the JNI implementation directly:
+
+```java
+import net.carcdr.ycrdt.jni.JniYDoc;
+
+try (JniYDoc doc = new JniYDoc()) {
+    // ... use doc directly
 }
 ```
 

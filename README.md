@@ -16,12 +16,20 @@ This project consists of multiple modules, each with its own purpose and documen
 
 ### Core Library
 
-- **[ycrdt](ycrdt/README.md)** - Core Y-CRDT JNI bindings with Rust native library
-  - Provides: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
-  - CRDT types with subdocument support
-  - Observer API for change notifications
-  - Binary state synchronization
-  - [Technical Details](ycrdt/IMPLEMENTATION.md)
+- **ycrdt-core** - Core interfaces and factory for Y-CRDT bindings
+  - Provides: YBinding, YDoc, YText, YArray, YMap interfaces
+  - YBindingFactory for selecting implementations
+  - No native dependencies
+
+- **[ycrdt-jni](ycrdt-jni/README.md)** - JNI-based implementation using Rust
+  - Requires: Java 21+, native library bundled in JAR
+  - Full feature support including XML types
+  - [Technical Details](ycrdt-jni/IMPLEMENTATION.md)
+
+- **ycrdt-panama** - Panama FFM implementation using yffi
+  - Requires: Java 22+, `--enable-native-access=ALL-UNNAMED`
+  - Uses Java's Foreign Function & Memory API (no JNI)
+  - Core types implemented (YDoc, YText, YArray, YMap)
 
 ### Integrations
 
@@ -71,8 +79,9 @@ import net.carcdr.ycrdt.*;
 
 public class Example {
     public static void main(String[] args) {
-        // Create a document
-        try (YDoc doc = new YDoc()) {
+        // Create a document using the default implementation
+        YBinding binding = YBindingFactory.auto();
+        try (YDoc doc = binding.createDoc()) {
             // Collaborative text editing
             try (YText text = doc.getText("myText")) {
                 text.push("Hello, ");
@@ -82,7 +91,7 @@ public class Example {
 
             // Synchronize with another document
             byte[] update = doc.encodeStateAsUpdate();
-            try (YDoc doc2 = new YDoc()) {
+            try (YDoc doc2 = binding.createDoc()) {
                 doc2.applyUpdate(update);
                 // doc2 now has the same state as doc
             }
@@ -91,7 +100,66 @@ public class Example {
 }
 ```
 
-For more examples, see [ycrdt/README.md](ycrdt/README.md).
+For more examples, see [ycrdt-jni/README.md](ycrdt-jni/README.md).
+
+## Choosing an Implementation
+
+The library provides two native implementations. Use `YBindingFactory` to select:
+
+```java
+import net.carcdr.ycrdt.*;
+
+// Auto-detect (uses first available via ServiceLoader)
+YBinding binding = YBindingFactory.auto();
+
+// Explicitly use JNI implementation
+YBinding jni = YBindingFactory.jni();
+
+// Explicitly use Panama FFM implementation
+YBinding panama = YBindingFactory.panama();
+
+// Create documents with chosen implementation
+try (YDoc doc = binding.createDoc()) {
+    // ...
+}
+```
+
+### Comparison
+
+| Feature | ycrdt-jni | ycrdt-panama |
+|---------|-----------|--------------|
+| Java Version | 21+ | 22+ |
+| Native Access | JNI (Rust) | Panama FFM (yffi) |
+| JVM Args | None | `--enable-native-access=ALL-UNNAMED` |
+| XML Types | Yes | Not yet |
+| Maturity | Stable | Experimental |
+
+### Gradle Dependencies
+
+```groovy
+// Core interfaces (required)
+implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
+
+// Choose one or both implementations:
+implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'     // JNI
+implementation 'net.carcdr:ycrdt-panama:0.1.0-SNAPSHOT'  // Panama FFM
+```
+
+### Running with Panama
+
+When using the Panama implementation, add this JVM argument:
+
+```bash
+java --enable-native-access=ALL-UNNAMED -jar myapp.jar
+```
+
+Or in Gradle:
+
+```groovy
+application {
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+```
 
 ## Features
 
