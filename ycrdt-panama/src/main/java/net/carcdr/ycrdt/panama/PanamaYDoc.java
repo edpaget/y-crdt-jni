@@ -324,8 +324,7 @@ public class PanamaYDoc implements YDoc {
         if (observer == null) {
             throw new IllegalArgumentException("Observer cannot be null");
         }
-        // TODO: Implement observer support
-        throw new UnsupportedOperationException("Observers not yet implemented");
+        return new PanamaYSubscription(this, observer);
     }
 
     @Override

@@ -1142,6 +1142,68 @@ public final class Yrs {
     }
 
     // =========================================================================
+    // Observer Functions
+    // =========================================================================
+
+    /**
+     * FunctionDescriptor for the update observer callback.
+     * Signature: void callback(void* state, uint32_t len, const char* data)
+     */
+    public static final FunctionDescriptor UPDATE_CALLBACK_DESCRIPTOR = FunctionDescriptor.ofVoid(
+        ValueLayout.ADDRESS,      // void* state
+        ValueLayout.JAVA_INT,     // uint32_t len
+        ValueLayout.ADDRESS       // const char* data
+    );
+
+    // YSubscription *ydoc_observe_updates_v1(YDoc *doc, void *state,
+    //     void (*cb)(void*, uint32_t, const char*))
+    private static final MethodHandle YDOC_OBSERVE_UPDATES_V1 = LINKER.downcallHandle(
+        LOOKUP.find("ydoc_observe_updates_v1").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,    // YSubscription* return
+            ValueLayout.ADDRESS,    // YDoc* doc
+            ValueLayout.ADDRESS,    // void* state
+            ValueLayout.ADDRESS     // callback function pointer
+        )
+    );
+
+    /**
+     * Registers an observer for document updates (v1 encoding).
+     *
+     * @param doc pointer to the document
+     * @param state opaque state pointer passed to callback
+     * @param callback function pointer for the callback (created via Linker.upcallStub)
+     * @return pointer to the subscription (must be freed with yunobserve)
+     */
+    public static MemorySegment ydocObserveUpdatesV1(
+            MemorySegment doc, MemorySegment state, MemorySegment callback) {
+        try {
+            return (MemorySegment) YDOC_OBSERVE_UPDATES_V1.invokeExact(doc, state, callback);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ydoc_observe_updates_v1", t);
+        }
+    }
+
+    // void yunobserve(YSubscription *subscription)
+    private static final MethodHandle YUNOBSERVE = LINKER.downcallHandle(
+        LOOKUP.find("yunobserve").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Unsubscribes an observer.
+     *
+     * @param subscription pointer to the subscription
+     */
+    public static void yunobserve(MemorySegment subscription) {
+        try {
+            YUNOBSERVE.invokeExact(subscription);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yunobserve", t);
+        }
+    }
+
+    // =========================================================================
     // XmlFragment Functions
     // =========================================================================
 
