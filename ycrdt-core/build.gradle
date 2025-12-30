@@ -30,6 +30,9 @@ repositories {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    // For CrossImplementationSyncTest - requires both implementations on classpath
+    testImplementation project(':ycrdt-jni')
+    testImplementation project(':ycrdt-panama')
 }
 
 test {
@@ -38,6 +41,8 @@ test {
         exceptionFormat = 'full'
         showStandardStreams = false
     }
+    // Enable native access for Panama FFM API (CrossImplementationSyncTest uses both)
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
 }
 
 checkstyle {

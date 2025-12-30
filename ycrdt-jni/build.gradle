@@ -2,7 +2,6 @@ plugins {
     id 'java-library'
     id 'checkstyle'
     id 'maven-publish'
-    id 'me.champeau.jmh' version '0.7.3'
 }
 
 group = 'net.carcdr'
@@ -32,6 +31,8 @@ repositories {
 dependencies {
     api project(':ycrdt-core')
     testImplementation 'junit:junit:4.13.2'
+    // Include abstract test classes from ycrdt-core
+    testImplementation project(':ycrdt-core').sourceSets.test.output
 }
 
 // Test configuration
@@ -192,37 +193,3 @@ publishing {
     }
 }
 
-// JMH Benchmark configuration
-jmh {
-    jmhVersion = '1.37'
-
-    // Output configuration
-    resultFormat = 'JSON'
-    resultsFile = file("${buildDir}/reports/jmh/results.json")
-
-    // Benchmark execution parameters
-    warmupIterations = 3
-    iterations = 5
-    fork = 2
-    threads = 1
-    timeOnIteration = '1s'
-
-    // Enable GC profiler by default to measure memory usage
-    profilers = ['gc']
-
-    // JVM arguments
-    jvmArgs = ['-Xmx2g', '-Xms2g']
-
-    // Include/exclude patterns (can be overridden via command line)
-    // includes = ['.*Benchmark.*']
-
-    // Duplicate class strategy
-    duplicateClassesStrategy = DuplicatesStrategy.WARN
-}
-
-// Ensure JMH benchmarks are not included in production JAR
-jar {
-    // Exclude JMH metadata from production JAR
-    exclude 'META-INF/BenchmarkList'
-    exclude 'META-INF/CompilerHints'
-}

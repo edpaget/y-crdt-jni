@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+    id 'me.champeau.jmh' version '0.7.3'
+}
+
+group = 'net.carcdr'
+version = rootProject.version
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':ycrdt-core')
+    implementation project(':ycrdt-jni')
+    implementation project(':ycrdt-panama')
+}
+
+// JMH Benchmark configuration
+jmh {
+    jmhVersion = '1.37'
+
+    // Output configuration
+    resultFormat = 'JSON'
+    resultsFile = file("${buildDir}/reports/jmh/results.json")
+
+    // Benchmark execution parameters
+    warmupIterations = 3
+    iterations = 5
+    fork = 2
+    threads = 1
+    timeOnIteration = '1s'
+
+    // Enable GC profiler by default to measure memory usage
+    profilers = ['gc']
+
+    // JVM arguments - include native access for Panama
+    jvmArgs = ['-Xmx2g', '-Xms2g', '--enable-native-access=ALL-UNNAMED']
+
+    // Duplicate class strategy
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
+}

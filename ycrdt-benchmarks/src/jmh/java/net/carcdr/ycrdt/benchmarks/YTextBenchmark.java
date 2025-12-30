@@ -1,7 +1,8 @@
 package net.carcdr.ycrdt.benchmarks;
 
+import net.carcdr.ycrdt.YBinding;
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YText;
 import net.carcdr.ycrdt.YTransaction;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -10,6 +11,7 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -19,7 +21,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * YText operation benchmarks.
+ * YText operation benchmarks comparing JNI and Panama implementations.
  *
  * <p>Measures performance of text operations including basic operations,
  * workload patterns, and scale tests with varying document sizes.</p>
@@ -29,12 +31,19 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class YTextBenchmark {
 
+    @Param({"jni", "panama"})
+    private String implementation;
+
+    private YBinding binding;
     private YDoc doc;
     private YText text;
 
     @Setup(Level.Iteration)
     public void setup() {
-        doc = new JniYDoc();
+        binding = "jni".equals(implementation)
+            ? YBindingFactory.jni()
+            : YBindingFactory.panama();
+        doc = binding.createDoc();
         text = doc.getText("content");
     }
 
@@ -159,12 +168,18 @@ public class YTextBenchmark {
      */
     @State(Scope.Thread)
     public static class SmallDocument {
+        @Param({"jni", "panama"})
+        private String implementation;
+
         YDoc doc;
         YText text;
 
         @Setup(Level.Trial)
         public void setup() {
-            doc = new JniYDoc();
+            YBinding binding = "jni".equals(implementation)
+                ? YBindingFactory.jni()
+                : YBindingFactory.panama();
+            doc = binding.createDoc();
             text = doc.getText("content");
             // 100 characters
             for (int i = 0; i < 100; i++) {
@@ -200,12 +215,18 @@ public class YTextBenchmark {
      */
     @State(Scope.Thread)
     public static class MediumDocument {
+        @Param({"jni", "panama"})
+        private String implementation;
+
         YDoc doc;
         YText text;
 
         @Setup(Level.Trial)
         public void setup() {
-            doc = new JniYDoc();
+            YBinding binding = "jni".equals(implementation)
+                ? YBindingFactory.jni()
+                : YBindingFactory.panama();
+            doc = binding.createDoc();
             text = doc.getText("content");
             // 10KB document
             StringBuilder sb = new StringBuilder();
@@ -243,12 +264,18 @@ public class YTextBenchmark {
      */
     @State(Scope.Thread)
     public static class LargeDocument {
+        @Param({"jni", "panama"})
+        private String implementation;
+
         YDoc doc;
         YText text;
 
         @Setup(Level.Trial)
         public void setup() {
-            doc = new JniYDoc();
+            YBinding binding = "jni".equals(implementation)
+                ? YBindingFactory.jni()
+                : YBindingFactory.panama();
+            doc = binding.createDoc();
             text = doc.getText("content");
             // 1MB document
             StringBuilder sb = new StringBuilder();

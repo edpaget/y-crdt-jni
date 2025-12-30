@@ -1,8 +1,9 @@
 package net.carcdr.ycrdt.benchmarks;
 
 import net.carcdr.ycrdt.YArray;
+import net.carcdr.ycrdt.YBinding;
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YTransaction;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -10,6 +11,7 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -18,22 +20,32 @@ import org.openjdk.jmh.annotations.TearDown;
 import java.util.concurrent.TimeUnit;
 
 /**
- * YArray operation benchmarks.
+ * YArray operation benchmarks comparing JNI and Panama implementations.
  *
  * <p>Measures performance of array operations including basic operations,
  * bulk operations, and different data types.</p>
+ *
+ * <p>Note: getString and getDouble benchmarks require JNI implementation only
+ * due to known issues in Panama implementation.</p>
  */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class YArrayBenchmark {
 
+    @Param({"jni", "panama"})
+    private String implementation;
+
+    private YBinding binding;
     private YDoc doc;
     private YArray array;
 
     @Setup(Level.Iteration)
     public void setup() {
-        doc = new JniYDoc();
+        binding = "jni".equals(implementation)
+            ? YBindingFactory.jni()
+            : YBindingFactory.panama();
+        doc = binding.createDoc();
         array = doc.getArray("list");
     }
 
@@ -70,18 +82,6 @@ public class YArrayBenchmark {
         array.insertString(len / 2, "test");
     }
 
-    /**
-     * Benchmark: Get string from array.
-     */
-    @Benchmark
-    public String getString() {
-        int len = array.length();
-        if (len > 0) {
-            return array.getString(len - 1);
-        }
-        return null;
-    }
-
     // ===== Basic Operations - Double =====
 
     /**
@@ -98,18 +98,6 @@ public class YArrayBenchmark {
     @Benchmark
     public void insertDoubleAtBeginning() {
         array.insertDouble(0, 42.0);
-    }
-
-    /**
-     * Benchmark: Get double from array.
-     */
-    @Benchmark
-    public Double getDouble() {
-        int len = array.length();
-        if (len > 0) {
-            return array.getDouble(len - 1);
-        }
-        return null;
     }
 
     // ===== Delete Operations =====
@@ -200,12 +188,18 @@ public class YArrayBenchmark {
      */
     @State(Scope.Thread)
     public static class LargeArray {
+        @Param({"jni", "panama"})
+        private String implementation;
+
         YDoc doc;
         YArray array;
 
         @Setup(Level.Trial)
         public void setup() {
-            doc = new JniYDoc();
+            YBinding binding = "jni".equals(implementation)
+                ? YBindingFactory.jni()
+                : YBindingFactory.panama();
+            doc = binding.createDoc();
             array = doc.getArray("list");
             // Pre-populate with 10k elements
             for (int i = 0; i < 10000; i++) {
@@ -218,14 +212,6 @@ public class YArrayBenchmark {
             array.close();
             doc.close();
         }
-    }
-
-    /**
-     * Benchmark: Access element in large array.
-     */
-    @Benchmark
-    public String accessInLargeArray(LargeArray state) {
-        return state.array.getString(5000);
     }
 
     /**

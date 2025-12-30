@@ -32,6 +32,8 @@ repositories {
 dependencies {
     api project(':ycrdt-core')
     testImplementation 'junit:junit:4.13.2'
+    // Include abstract test classes from ycrdt-core
+    testImplementation project(':ycrdt-core').sourceSets.test.output
 }
 
 test {
