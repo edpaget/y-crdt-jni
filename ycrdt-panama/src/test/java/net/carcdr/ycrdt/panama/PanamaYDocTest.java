@@ -13,9 +13,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import net.carcdr.ycrdt.YArray;
+import net.carcdr.ycrdt.YTransaction;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YMap;
 import net.carcdr.ycrdt.YSubscription;
@@ -622,11 +624,44 @@ public class PanamaYDocTest {
         }
     }
 
-    // TODO: This test hangs - needs investigation of Panama upcall behavior
-    // during explicit transaction commits. The callback seems to block
-    // when called from within ytransaction_commit.
-    // @Test
-    // public void testObserveUpdateV1Transaction() { ... }
+    /**
+     * Test observer with explicit transaction.
+     *
+     * <p>DISABLED: This test hangs due to a deadlock in Panama upcall handling.
+     * When using explicit transactions (doc.transaction()), the callback fires
+     * during ytransaction_commit while native locks are held. Unlike JNI which
+     * uses Executor.with_attached() for controlled re-entry, Panama's direct
+     * upcall mechanism appears to conflict with the native library's state.</p>
+     *
+     * <p>The auto-transaction pattern (letting each operation manage its own
+     * transaction) works correctly - only explicit transaction scoping triggers
+     * this issue.</p>
+     */
+    @Ignore("Deadlock in Panama upcall during explicit transaction commit")
+    @Test
+    public void testObserveUpdateV1Transaction() {
+        try (YDoc doc = new PanamaYDoc()) {
+            AtomicInteger callCount = new AtomicInteger(0);
+            List<byte[]> updates = new ArrayList<>();
+
+            try (YSubscription subscription = doc.observeUpdateV1((update, origin) -> {
+                callCount.incrementAndGet();
+                updates.add(update);
+            })) {
+                // Use explicit transaction - this pattern causes the hang
+                doc.transaction((YTransaction txn) -> {
+                    try (YText text = doc.getText("test")) {
+                        text.push("Hello");
+                        text.push(" World");
+                    }
+                });
+
+                // Should have received one update for the transaction
+                assertEquals(1, callCount.get());
+                assertTrue(updates.get(0).length > 0);
+            }
+        }
+    }
 
     @Test
     public void testObserveUpdateV1ArrayChanges() {
