@@ -84,7 +84,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and test JNI modules with Gradle
-        run: ./gradlew build --info -x :ycrdt-panama:build -x :ycrdt-panama:test
+        run: ./gradlew build --info -PskipPanama=true
 
       - name: Upload test reports
         if: always()

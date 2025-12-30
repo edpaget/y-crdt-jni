@@ -2,7 +2,10 @@ rootProject.name = 'y-crdt-jni'
 
 include 'ycrdt-core'
 include 'ycrdt-jni'
-include 'ycrdt-panama'
+// Only include ycrdt-panama if not explicitly skipped (requires Java 22 toolchain)
+if (!hasProperty('skipPanama') || !skipPanama.toBoolean()) {
+    include 'ycrdt-panama'
+}
 include 'yprosemirror'
 include 'yhocuspocus'
 include 'yhocuspocus-websocket'

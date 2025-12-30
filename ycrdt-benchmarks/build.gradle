@@ -18,7 +18,10 @@ repositories {
 dependencies {
     implementation project(':ycrdt-core')
     implementation project(':ycrdt-jni')
-    implementation project(':ycrdt-panama')
+    // Only include ycrdt-panama if not skipped
+    if (findProject(':ycrdt-panama') != null) {
+        implementation project(':ycrdt-panama')
+    }
 }
 
 // JMH Benchmark configuration

@@ -34,7 +34,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Generate Javadoc for all modules (excluding Panama)
-        run: ./gradlew javadoc -x :ycrdt-panama:javadoc
+        run: ./gradlew javadoc -PskipPanama=true
 
       - name: Create documentation directory structure
         run: |

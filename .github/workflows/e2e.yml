@@ -67,7 +67,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build Java modules
-        run: ./gradlew build -x test -x :ycrdt-panama:build
+        run: ./gradlew build -x test -PskipPanama=true
 
       - name: Install frontend dependencies
         working-directory: examples/frontend

@@ -75,10 +75,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Run Checkstyle (JNI modules)
-        run: ./gradlew checkstyleMain checkstyleTest -x :ycrdt-panama:checkstyleMain -x :ycrdt-panama:checkstyleTest
+        run: ./gradlew checkstyleMain checkstyleTest -PskipPanama=true
 
       - name: Compile Java (JNI modules)
-        run: ./gradlew compileJava compileTestJava -x :ycrdt-panama:compileJava -x :ycrdt-panama:compileTestJava
+        run: ./gradlew compileJava compileTestJava -PskipPanama=true
 
   panama-check:
     name: Panama Check (Java ${{ matrix.java }})

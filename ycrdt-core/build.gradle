@@ -32,7 +32,10 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // For CrossImplementationSyncTest - requires both implementations on classpath
     testImplementation project(':ycrdt-jni')
-    testImplementation project(':ycrdt-panama')
+    // Only include ycrdt-panama if not skipped
+    if (findProject(':ycrdt-panama') != null) {
+        testImplementation project(':ycrdt-panama')
+    }
 }
 
 test {

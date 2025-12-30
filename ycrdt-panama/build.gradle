@@ -8,9 +8,9 @@ group = 'net.carcdr'
 version = rootProject.version
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(22)
-    }
+    // Panama FFM API was finalized in Java 22, compatible with 22+
+    sourceCompatibility = JavaVersion.VERSION_22
+    targetCompatibility = JavaVersion.VERSION_22
     withJavadocJar()
     withSourcesJar()
 }
