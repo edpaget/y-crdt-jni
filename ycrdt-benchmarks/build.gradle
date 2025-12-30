@@ -6,9 +6,14 @@ plugins {
 group = 'net.carcdr'
 version = rootProject.version
 
+// Check if Panama module is available (requires Java 22+)
+def includePanama = findProject(':ycrdt-panama') != null
+
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Use Java 22 when Panama is included, otherwise Java 21
+    def javaVersion = includePanama ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
 }
 
 repositories {
@@ -19,7 +24,7 @@ dependencies {
     implementation project(':ycrdt-core')
     implementation project(':ycrdt-jni')
     // Only include ycrdt-panama if not skipped
-    if (findProject(':ycrdt-panama') != null) {
+    if (includePanama) {
         implementation project(':ycrdt-panama')
     }
 }

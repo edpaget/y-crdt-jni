@@ -7,9 +7,14 @@ plugins {
 group = 'net.carcdr'
 version = rootProject.version
 
+// Binding selection: -Pbinding=jni (default) or -Pbinding=panama
+def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
+
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Use Java 22 when using Panama binding (required for FFM API)
+    def javaVersion = bindingType == 'panama' ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
 }
 
 repositories {
@@ -21,7 +26,6 @@ dependencies {
     implementation project(':yhocuspocus-spring-websocket')
 
     // Y-CRDT binding - select via -Pbinding=jni or -Pbinding=panama
-    def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
     if (bindingType == 'panama') {
         runtimeOnly project(':ycrdt-panama')
     } else {

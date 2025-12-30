@@ -6,6 +6,9 @@ plugins {
 group = 'net.carcdr'
 version = '1.0.0'
 
+// Binding selection: -Pbinding=jni (default) or -Pbinding=panama
+def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
+
 repositories {
     mavenCentral()
 }
@@ -16,7 +19,6 @@ dependencies {
     implementation project(':yhocuspocus-websocket')
 
     // Y-CRDT binding - select via -Pbinding=jni or -Pbinding=panama
-    def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
     if (bindingType == 'panama') {
         runtimeOnly project(':ycrdt-panama')
     } else {
@@ -34,6 +36,8 @@ application {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Use Java 22 when using Panama binding (required for FFM API)
+    def javaVersion = bindingType == 'panama' ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
 }
