@@ -1,7 +1,7 @@
 package net.carcdr.yhocuspocus.protocol;
 
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YText;
 import org.junit.After;
 import org.junit.Before;
@@ -21,8 +21,8 @@ public class SyncProtocolTest {
 
     @Before
     public void setUp() {
-        doc1 = new JniYDoc();
-        doc2 = new JniYDoc();
+        doc1 = YBindingFactory.auto().createDoc();
+        doc2 = YBindingFactory.auto().createDoc();
     }
 
     @After

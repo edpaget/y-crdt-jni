@@ -15,12 +15,22 @@ dependencies {
     implementation project(':yhocuspocus')
     implementation project(':yhocuspocus-websocket')
 
+    // Y-CRDT binding - select via -Pbinding=jni or -Pbinding=panama
+    def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
+    if (bindingType == 'panama') {
+        runtimeOnly project(':ycrdt-panama')
+    } else {
+        runtimeOnly project(':ycrdt-jni')
+    }
+
     // Logging
     implementation 'org.slf4j:slf4j-simple:2.0.17'
 }
 
 application {
     mainClass = 'net.carcdr.example.CollaborativeServerMain'
+    // Enable native access for Panama FFM
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 java {

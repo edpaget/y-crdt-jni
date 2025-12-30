@@ -4,9 +4,13 @@ import { defineConfig, devices } from '@playwright/test';
 // Options: 'jetty' (default) or 'spring'
 const backend = process.env.BACKEND || 'jetty';
 
+// Binding configuration - can be overridden via BINDING env var
+// Options: 'jni' (default) or 'panama'
+const binding = process.env.BINDING || 'jni';
+
 const backendCommands: Record<string, string> = {
-  jetty: 'cd ../../.. && ./gradlew :examples:fullstack:backend:run',
-  spring: 'cd ../../.. && ./gradlew :examples:spring-boot:backend:bootRun',
+  jetty: `cd ../../.. && ./gradlew :examples:fullstack:backend:run -Pbinding=${binding}`,
+  spring: `cd ../../.. && ./gradlew :examples:spring-boot:backend:bootRun -Pbinding=${binding}`,
 };
 
 const backendCommand = backendCommands[backend];

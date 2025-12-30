@@ -1,7 +1,7 @@
 package net.carcdr.yhocuspocus.extension;
 
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.ycrdt.YText;
 import net.carcdr.yhocuspocus.core.ClientConnection;
 import net.carcdr.yhocuspocus.core.YDocument;
@@ -88,7 +88,7 @@ public class ExtensionIntegrationTest {
     @Test
     public void testDocumentLoadFromDatabase() throws Exception {
         // Pre-populate database with test data
-        YDoc tempDoc = new JniYDoc();
+        YDoc tempDoc = YBindingFactory.auto().createDoc();
         try {
             YText text = tempDoc.getText("content");
             text.insert(0, "Hello from database");
@@ -167,7 +167,7 @@ public class ExtensionIntegrationTest {
         assertNotNull("Document should exist", doc);
 
         // Trigger a change
-        YDoc updateDoc = new JniYDoc();
+        YDoc updateDoc = YBindingFactory.auto().createDoc();
         try {
             YText text = updateDoc.getText("content");
             text.insert(0, "New content");
@@ -212,7 +212,7 @@ public class ExtensionIntegrationTest {
         assertNotNull("Document should exist", doc);
 
         // Make a change
-        YDoc updateDoc = new JniYDoc();
+        YDoc updateDoc = YBindingFactory.auto().createDoc();
         try {
             YText text = updateDoc.getText("content");
             text.insert(0, "Persist me");
@@ -469,7 +469,7 @@ public class ExtensionIntegrationTest {
     @Test
     public void testDatabaseExtensionRoundTrip() throws Exception {
         // Create document with content
-        YDoc originalDoc = new JniYDoc();
+        YDoc originalDoc = YBindingFactory.auto().createDoc();
         byte[] originalState;
         try {
             YText text = originalDoc.getText("content");
@@ -502,7 +502,7 @@ public class ExtensionIntegrationTest {
         assertEquals("Content should match", "Round trip test", loadedText.toString());
 
         // Make a change and verify persistence
-        YDoc updateDoc = new JniYDoc();
+        YDoc updateDoc = YBindingFactory.auto().createDoc();
         try {
             YText updateText = updateDoc.getText("content");
             updateText.insert(0, "Updated ");

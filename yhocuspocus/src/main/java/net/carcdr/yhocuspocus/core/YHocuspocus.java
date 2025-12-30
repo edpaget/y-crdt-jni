@@ -1,10 +1,11 @@
 package net.carcdr.yhocuspocus.core;
 
 import net.carcdr.ycrdt.UpdateObserver;
+import net.carcdr.ycrdt.YBinding;
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YSubscription;
 import net.carcdr.ycrdt.YTransaction;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import net.carcdr.yhocuspocus.extension.AfterLoadDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterStoreDocumentPayload;
 import net.carcdr.yhocuspocus.extension.AfterUnloadDocumentPayload;
@@ -58,6 +59,9 @@ public final class YHocuspocus implements AutoCloseable {
     private final ConcurrentHashMap<String, YDocument> documents;
     private final ConcurrentHashMap<String, CompletableFuture<YDocument>> loadingDocuments;
 
+    // Y-CRDT binding (JNI or Panama)
+    private final YBinding binding;
+
     // Extension system
     private final List<Extension> extensions;
 
@@ -80,6 +84,7 @@ public final class YHocuspocus implements AutoCloseable {
     private YHocuspocus(Builder builder) {
         this.documents = new ConcurrentHashMap<>();
         this.loadingDocuments = new ConcurrentHashMap<>();
+        this.binding = builder.binding != null ? builder.binding : YBindingFactory.auto();
         this.extensions = new ArrayList<>(builder.extensions);
         this.debounce = builder.debounce;
         this.maxDebounce = builder.maxDebounce;
@@ -177,7 +182,7 @@ public final class YHocuspocus implements AutoCloseable {
      * Loads a document from storage via extensions.
      */
     private YDocument loadDocument(String documentName, Map<String, Object> context) {
-        YDoc ydoc = new JniYDoc();
+        YDoc ydoc = binding.createDoc();
         YDocument document = new YDocument(documentName, ydoc, this);
 
         // Run onCreateDocument hooks
@@ -435,9 +440,23 @@ public final class YHocuspocus implements AutoCloseable {
      */
     public static class Builder {
         private final List<Extension> extensions = new ArrayList<>();
+        private YBinding binding;
         private Duration debounce = Duration.ofSeconds(2);
         private Duration maxDebounce = Duration.ofSeconds(10);
         private int schedulerThreads = 2;
+
+        /**
+         * Sets the Y-CRDT binding implementation to use.
+         *
+         * <p>If not set, defaults to {@link YBindingFactory#auto()}.</p>
+         *
+         * @param binding the binding (JNI or Panama)
+         * @return this builder
+         */
+        public Builder binding(YBinding binding) {
+            this.binding = binding;
+            return this;
+        }
 
         /**
          * Adds an extension to the server.

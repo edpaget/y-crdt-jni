@@ -20,6 +20,14 @@ dependencies {
     // YHocuspocus Spring WebSocket integration
     implementation project(':yhocuspocus-spring-websocket')
 
+    // Y-CRDT binding - select via -Pbinding=jni or -Pbinding=panama
+    def bindingType = project.hasProperty('binding') ? project.property('binding') : 'jni'
+    if (bindingType == 'panama') {
+        runtimeOnly project(':ycrdt-panama')
+    } else {
+        runtimeOnly project(':ycrdt-jni')
+    }
+
     // Spring Boot WebSocket starter
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
@@ -29,6 +37,11 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+bootRun {
+    // Enable native access for Panama FFM
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 // Disable checkstyle for example code - Spring Boot @Configuration classes cannot be final

@@ -1,7 +1,7 @@
 package net.carcdr.yhocuspocus.protocol;
 
+import net.carcdr.ycrdt.YBindingFactory;
 import net.carcdr.ycrdt.YDoc;
-import net.carcdr.ycrdt.jni.JniYDoc;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,7 +23,7 @@ public class AwarenessTest {
 
     @Before
     public void setUp() {
-        doc = new JniYDoc();
+        doc = YBindingFactory.auto().createDoc();
         awareness = new Awareness(doc);
     }
 

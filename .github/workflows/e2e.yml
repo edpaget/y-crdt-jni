@@ -10,14 +10,16 @@ on:
       - 'yhocuspocus/**'
       - 'yhocuspocus-websocket/**'
       - 'yhocuspocus-spring-websocket/**'
-      - 'ycrdt/**'
+      - 'ycrdt-core/**'
+      - 'ycrdt-jni/**'
+      - 'ycrdt-panama/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
   workflow_call:
 
 jobs:
   e2e:
-    name: E2E Tests (${{ matrix.backend }})
+    name: E2E Tests (${{ matrix.backend }}/${{ matrix.binding }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -25,6 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         backend: [jetty, spring]
+        binding: [jni, panama]
 
     steps:
       - name: Checkout code
@@ -67,7 +70,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build Java modules
-        run: ./gradlew build -x test -PskipPanama=true
+        run: |
+          if [ "${{ matrix.binding }}" = "panama" ]; then
+            ./gradlew build -x test -Pbinding=panama
+          else
+            ./gradlew build -x test -PskipPanama=true -Pbinding=jni
+          fi
 
       - name: Install frontend dependencies
         working-directory: examples/frontend
@@ -85,13 +93,14 @@ jobs:
         working-directory: examples/fullstack/e2e
         env:
           BACKEND: ${{ matrix.backend }}
+          BINDING: ${{ matrix.binding }}
         run: npm test
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: e2e-test-results-${{ matrix.backend }}
+          name: e2e-test-results-${{ matrix.backend }}-${{ matrix.binding }}
           path: |
             examples/fullstack/e2e/playwright-report/
             examples/fullstack/e2e/test-results/
