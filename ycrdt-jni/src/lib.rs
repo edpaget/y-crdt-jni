@@ -379,8 +379,8 @@ impl<'local> JniEnvExt<'local> for JNIEnv<'local> {
         let jstr = self
             .get_string(s)
             .map_err(|_| JniError::StringConversion("java string"))?;
-        let rust_str = jstr.to_str().map_err(|_| JniError::Utf8Error)?;
-        Ok(rust_str.to_string())
+        // Use Into<String> which properly handles Modified UTF-8 (CESU-8) to UTF-8 conversion
+        Ok(jstr.into())
     }
 
     fn create_jstring(&mut self, s: &str) -> JniResult<jstring> {
