@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import net.carcdr.ycrdt.YArray;
@@ -625,40 +624,36 @@ public class PanamaYDocTest {
     }
 
     /**
-     * Test observer with explicit transaction.
+     * Tests observeUpdateV1 with explicit transaction pattern.
      *
-     * <p>DISABLED: This test hangs due to a deadlock in Panama upcall handling.
-     * When using explicit transactions (doc.transaction()), the callback fires
-     * during ytransaction_commit while native locks are held. Unlike JNI which
-     * uses Executor.with_attached() for controlled re-entry, Panama's direct
-     * upcall mechanism appears to conflict with the native library's state.</p>
-     *
-     * <p>The auto-transaction pattern (letting each operation manage its own
-     * transaction) works correctly - only explicit transaction scoping triggers
-     * this issue.</p>
+     * <p>IMPORTANT: When using explicit transactions, shared types (YText, YArray, YMap)
+     * must be obtained BEFORE starting the transaction. The yffi library's getter functions
+     * (ytext, yarray, ymap) internally create their own transactions, which deadlocks
+     * with async_lock::RwLock when called from within an existing transaction.</p>
      */
-    @Ignore("Deadlock in Panama upcall during explicit transaction commit")
     @Test
     public void testObserveUpdateV1Transaction() {
         try (YDoc doc = new PanamaYDoc()) {
             AtomicInteger callCount = new AtomicInteger(0);
             List<byte[]> updates = new ArrayList<>();
 
-            try (YSubscription subscription = doc.observeUpdateV1((update, origin) -> {
-                callCount.incrementAndGet();
-                updates.add(update);
-            })) {
-                // Use explicit transaction - this pattern causes the hang
-                doc.transaction((YTransaction txn) -> {
-                    try (YText text = doc.getText("test")) {
+            // IMPORTANT: Get shared types BEFORE starting the transaction
+            // to avoid deadlock with yffi's internal transaction creation
+            try (YText text = doc.getText("test")) {
+                try (YSubscription subscription = doc.observeUpdateV1((update, origin) -> {
+                    callCount.incrementAndGet();
+                    updates.add(update);
+                })) {
+                    // Use explicit transaction - works when YText is obtained beforehand
+                    doc.transaction((YTransaction txn) -> {
                         text.push("Hello");
                         text.push(" World");
-                    }
-                });
+                    });
 
-                // Should have received one update for the transaction
-                assertEquals(1, callCount.get());
-                assertTrue(updates.get(0).length > 0);
+                    // Should have received one update for the transaction
+                    assertEquals(1, callCount.get());
+                    assertTrue(updates.get(0).length > 0);
+                }
             }
         }
     }

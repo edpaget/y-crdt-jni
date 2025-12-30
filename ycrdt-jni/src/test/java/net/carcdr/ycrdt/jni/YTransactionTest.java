@@ -1,8 +1,10 @@
 package net.carcdr.ycrdt.jni;
 
 import net.carcdr.ycrdt.YDoc;
+import net.carcdr.ycrdt.YText;
 import net.carcdr.ycrdt.YTransaction;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -223,6 +225,39 @@ public class YTransactionTest {
 
             txn.commit();
             assertTrue("Committed transaction should be closed", txn.isClosed());
+        }
+    }
+
+    /**
+     * Documents known limitation: getText/getArray/getMap cannot be called
+     * inside an explicit transaction.
+     *
+     * <p>The underlying yrs library's get_or_insert_* methods internally call
+     * transact_mut() to create a new write transaction. Since yrs uses
+     * async_lock::RwLock which does NOT support recursive write locking,
+     * calling these methods while already holding a write lock (from an
+     * explicit transaction) causes a deadlock.</p>
+     *
+     * <p>WORKAROUND: Get shared types BEFORE starting the transaction:</p>
+     * <pre>{@code
+     * try (YText text = doc.getText("test")) {
+     *     doc.transaction(txn -> {
+     *         text.push("Hello");  // Works!
+     *     });
+     * }
+     * }</pre>
+     */
+    @Ignore("Known limitation: getText inside transaction deadlocks due to yrs RwLock")
+    @Test
+    public void testGetTextInsideTransactionDeadlocks() {
+        try (YDoc doc = new JniYDoc()) {
+            doc.transaction(txn -> {
+                // DEADLOCK: getText creates internal transaction, conflicts with outer txn
+                try (YText text = doc.getText("test")) {
+                    text.push("Hello");
+                    assertEquals("Hello", text.toString());
+                }
+            });
         }
     }
 }
