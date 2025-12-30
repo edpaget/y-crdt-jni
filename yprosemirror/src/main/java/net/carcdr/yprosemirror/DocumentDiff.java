@@ -32,8 +32,14 @@ public final class DocumentDiff {
      * Represents a single change operation in a document.
      */
     public abstract static class Change {
+        /** The position in the document where this change occurs. */
         protected final YPosition position;
 
+        /**
+         * Creates a new change at the specified position.
+         *
+         * @param position the position where this change occurs
+         */
         protected Change(YPosition position) {
             this.position = position;
         }
@@ -54,6 +60,12 @@ public final class DocumentDiff {
     public static final class Insert extends Change {
         private final Node content;
 
+        /**
+         * Creates a new insert change.
+         *
+         * @param position the position where content will be inserted
+         * @param content the ProseMirror node to insert
+         */
         public Insert(YPosition position, Node content) {
             super(position);
             this.content = content;
@@ -80,6 +92,12 @@ public final class DocumentDiff {
     public static final class Delete extends Change {
         private final int length;
 
+        /**
+         * Creates a new delete change.
+         *
+         * @param position the position where deletion starts
+         * @param length the number of items to delete
+         */
         public Delete(YPosition position, int length) {
             super(position);
             this.length = length;
@@ -107,6 +125,13 @@ public final class DocumentDiff {
         private final Node oldContent;
         private final Node newContent;
 
+        /**
+         * Creates a new replace change.
+         *
+         * @param position the position where content will be replaced
+         * @param oldContent the existing node being replaced
+         * @param newContent the new node to replace with
+         */
         public Replace(YPosition position, Node oldContent, Node newContent) {
             super(position);
             this.oldContent = oldContent;
