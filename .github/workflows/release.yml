@@ -86,13 +86,6 @@ jobs:
 
           # macOS builds
           - os: macos-latest
-            arch: x86_64
-            target: x86_64-apple-darwin
-            lib_name: libycrdt_jni.dylib
-            asset_name: libycrdt_jni-macos-x86_64.dylib
-            resource_path: native/macos/x86_64
-
-          - os: macos-latest
             arch: aarch64
             target: aarch64-apple-darwin
             lib_name: libycrdt_jni.dylib
@@ -118,7 +111,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build release library
-        run: cd ycrdt && cargo build --release --target ${{ matrix.target }}
+        run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -126,7 +119,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
+          asset_path: ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
           asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
 
@@ -135,11 +128,11 @@ jobs:
 
       - name: Copy native library (Unix)
         if: runner.os != 'Windows'
-        run: cp ycrdt/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
+        run: cp ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
 
       - name: Copy native library (Windows)
         if: runner.os == 'Windows'
-        run: Copy-Item ycrdt\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+        run: Copy-Item ycrdt-jni\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v6
@@ -161,12 +154,6 @@ jobs:
             lib_name: libyrs.so
             asset_name: libyrs-linux-x86_64.so
             resource_path: native/linux/x86_64
-
-          - os: macos-latest
-            arch: x86_64
-            lib_name: libyrs.dylib
-            asset_name: libyrs-macos-x86_64.dylib
-            resource_path: native/macos/x86_64
 
           - os: macos-latest
             arch: aarch64
@@ -237,34 +224,20 @@ jobs:
       - name: Organize JNI native libraries
         run: |
           mkdir -p ycrdt-jni/src/main/resources/native/linux/x86_64
-          mkdir -p ycrdt-jni/src/main/resources/native/macos/x86_64
           mkdir -p ycrdt-jni/src/main/resources/native/macos/aarch64
           mkdir -p ycrdt-jni/src/main/resources/native/windows/x86_64
 
           find downloaded-artifacts -path "*native-lib-jni*" -name "*.so" -exec cp {} ycrdt-jni/src/main/resources/native/linux/x86_64/ \;
-          find downloaded-artifacts -path "*native-lib-jni*" -name "*.dylib" | while read file; do
-            if [[ "$file" == *"aarch64"* ]]; then
-              cp "$file" ycrdt-jni/src/main/resources/native/macos/aarch64/
-            else
-              cp "$file" ycrdt-jni/src/main/resources/native/macos/x86_64/
-            fi
-          done
+          find downloaded-artifacts -path "*native-lib-jni*" -name "*.dylib" -exec cp {} ycrdt-jni/src/main/resources/native/macos/aarch64/ \;
           find downloaded-artifacts -path "*native-lib-jni*" -name "*.dll" -exec cp {} ycrdt-jni/src/main/resources/native/windows/x86_64/ \;
 
       - name: Organize Panama native libraries
         run: |
           mkdir -p ycrdt-panama/src/main/resources/native/linux/x86_64
-          mkdir -p ycrdt-panama/src/main/resources/native/macos/x86_64
           mkdir -p ycrdt-panama/src/main/resources/native/macos/aarch64
 
           find downloaded-artifacts -path "*native-lib-panama*" -name "*.so" -exec cp {} ycrdt-panama/src/main/resources/native/linux/x86_64/ \;
-          find downloaded-artifacts -path "*native-lib-panama*" -name "*.dylib" | while read file; do
-            if [[ "$file" == *"aarch64"* ]]; then
-              cp "$file" ycrdt-panama/src/main/resources/native/macos/aarch64/
-            else
-              cp "$file" ycrdt-panama/src/main/resources/native/macos/x86_64/
-            fi
-          done
+          find downloaded-artifacts -path "*native-lib-panama*" -name "*.dylib" -exec cp {} ycrdt-panama/src/main/resources/native/macos/aarch64/ \;
 
       - name: Verify native libraries
         run: |

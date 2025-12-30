@@ -15,6 +15,10 @@ java {
     withSourcesJar()
 }
 
+kotlin {
+    jvmToolchain(21)
+}
+
 javadoc {
     options.encoding = 'UTF-8'
     options.charSet = 'UTF-8'

@@ -34,9 +34,10 @@ else
 fi
 
 # Build yffi
+# Clear RUSTFLAGS to avoid treating warnings as errors in upstream code
 echo "Building yffi library..."
 cd "$CLONE_DIR/yffi"
-cargo build --release
+RUSTFLAGS="" cargo build --release
 
 # Determine library name based on OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
