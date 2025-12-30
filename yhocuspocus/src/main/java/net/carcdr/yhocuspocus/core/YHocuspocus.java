@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Main collaborative editing server orchestrator.
@@ -430,9 +431,21 @@ public final class YHocuspocus implements AutoCloseable {
         documents.values().forEach(YDocument::close);
         documents.clear();
 
-        // Shutdown executors
+        // Shutdown executors and wait for completion
         scheduler.shutdown();
         executor.shutdown();
+        try {
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
