@@ -1227,4 +1227,557 @@ public final class Yrs {
             throw new RuntimeException("Failed to call yxmlelem_child_len", t);
         }
     }
+
+    // =========================================================================
+    // YXmlElement Functions
+    // =========================================================================
+
+    // char *yxmlelem_tag(const Branch *xml)
+    private static final MethodHandle YXMLELEM_TAG = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_tag").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the tag name of an XML element.
+     *
+     * @param xml pointer to the xml element branch
+     * @return pointer to the tag string (must be freed with ystringDestroy)
+     */
+    public static MemorySegment yxmlelemTag(MemorySegment xml) {
+        try {
+            return (MemorySegment) YXMLELEM_TAG.invokeExact(xml);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_tag", t);
+        }
+    }
+
+    // Branch *yxmlelem_insert_elem(const Branch *xml, YTransaction *txn,
+    //                               uint32_t index, const char *name)
+    private static final MethodHandle YXMLELEM_INSERT_ELEM = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_insert_elem").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Inserts a new XML element as a child at the given index.
+     *
+     * @param xml pointer to the xml element/fragment branch
+     * @param txn pointer to the transaction
+     * @param index the index to insert at
+     * @param name pointer to the tag name string
+     * @return pointer to the new element branch
+     */
+    public static MemorySegment yxmlelemInsertElem(
+            MemorySegment xml, MemorySegment txn, int index, MemorySegment name) {
+        try {
+            return (MemorySegment) YXMLELEM_INSERT_ELEM.invokeExact(xml, txn, index, name);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_insert_elem", t);
+        }
+    }
+
+    // Branch *yxmlelem_insert_text(const Branch *xml, YTransaction *txn, uint32_t index)
+    private static final MethodHandle YXMLELEM_INSERT_TEXT = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_insert_text").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT
+        )
+    );
+
+    /**
+     * Inserts a new XML text node as a child at the given index.
+     *
+     * @param xml pointer to the xml element/fragment branch
+     * @param txn pointer to the transaction
+     * @param index the index to insert at
+     * @return pointer to the new text branch
+     */
+    public static MemorySegment yxmlelemInsertText(
+            MemorySegment xml, MemorySegment txn, int index) {
+        try {
+            return (MemorySegment) YXMLELEM_INSERT_TEXT.invokeExact(xml, txn, index);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_insert_text", t);
+        }
+    }
+
+    // void yxmlelem_remove_range(const Branch *xml, YTransaction *txn,
+    //                             uint32_t index, uint32_t len)
+    private static final MethodHandle YXMLELEM_REMOVE_RANGE = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_remove_range").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT
+        )
+    );
+
+    /**
+     * Removes children from an XML element/fragment in a range.
+     *
+     * @param xml pointer to the xml branch
+     * @param txn pointer to the transaction
+     * @param index the start index
+     * @param len the number of children to remove
+     */
+    public static void yxmlelemRemoveRange(
+            MemorySegment xml, MemorySegment txn, int index, int len) {
+        try {
+            YXMLELEM_REMOVE_RANGE.invokeExact(xml, txn, index, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_remove_range", t);
+        }
+    }
+
+    // struct YOutput *yxmlelem_get(const Branch *xml, const YTransaction *txn, uint32_t index)
+    private static final MethodHandle YXMLELEM_GET = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_get").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT
+        )
+    );
+
+    /**
+     * Gets a child from an XML element/fragment at the given index.
+     *
+     * @param xml pointer to the xml branch
+     * @param txn pointer to the transaction
+     * @param index the index
+     * @return pointer to YOutput (must be freed with youtputDestroy)
+     */
+    public static MemorySegment yxmlelemGet(MemorySegment xml, MemorySegment txn, int index) {
+        try {
+            return (MemorySegment) YXMLELEM_GET.invokeExact(xml, txn, index);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_get", t);
+        }
+    }
+
+    // char *yxmlelem_string(const Branch *xml, const YTransaction *txn)
+    private static final MethodHandle YXMLELEM_STRING = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_string").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the XML string representation of an element/fragment.
+     *
+     * @param xml pointer to the xml branch
+     * @param txn pointer to the transaction
+     * @return pointer to the XML string (must be freed with ystringDestroy)
+     */
+    public static MemorySegment yxmlelemString(MemorySegment xml, MemorySegment txn) {
+        try {
+            return (MemorySegment) YXMLELEM_STRING.invokeExact(xml, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_string", t);
+        }
+    }
+
+    // =========================================================================
+    // YXmlElement Attribute Functions
+    // =========================================================================
+
+    // void yxmlelem_insert_attr(const Branch *xml, YTransaction *txn,
+    //                           const char *name, const char *value)
+    private static final MethodHandle YXMLELEM_INSERT_ATTR = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_insert_attr").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Sets an attribute on an XML element.
+     *
+     * @param xml pointer to the xml element branch
+     * @param txn pointer to the transaction
+     * @param name pointer to the attribute name string
+     * @param value pointer to the attribute value string
+     */
+    public static void yxmlelemInsertAttr(
+            MemorySegment xml, MemorySegment txn, MemorySegment name, MemorySegment value) {
+        try {
+            YXMLELEM_INSERT_ATTR.invokeExact(xml, txn, name, value);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_insert_attr", t);
+        }
+    }
+
+    // void yxmlelem_remove_attr(const Branch *xml, YTransaction *txn, const char *name)
+    private static final MethodHandle YXMLELEM_REMOVE_ATTR = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_remove_attr").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Removes an attribute from an XML element.
+     *
+     * @param xml pointer to the xml element branch
+     * @param txn pointer to the transaction
+     * @param name pointer to the attribute name string
+     */
+    public static void yxmlelemRemoveAttr(
+            MemorySegment xml, MemorySegment txn, MemorySegment name) {
+        try {
+            YXMLELEM_REMOVE_ATTR.invokeExact(xml, txn, name);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_remove_attr", t);
+        }
+    }
+
+    // char *yxmlelem_get_attr(const Branch *xml, const YTransaction *txn, const char *name)
+    private static final MethodHandle YXMLELEM_GET_ATTR = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_get_attr").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Gets an attribute value from an XML element.
+     *
+     * @param xml pointer to the xml element branch
+     * @param txn pointer to the transaction
+     * @param name pointer to the attribute name string
+     * @return pointer to the value string (must be freed with ystringDestroy), or null
+     */
+    public static MemorySegment yxmlelemGetAttr(
+            MemorySegment xml, MemorySegment txn, MemorySegment name) {
+        try {
+            return (MemorySegment) YXMLELEM_GET_ATTR.invokeExact(xml, txn, name);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_get_attr", t);
+        }
+    }
+
+    // YXmlAttrIter *yxmlelem_attr_iter(const Branch *xml, const YTransaction *txn)
+    private static final MethodHandle YXMLELEM_ATTR_ITER = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_attr_iter").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Creates an iterator over XML element attributes.
+     *
+     * @param xml pointer to the xml element branch
+     * @param txn pointer to the transaction
+     * @return pointer to the iterator
+     */
+    public static MemorySegment yxmlelemAttrIter(MemorySegment xml, MemorySegment txn) {
+        try {
+            return (MemorySegment) YXMLELEM_ATTR_ITER.invokeExact(xml, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_attr_iter", t);
+        }
+    }
+
+    // struct YXmlAttr *yxmlattr_iter_next(YXmlAttrIter *iterator)
+    private static final MethodHandle YXMLATTR_ITER_NEXT = LINKER.downcallHandle(
+        LOOKUP.find("yxmlattr_iter_next").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the next attribute from the iterator.
+     *
+     * @param iter pointer to the iterator
+     * @return pointer to the attribute, or null if no more attributes
+     */
+    public static MemorySegment yxmlattrIterNext(MemorySegment iter) {
+        try {
+            return (MemorySegment) YXMLATTR_ITER_NEXT.invokeExact(iter);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlattr_iter_next", t);
+        }
+    }
+
+    // void yxmlattr_iter_destroy(YXmlAttrIter *iterator)
+    private static final MethodHandle YXMLATTR_ITER_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("yxmlattr_iter_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Destroys an attribute iterator.
+     *
+     * @param iter pointer to the iterator
+     */
+    public static void yxmlattrIterDestroy(MemorySegment iter) {
+        try {
+            YXMLATTR_ITER_DESTROY.invokeExact(iter);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlattr_iter_destroy", t);
+        }
+    }
+
+    // void yxmlattr_destroy(struct YXmlAttr *attr)
+    private static final MethodHandle YXMLATTR_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("yxmlattr_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Destroys an attribute.
+     *
+     * @param attr pointer to the attribute
+     */
+    public static void yxmlattrDestroy(MemorySegment attr) {
+        try {
+            YXMLATTR_DESTROY.invokeExact(attr);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlattr_destroy", t);
+        }
+    }
+
+    /**
+     * Layout for YXmlAttr struct.
+     * The struct is: const char *name (8 bytes) + const char *value (8 bytes)
+     */
+    public static final StructLayout YXMLATTR_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.ADDRESS.withName("name"),
+        ValueLayout.ADDRESS.withName("value")
+    );
+
+    private static final java.lang.invoke.VarHandle YXMLATTR_NAME =
+        YXMLATTR_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("name"));
+    private static final java.lang.invoke.VarHandle YXMLATTR_VALUE =
+        YXMLATTR_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
+
+    /**
+     * Reads the name from a YXmlAttr.
+     *
+     * @param attr pointer to the attribute
+     * @return the name string
+     */
+    public static String yxmlattrReadName(MemorySegment attr) {
+        MemorySegment reinterpreted = attr.reinterpret(YXMLATTR_LAYOUT.byteSize());
+        MemorySegment namePtr = (MemorySegment) YXMLATTR_NAME.get(reinterpreted, 0L);
+        if (namePtr.equals(MemorySegment.NULL)) {
+            return null;
+        }
+        MemorySegment nameReinterpreted = namePtr.reinterpret(Long.MAX_VALUE);
+        return nameReinterpreted.getString(0);
+    }
+
+    /**
+     * Reads the value from a YXmlAttr.
+     *
+     * @param attr pointer to the attribute
+     * @return the value string
+     */
+    public static String yxmlattrReadValue(MemorySegment attr) {
+        MemorySegment reinterpreted = attr.reinterpret(YXMLATTR_LAYOUT.byteSize());
+        MemorySegment valuePtr = (MemorySegment) YXMLATTR_VALUE.get(reinterpreted, 0L);
+        if (valuePtr.equals(MemorySegment.NULL)) {
+            return null;
+        }
+        MemorySegment valueReinterpreted = valuePtr.reinterpret(Long.MAX_VALUE);
+        return valueReinterpreted.getString(0);
+    }
+
+    // =========================================================================
+    // YXmlText Functions
+    // =========================================================================
+
+    // uint32_t yxmltext_len(const Branch *txt, const YTransaction *txn)
+    private static final MethodHandle YXMLTEXT_LEN = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_len").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the length of an XML text node.
+     *
+     * @param txt pointer to the xml text branch
+     * @param txn pointer to the transaction
+     * @return the length
+     */
+    public static int yxmltextLen(MemorySegment txt, MemorySegment txn) {
+        try {
+            return (int) YXMLTEXT_LEN.invokeExact(txt, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_len", t);
+        }
+    }
+
+    // char *yxmltext_string(const Branch *txt, const YTransaction *txn)
+    private static final MethodHandle YXMLTEXT_STRING = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_string").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the string content of an XML text node.
+     *
+     * @param txt pointer to the xml text branch
+     * @param txn pointer to the transaction
+     * @return pointer to the string (must be freed with ystringDestroy)
+     */
+    public static MemorySegment yxmltextString(MemorySegment txt, MemorySegment txn) {
+        try {
+            return (MemorySegment) YXMLTEXT_STRING.invokeExact(txt, txn);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_string", t);
+        }
+    }
+
+    // void yxmltext_insert(const Branch *txt, YTransaction *txn, uint32_t index,
+    //                      const char *str, const struct YInput *attrs)
+    private static final MethodHandle YXMLTEXT_INSERT = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_insert").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Inserts text into an XML text node at the given index.
+     *
+     * @param txt pointer to the xml text branch
+     * @param txn pointer to the transaction
+     * @param index the index to insert at
+     * @param str pointer to the string to insert
+     * @param attrs pointer to attributes (can be NULL)
+     */
+    public static void yxmltextInsert(
+            MemorySegment txt, MemorySegment txn, int index,
+            MemorySegment str, MemorySegment attrs) {
+        try {
+            YXMLTEXT_INSERT.invokeExact(txt, txn, index, str, attrs);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_insert", t);
+        }
+    }
+
+    // void yxmltext_remove_range(const Branch *txt, YTransaction *txn, uint32_t idx, uint32_t len)
+    private static final MethodHandle YXMLTEXT_REMOVE_RANGE = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_remove_range").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT
+        )
+    );
+
+    /**
+     * Removes text from an XML text node at the given range.
+     *
+     * @param txt pointer to the xml text branch
+     * @param txn pointer to the transaction
+     * @param index the start index
+     * @param len the length to remove
+     */
+    public static void yxmltextRemoveRange(
+            MemorySegment txt, MemorySegment txn, int index, int len) {
+        try {
+            YXMLTEXT_REMOVE_RANGE.invokeExact(txt, txn, index, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_remove_range", t);
+        }
+    }
+
+    // void yxmltext_format(const Branch *txt, YTransaction *txn,
+    //                      uint32_t index, uint32_t len, const struct YInput *attrs)
+    private static final MethodHandle YXMLTEXT_FORMAT = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_format").orElseThrow(),
+        FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Applies formatting to a range of text in an XML text node.
+     *
+     * @param txt pointer to the xml text branch
+     * @param txn pointer to the transaction
+     * @param index the start index
+     * @param len the length to format
+     * @param attrs pointer to the formatting attributes
+     */
+    public static void yxmltextFormat(
+            MemorySegment txt, MemorySegment txn, int index, int len, MemorySegment attrs) {
+        try {
+            YXMLTEXT_FORMAT.invokeExact(txt, txn, index, len, attrs);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_format", t);
+        }
+    }
+
+    // =========================================================================
+    // YOutput XML Reader Functions
+    // =========================================================================
+
+    // Branch *youtput_read_yxmlelem(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_YXMLELEM = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_yxmlelem").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads an XML element from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the element branch, or null if not an element
+     */
+    public static MemorySegment youtputReadYxmlelem(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_YXMLELEM.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_yxmlelem", t);
+        }
+    }
+
+    // Branch *youtput_read_yxmltext(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_YXMLTEXT = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_yxmltext").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads an XML text node from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the text branch, or null if not a text node
+     */
+    public static MemorySegment youtputReadYxmltext(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_YXMLTEXT.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_yxmltext", t);
+        }
+    }
 }

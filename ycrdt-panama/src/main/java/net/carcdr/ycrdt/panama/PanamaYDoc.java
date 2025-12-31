@@ -252,7 +252,10 @@ public class PanamaYDoc implements YDoc {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        throw new UnsupportedOperationException("YXmlText not yet implemented");
+        // Top-level YXmlText is not directly supported by yffi
+        // Users should use getXmlFragment and insert text nodes
+        throw new UnsupportedOperationException(
+            "Top-level YXmlText not supported. Use getXmlFragment() and insertText().");
     }
 
     @Override
@@ -261,7 +264,7 @@ public class PanamaYDoc implements YDoc {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        throw new UnsupportedOperationException("YXmlElement not yet implemented");
+        return new PanamaYXmlElement(this, name);
     }
 
     @Override

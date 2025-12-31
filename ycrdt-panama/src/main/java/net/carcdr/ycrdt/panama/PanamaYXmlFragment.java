@@ -14,6 +14,8 @@ import net.carcdr.ycrdt.panama.ffi.Yrs;
 
 /**
  * Panama FFM implementation of YXmlFragment.
+ *
+ * <p>Represents a container for XML nodes that can hold elements and text nodes.</p>
  */
 public class PanamaYXmlFragment implements YXmlFragment {
 
@@ -36,6 +38,26 @@ public class PanamaYXmlFragment implements YXmlFragment {
         if (this.branchPtr.equals(MemorySegment.NULL)) {
             throw new RuntimeException("Failed to create YXmlFragment");
         }
+    }
+
+    /**
+     * Creates a YXmlFragment from an existing branch pointer.
+     *
+     * @param doc the document
+     * @param branchPtr pointer to the xml fragment branch
+     */
+    PanamaYXmlFragment(PanamaYDoc doc, MemorySegment branchPtr) {
+        this.doc = doc;
+        this.branchPtr = branchPtr;
+    }
+
+    /**
+     * Gets the branch pointer for internal use.
+     *
+     * @return the branch pointer
+     */
+    MemorySegment getBranchPtr() {
+        return branchPtr;
     }
 
     @Override
@@ -63,91 +85,336 @@ public class PanamaYXmlFragment implements YXmlFragment {
     @Override
     public void insertElement(int index, String tag) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertElement not yet implemented");
+        if (tag == null) {
+            throw new IllegalArgumentException("Tag cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            insertElement(activeTxn, index, tag);
+        } else {
+            try (PanamaYTransaction txn = doc.beginTransaction()) {
+                insertElement(txn, index, tag);
+            }
+        }
     }
 
     @Override
     public void insertElement(YTransaction txn, int index, String tag) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertElement not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (tag == null) {
+            throw new IllegalArgumentException("Tag cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment tagPtr = Yrs.createString(arena, tag);
+            MemorySegment childPtr = Yrs.yxmlelemInsertElem(branchPtr, ptxn.getTxnPtr(), index, tagPtr);
+            if (childPtr.equals(MemorySegment.NULL)) {
+                throw new RuntimeException("Failed to insert element child");
+            }
+            // We don't return the element, just insert it
+        }
     }
 
     @Override
     public void insertText(int index, String content) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertText not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            insertText(activeTxn, index, content);
+        } else {
+            try (PanamaYTransaction txn = doc.beginTransaction()) {
+                insertText(txn, index, content);
+            }
+        }
     }
 
     @Override
     public void insertText(YTransaction txn, int index, String content) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("insertText not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment textPtr = Yrs.yxmlelemInsertText(branchPtr, ptxn.getTxnPtr(), index);
+        if (textPtr.equals(MemorySegment.NULL)) {
+            throw new RuntimeException("Failed to insert text child");
+        }
+        // If content is provided, insert it into the new text node
+        if (content != null && !content.isEmpty()) {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment strPtr = Yrs.createString(arena, content);
+                Yrs.yxmltextInsert(textPtr, ptxn.getTxnPtr(), 0, strPtr, MemorySegment.NULL);
+            }
+        }
     }
 
     @Override
     public void remove(int index, int length) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("remove not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("Length cannot be negative: " + length);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            remove(activeTxn, index, length);
+        } else {
+            try (PanamaYTransaction txn = doc.beginTransaction()) {
+                remove(txn, index, length);
+            }
+        }
     }
 
     @Override
     public void remove(YTransaction txn, int index, int length) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("remove not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("Length cannot be negative: " + length);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        Yrs.yxmlelemRemoveRange(branchPtr, ptxn.getTxnPtr(), index, length);
     }
 
     @Override
     public YXmlNode.NodeType getNodeType(int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getNodeType not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getNodeType(activeTxn, index);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getNodeType(txn, index);
+        }
     }
 
     @Override
     public YXmlNode.NodeType getNodeType(YTransaction txn, int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getNodeType not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment output = Yrs.yxmlelemGet(branchPtr, ptxn.getTxnPtr(), index);
+        if (output.equals(MemorySegment.NULL)) {
+            throw new IndexOutOfBoundsException("Index " + index + " out of bounds");
+        }
+        try {
+            // Check if it's an element
+            MemorySegment elemPtr = Yrs.youtputReadYxmlelem(output);
+            if (!elemPtr.equals(MemorySegment.NULL)) {
+                return YXmlNode.NodeType.ELEMENT;
+            }
+            // Check if it's text
+            MemorySegment textPtr = Yrs.youtputReadYxmltext(output);
+            if (!textPtr.equals(MemorySegment.NULL)) {
+                return YXmlNode.NodeType.TEXT;
+            }
+            throw new RuntimeException("Unknown node type at index " + index);
+        } finally {
+            Yrs.youtputDestroy(output);
+        }
     }
 
     @Override
     public Object getChild(int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getChild not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getChildInternal(activeTxn, index);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getChildInternal(txn, index);
+        }
+    }
+
+    private Object getChildInternal(PanamaYTransaction txn, int index) {
+        MemorySegment output = Yrs.yxmlelemGet(branchPtr, txn.getTxnPtr(), index);
+        if (output.equals(MemorySegment.NULL)) {
+            return null;
+        }
+        try {
+            // Try reading as element first
+            MemorySegment elemPtr = Yrs.youtputReadYxmlelem(output);
+            if (!elemPtr.equals(MemorySegment.NULL)) {
+                return new PanamaYXmlElement(doc, elemPtr);
+            }
+            // Try reading as text
+            MemorySegment textPtr = Yrs.youtputReadYxmltext(output);
+            if (!textPtr.equals(MemorySegment.NULL)) {
+                return new PanamaYXmlText(doc, textPtr);
+            }
+            return null;
+        } finally {
+            Yrs.youtputDestroy(output);
+        }
     }
 
     @Override
     public YXmlElement getElement(int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getElement not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getElement(activeTxn, index);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getElement(txn, index);
+        }
     }
 
     @Override
     public YXmlElement getElement(YTransaction txn, int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getElement not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment output = Yrs.yxmlelemGet(branchPtr, ptxn.getTxnPtr(), index);
+        if (output.equals(MemorySegment.NULL)) {
+            throw new IndexOutOfBoundsException("Index " + index + " out of bounds");
+        }
+        try {
+            MemorySegment elemPtr = Yrs.youtputReadYxmlelem(output);
+            if (elemPtr.equals(MemorySegment.NULL)) {
+                throw new ClassCastException("Child at index " + index + " is not an element");
+            }
+            return new PanamaYXmlElement(doc, elemPtr);
+        } finally {
+            Yrs.youtputDestroy(output);
+        }
     }
 
     @Override
     public YXmlText getText(int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getText not yet implemented");
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getText(activeTxn, index);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getText(txn, index);
+        }
     }
 
     @Override
     public YXmlText getText(YTransaction txn, int index) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getText not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        if (index < 0) {
+            throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        MemorySegment output = Yrs.yxmlelemGet(branchPtr, ptxn.getTxnPtr(), index);
+        if (output.equals(MemorySegment.NULL)) {
+            throw new IndexOutOfBoundsException("Index " + index + " out of bounds");
+        }
+        try {
+            MemorySegment textPtr = Yrs.youtputReadYxmltext(output);
+            if (textPtr.equals(MemorySegment.NULL)) {
+                throw new ClassCastException("Child at index " + index + " is not a text node");
+            }
+            return new PanamaYXmlText(doc, textPtr);
+        } finally {
+            Yrs.youtputDestroy(output);
+        }
     }
 
     @Override
     public String toXmlString() {
         ensureNotClosed();
-        throw new UnsupportedOperationException("toXmlString not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return toXmlString(activeTxn);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return toXmlString(txn);
+        }
     }
 
     @Override
     public String toXmlString(YTransaction txn) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("toXmlString not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        // yffi's yxmlelem_string doesn't work for fragments, only elements
+        // Build the string by iterating over children
+        int len = Yrs.yxmlelemChildLen(branchPtr, ptxn.getTxnPtr());
+        if (len == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            MemorySegment output = Yrs.yxmlelemGet(branchPtr, ptxn.getTxnPtr(), i);
+            if (output.equals(MemorySegment.NULL)) {
+                continue;
+            }
+            try {
+                // Try reading as element
+                MemorySegment elemPtr = Yrs.youtputReadYxmlelem(output);
+                if (!elemPtr.equals(MemorySegment.NULL)) {
+                    MemorySegment strPtr = Yrs.yxmlelemString(elemPtr, ptxn.getTxnPtr());
+                    if (!strPtr.equals(MemorySegment.NULL)) {
+                        sb.append(Yrs.readAndFreeString(strPtr));
+                    }
+                    continue;
+                }
+                // Try reading as text
+                MemorySegment textPtr = Yrs.youtputReadYxmltext(output);
+                if (!textPtr.equals(MemorySegment.NULL)) {
+                    MemorySegment strPtr = Yrs.yxmltextString(textPtr, ptxn.getTxnPtr());
+                    if (!strPtr.equals(MemorySegment.NULL)) {
+                        sb.append(Yrs.readAndFreeString(strPtr));
+                    }
+                }
+            } finally {
+                Yrs.youtputDestroy(output);
+            }
+        }
+        return sb.toString();
     }
 
     @Override
@@ -157,7 +424,7 @@ public class PanamaYXmlFragment implements YXmlFragment {
         }
         try {
             return toXmlString();
-        } catch (UnsupportedOperationException e) {
+        } catch (Exception e) {
             return "YXmlFragment[length=" + length() + "]";
         }
     }
@@ -168,7 +435,8 @@ public class PanamaYXmlFragment implements YXmlFragment {
         if (observer == null) {
             throw new IllegalArgumentException("Observer cannot be null");
         }
-        throw new UnsupportedOperationException("Observers not yet implemented");
+        // Observers for XML fragments require complex upcall stubs - deferred
+        throw new UnsupportedOperationException("XML fragment observers not yet implemented");
     }
 
     @Override

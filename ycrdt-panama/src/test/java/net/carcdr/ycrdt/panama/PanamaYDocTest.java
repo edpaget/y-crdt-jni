@@ -21,6 +21,10 @@ import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YMap;
 import net.carcdr.ycrdt.YSubscription;
 import net.carcdr.ycrdt.YText;
+import net.carcdr.ycrdt.YXmlElement;
+import net.carcdr.ycrdt.YXmlFragment;
+import net.carcdr.ycrdt.YXmlNode;
+import net.carcdr.ycrdt.YXmlText;
 
 /**
  * Tests for the Panama FFM implementation of YDoc.
@@ -756,5 +760,287 @@ public class PanamaYDocTest {
             sub1.close();
             sub2.close();
         }
+    }
+
+    // =========================================================================
+    // XML Tests
+    // =========================================================================
+
+    @Test
+    public void testXmlFragmentCreate() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            assertNotNull(fragment);
+            assertFalse(fragment.isClosed());
+            assertEquals(0, fragment.length());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentInsertElement() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            assertEquals(1, fragment.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, fragment.getNodeType(0));
+        }
+    }
+
+    @Test
+    public void testXmlFragmentInsertText() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertText(0, "Hello World");
+            assertEquals(1, fragment.length());
+            assertEquals(YXmlNode.NodeType.TEXT, fragment.getNodeType(0));
+        }
+    }
+
+    @Test
+    public void testXmlFragmentGetElement() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+
+            YXmlElement elem = fragment.getElement(0);
+            assertNotNull(elem);
+            assertEquals(YXmlNode.NodeType.ELEMENT, elem.getNodeType());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentGetText() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertText(0, "Hello");
+
+            YXmlText text = fragment.getText(0);
+            assertNotNull(text);
+            assertEquals(YXmlNode.NodeType.TEXT, text.getNodeType());
+            assertEquals("Hello", text.toString());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentRemove() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            fragment.insertElement(1, "span");
+            assertEquals(2, fragment.length());
+
+            fragment.remove(0, 1);
+            assertEquals(1, fragment.length());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentToXmlString() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+
+            String xml = fragment.toXmlString();
+            assertNotNull(xml);
+            assertTrue(xml.contains("div"));
+        }
+    }
+
+    @Test
+    public void testXmlElementChildCount() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            assertEquals(0, div.childCount());
+
+            div.insertElement(0, "span");
+            assertEquals(1, div.childCount());
+
+            div.insertText(1);
+            assertEquals(2, div.childCount());
+        }
+    }
+
+    @Test
+    public void testXmlElementInsertElement() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            YXmlElement span = div.insertElement(0, "span");
+            assertNotNull(span);
+            assertEquals(1, div.childCount());
+        }
+    }
+
+    @Test
+    public void testXmlElementInsertText() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            YXmlText text = div.insertText(0);
+            assertNotNull(text);
+            assertEquals(1, div.childCount());
+        }
+    }
+
+    @Test
+    public void testXmlElementGetChild() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            div.insertElement(0, "span");
+            div.insertText(1);
+
+            Object child0 = div.getChild(0);
+            assertTrue(child0 instanceof YXmlElement);
+
+            Object child1 = div.getChild(1);
+            assertTrue(child1 instanceof YXmlText);
+        }
+    }
+
+    @Test
+    public void testXmlElementRemoveChild() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            div.insertElement(0, "span");
+            div.insertElement(1, "p");
+            assertEquals(2, div.childCount());
+
+            div.removeChild(0);
+            assertEquals(1, div.childCount());
+        }
+    }
+
+    @Test
+    public void testXmlElementToString() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+            div.insertElement(0, "span");
+
+            String xml = div.toString();
+            assertNotNull(xml);
+            assertTrue(xml.contains("div"));
+            assertTrue(xml.contains("span"));
+        }
+    }
+
+    @Test
+    public void testXmlTextInsert() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            YXmlText text = div.insertText(0);
+            text.insert(0, "Hello");
+            assertEquals("Hello", text.toString());
+            assertEquals(5, text.length());
+
+            text.insert(5, " World");
+            assertEquals("Hello World", text.toString());
+        }
+    }
+
+    @Test
+    public void testXmlTextPush() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            YXmlText text = div.insertText(0);
+            text.push("Hello");
+            text.push(" World");
+            assertEquals("Hello World", text.toString());
+        }
+    }
+
+    @Test
+    public void testXmlTextDelete() {
+        try (YDoc doc = new PanamaYDoc();
+             YXmlFragment fragment = doc.getXmlFragment("content")) {
+            fragment.insertElement(0, "div");
+            YXmlElement div = fragment.getElement(0);
+
+            YXmlText text = div.insertText(0);
+            text.push("Hello World");
+            text.delete(5, 6);
+            assertEquals("Hello", text.toString());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentSync() {
+        try (YDoc doc1 = new PanamaYDoc();
+             YDoc doc2 = new PanamaYDoc();
+             YXmlFragment frag1 = doc1.getXmlFragment("content");
+             YXmlFragment frag2 = doc2.getXmlFragment("content")) {
+
+            frag1.insertElement(0, "div");
+            frag1.insertText(1, "Hello");
+
+            assertEquals(2, frag1.length());
+            assertEquals(0, frag2.length());
+
+            // Sync
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            assertEquals(2, frag2.length());
+            assertEquals(YXmlNode.NodeType.ELEMENT, frag2.getNodeType(0));
+            assertEquals(YXmlNode.NodeType.TEXT, frag2.getNodeType(1));
+        }
+    }
+
+    @Test
+    public void testXmlElementSync() {
+        try (YDoc doc1 = new PanamaYDoc();
+             YDoc doc2 = new PanamaYDoc();
+             YXmlFragment frag1 = doc1.getXmlFragment("content");
+             YXmlFragment frag2 = doc2.getXmlFragment("content")) {
+
+            frag1.insertElement(0, "div");
+            YXmlElement div1 = frag1.getElement(0);
+            div1.insertElement(0, "span");
+            YXmlText text1 = div1.insertText(1);
+            text1.push("Hello World");
+
+            // Sync
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            // Verify structure synced
+            YXmlElement div2 = frag2.getElement(0);
+            assertEquals(2, div2.childCount());
+
+            YXmlText text2 = (YXmlText) div2.getChild(1);
+            assertEquals("Hello World", text2.toString());
+        }
+    }
+
+    @Test
+    public void testXmlFragmentClose() {
+        YXmlFragment fragment;
+        try (YDoc doc = new PanamaYDoc()) {
+            fragment = doc.getXmlFragment("content");
+            assertFalse(fragment.isClosed());
+        }
+        // Close it explicitly
+        fragment.close();
+        assertTrue(fragment.isClosed());
     }
 }
