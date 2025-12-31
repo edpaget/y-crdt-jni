@@ -1,6 +1,7 @@
 use crate::{
     free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, get_string_or_throw,
-    throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt, TxnPtr, XmlElementPtr,
+    out_to_jobject, throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt,
+    TxnPtr, XmlElementPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
@@ -1044,98 +1045,6 @@ fn dispatch_xmlelement_event(
     )?;
 
     Ok(())
-}
-
-/// Helper function to convert yrs Out to JObject
-fn out_to_jobject<'local>(
-    env: &mut JNIEnv<'local>,
-    value: &yrs::Out,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    match value {
-        yrs::Out::Any(any) => any_to_jobject(env, any),
-        yrs::Out::YText(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        yrs::Out::YArray(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        yrs::Out::YMap(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        yrs::Out::YXmlElement(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        yrs::Out::YXmlText(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        yrs::Out::YDoc(_) => {
-            // For now, return string representation
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-        _ => {
-            // For other types, convert to string
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-    }
-}
-
-/// Helper function to convert yrs Any to JObject
-fn any_to_jobject<'local>(
-    env: &mut JNIEnv<'local>,
-    value: &yrs::Any,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    use yrs::Any;
-
-    match value {
-        Any::String(s) => {
-            let jstr = env.new_string(s.as_ref())?;
-            Ok(jstr.into())
-        }
-        Any::Bool(b) => {
-            let boolean_class = env.find_class("java/lang/Boolean")?;
-            let obj = env.new_object(
-                boolean_class,
-                "(Z)V",
-                &[JValue::Bool(if *b { 1 } else { 0 })],
-            )?;
-            Ok(obj)
-        }
-        Any::Number(n) => {
-            let double_class = env.find_class("java/lang/Double")?;
-            let obj = env.new_object(double_class, "(D)V", &[JValue::Double(*n)])?;
-            Ok(obj)
-        }
-        Any::BigInt(i) => {
-            let long_class = env.find_class("java/lang/Long")?;
-            let obj = env.new_object(long_class, "(J)V", &[JValue::Long(*i)])?;
-            Ok(obj)
-        }
-        _ => {
-            // For other types, convert to string
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-    }
 }
 
 #[cfg(test)]

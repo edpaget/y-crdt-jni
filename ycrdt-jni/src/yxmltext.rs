@@ -1,6 +1,7 @@
 use crate::{
-    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, get_string_or_throw,
-    throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt, TxnPtr, XmlTextPtr,
+    attrs_to_java_hashmap, free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw,
+    get_string_or_throw, throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt,
+    TxnPtr, XmlTextPtr,
 };
 use jni::objects::{JClass, JMap, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
@@ -668,7 +669,7 @@ fn dispatch_xmltext_event(
 
                 // Convert attributes to HashMap (or null)
                 let attrs_map = if let Some(attrs) = attrs {
-                    create_java_hashmap_from_attrs(env, attrs)?
+                    attrs_to_java_hashmap(env, attrs)?
                 } else {
                     JObject::null()
                 };
@@ -702,7 +703,7 @@ fn dispatch_xmltext_event(
                     env.get_static_field(type_class, "RETAIN", "Lnet/carcdr/ycrdt/YChange$Type;")?;
 
                 let attrs_map = if let Some(attrs) = attrs {
-                    create_java_hashmap_from_attrs(env, attrs)?
+                    attrs_to_java_hashmap(env, attrs)?
                 } else {
                     JObject::null()
                 };
@@ -752,68 +753,6 @@ fn dispatch_xmltext_event(
     )?;
 
     Ok(())
-}
-
-/// Helper function to create a Java HashMap from yrs Attrs
-fn create_java_hashmap_from_attrs<'local>(
-    env: &mut JNIEnv<'local>,
-    attrs: &yrs::types::Attrs,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    let hashmap = env.new_object("java/util/HashMap", "()V", &[])?;
-
-    for (key, value) in attrs.iter() {
-        let key_jstr = env.new_string(key)?;
-        let value_obj = any_to_jobject_xmltext(env, value)?;
-
-        env.call_method(
-            &hashmap,
-            "put",
-            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-            &[JValue::Object(&key_jstr), JValue::Object(&value_obj)],
-        )?;
-    }
-
-    Ok(hashmap)
-}
-
-/// Helper function to convert yrs Any to JObject (for XmlText)
-fn any_to_jobject_xmltext<'local>(
-    env: &mut JNIEnv<'local>,
-    value: &yrs::Any,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    use yrs::Any;
-
-    match value {
-        Any::String(s) => {
-            let jstr = env.new_string(s.as_ref())?;
-            Ok(jstr.into())
-        }
-        Any::Bool(b) => {
-            let boolean_class = env.find_class("java/lang/Boolean")?;
-            let obj = env.new_object(
-                boolean_class,
-                "(Z)V",
-                &[JValue::Bool(if *b { 1 } else { 0 })],
-            )?;
-            Ok(obj)
-        }
-        Any::Number(n) => {
-            let double_class = env.find_class("java/lang/Double")?;
-            let obj = env.new_object(double_class, "(D)V", &[JValue::Double(*n)])?;
-            Ok(obj)
-        }
-        Any::BigInt(i) => {
-            let long_class = env.find_class("java/lang/Long")?;
-            let obj = env.new_object(long_class, "(J)V", &[JValue::Long(*i)])?;
-            Ok(obj)
-        }
-        _ => {
-            // For other types, convert to string
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-    }
 }
 
 /// Gets the formatting chunks (delta) of the XML text using an existing transaction
@@ -875,7 +814,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlText_nativeGetFormatting
 
         // Convert attributes to HashMap (or null if no attributes)
         let attrs_map = if let Some(attrs) = d.attributes {
-            match convert_attrs_to_java_hashmap(&mut env, &attrs) {
+            match attrs_to_java_hashmap(&mut env, &attrs) {
                 Ok(map) => map,
                 Err(e) => {
                     throw_exception(&mut env, &format!("Failed to convert attributes: {:?}", e));
@@ -926,68 +865,6 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlText_nativeGetFormatting
     }
 
     chunks_list
-}
-
-/// Helper function to convert yrs Attrs to Java HashMap for FormattingChunk
-fn convert_attrs_to_java_hashmap<'local>(
-    env: &mut JNIEnv<'local>,
-    attrs: &yrs::types::Attrs,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    let hashmap = env.new_object("java/util/HashMap", "()V", &[])?;
-
-    for (key, value) in attrs.iter() {
-        let key_jstr = env.new_string(key)?;
-        let value_obj = any_to_jobject(env, value)?;
-
-        env.call_method(
-            &hashmap,
-            "put",
-            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-            &[JValue::Object(&key_jstr), JValue::Object(&value_obj)],
-        )?;
-    }
-
-    Ok(hashmap)
-}
-
-/// Helper function to convert yrs Any to JObject (for standard JNIEnv)
-fn any_to_jobject<'local>(
-    env: &mut JNIEnv<'local>,
-    value: &yrs::Any,
-) -> Result<JObject<'local>, jni::errors::Error> {
-    use yrs::Any;
-
-    match value {
-        Any::String(s) => {
-            let jstr = env.new_string(s.as_ref())?;
-            Ok(jstr.into())
-        }
-        Any::Bool(b) => {
-            let boolean_class = env.find_class("java/lang/Boolean")?;
-            let obj = env.new_object(
-                boolean_class,
-                "(Z)V",
-                &[JValue::Bool(if *b { 1 } else { 0 })],
-            )?;
-            Ok(obj)
-        }
-        Any::Number(n) => {
-            let double_class = env.find_class("java/lang/Double")?;
-            let obj = env.new_object(double_class, "(D)V", &[JValue::Double(*n)])?;
-            Ok(obj)
-        }
-        Any::BigInt(i) => {
-            let long_class = env.find_class("java/lang/Long")?;
-            let obj = env.new_object(long_class, "(J)V", &[JValue::Long(*i)])?;
-            Ok(obj)
-        }
-        _ => {
-            // For other types, convert to string
-            let s = value.to_string();
-            let jstr = env.new_string(&s)?;
-            Ok(jstr.into())
-        }
-    }
 }
 
 #[cfg(test)]

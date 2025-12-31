@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use yrs::{ArrayRef, Doc, MapRef, Subscription, TextRef, TransactionMut};
 use yrs::{XmlElementRef, XmlFragmentRef, XmlTextRef};
 
+mod conversions;
 mod yarray;
 mod ydoc;
 mod ymap;
@@ -15,6 +16,7 @@ mod yxmlelement;
 mod yxmlfragment;
 mod yxmltext;
 
+pub use conversions::*;
 pub use yarray::*;
 pub use ydoc::*;
 pub use ymap::*;
