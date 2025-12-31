@@ -6,7 +6,7 @@ This directory contains the CI/CD workflows for the y-crdt-jni project.
 
 ### 1. Quick Check (`check.yml`)
 
-**Trigger:** Pull requests and pushes to main/develop branches
+**Trigger:** Pull requests and pushes to main branch
 
 Fast feedback workflow that runs:
 - Rust formatting check (`cargo fmt`)
@@ -18,7 +18,7 @@ Fast feedback workflow that runs:
 
 ### 2. CI (`ci.yml`)
 
-**Trigger:** Pushes to main/develop, pull requests, manual dispatch
+**Trigger:** Pushes to main, pull requests, manual dispatch
 
 Comprehensive testing workflow that:
 1. **Test Rust** - Runs Rust tests on Linux, macOS, and Windows
