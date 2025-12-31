@@ -56,6 +56,38 @@ import java.util.concurrent.TimeUnit;
  */
 public final class YHocuspocus implements AutoCloseable {
 
+    /**
+     * Result of connecting to a document, containing both the document
+     * and the connection.
+     */
+    public static final class ConnectionResult {
+        private final YDocument document;
+        private final DocumentConnection connection;
+
+        ConnectionResult(YDocument document, DocumentConnection connection) {
+            this.document = document;
+            this.connection = connection;
+        }
+
+        /**
+         * Gets the document.
+         *
+         * @return the document
+         */
+        public YDocument getDocument() {
+            return document;
+        }
+
+        /**
+         * Gets the connection to the document.
+         *
+         * @return the document connection
+         */
+        public DocumentConnection getConnection() {
+            return connection;
+        }
+    }
+
     // Document management
     private final ConcurrentHashMap<String, YDocument> documents;
     private final ConcurrentHashMap<String, CompletableFuture<YDocument>> loadingDocuments;
@@ -177,6 +209,94 @@ public final class YHocuspocus implements AutoCloseable {
                 }
             }, executor);
         });
+    }
+
+    /**
+     * Connects a client to a document, creating the document if necessary.
+     *
+     * <p>This method ensures that the connection is registered with the document
+     * BEFORE the afterLoadDocument hook fires. This is important for extensions
+     * and tests that expect the triggering connection to be available when the
+     * hook runs.</p>
+     *
+     * @param documentName document name
+     * @param context connection context
+     * @param clientConnection the client connection
+     * @param readOnly whether the connection should be read-only
+     * @return future that completes with both document and connection
+     */
+    public CompletableFuture<ConnectionResult> connectToDocument(
+        String documentName,
+        Map<String, Object> context,
+        ClientConnection clientConnection,
+        boolean readOnly
+    ) {
+        // Check if already loaded
+        YDocument existing = documents.get(documentName);
+        if (existing != null && existing.getState() == YDocument.State.ACTIVE) {
+            // Create connection for existing document
+            DocumentConnection docConn = new DocumentConnection(
+                clientConnection, existing, documentName, context
+            );
+            docConn.setReadOnly(readOnly);
+            return CompletableFuture.completedFuture(
+                new ConnectionResult(existing, docConn)
+            );
+        }
+
+        // Check if currently loading - if so, wait for load then create connection
+        CompletableFuture<YDocument> existingLoad = loadingDocuments.get(documentName);
+        if (existingLoad != null) {
+            // Document is being loaded by another connection - wait for it
+            return existingLoad.thenApply(doc -> {
+                DocumentConnection docConn = new DocumentConnection(
+                    clientConnection, doc, documentName, context
+                );
+                docConn.setReadOnly(readOnly);
+                return new ConnectionResult(doc, docConn);
+            });
+        }
+
+        // We're the first - initiate loading with our connection
+        // Use a holder to capture the connection created in the async block
+        final DocumentConnection[] connectionHolder = new DocumentConnection[1];
+
+        CompletableFuture<YDocument> loadFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                YDocument doc = loadDocument(documentName, context);
+
+                // Add to documents map
+                documents.put(documentName, doc);
+
+                // Create and register connection BEFORE firing afterLoadDocument
+                DocumentConnection docConn = new DocumentConnection(
+                    clientConnection, doc, documentName, context
+                );
+                docConn.setReadOnly(readOnly);
+                connectionHolder[0] = docConn;
+
+                // Now fire afterLoadDocument - connection is already registered
+                AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(
+                    doc, context
+                );
+                runHooksSync(afterPayload, Extension::afterLoadDocument);
+
+                // Remove from loading map
+                loadingDocuments.remove(documentName);
+
+                return doc;
+            } catch (Exception e) {
+                // Clean up on error
+                loadingDocuments.remove(documentName);
+                throw new RuntimeException("Failed to load document: " + documentName, e);
+            }
+        }, executor);
+
+        // Store in loading map for concurrent requests
+        loadingDocuments.put(documentName, loadFuture);
+
+        // Return the connection result
+        return loadFuture.thenApply(doc -> new ConnectionResult(doc, connectionHolder[0]));
     }
 
     /**

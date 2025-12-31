@@ -100,19 +100,11 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
         messageQueues.computeIfAbsent(documentName, k -> new ConcurrentLinkedQueue<>())
             .add(message.getRawData());
 
-        // Run authentication hooks
-        authenticateDocument(documentName, token)
+        // Run authentication hooks, then connect to document
+        authenticateAndConnect(documentName, token)
             .thenAccept(result -> {
-                // Authentication succeeded - create document connection
-                DocumentConnection docConn = new DocumentConnection(
-                    this,
-                    result.document,
-                    documentName,
-                    context
-                );
-
-                // Apply read-only mode if set by extensions
-                docConn.setReadOnly(result.readOnly);
+                // Authentication succeeded - connection already created by connectToDocument
+                DocumentConnection docConn = result.getConnection();
 
                 documentConnections.put(documentName, docConn);
 
@@ -138,33 +130,24 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
     }
 
     /**
-     * Result of authentication containing both the document and access mode.
-     */
-    private static class AuthResult {
-        final YDocument document;
-        final boolean readOnly;
-
-        AuthResult(YDocument document, boolean readOnly) {
-            this.document = document;
-            this.readOnly = readOnly;
-        }
-    }
-
-    /**
-     * Authenticates access to a document.
+     * Authenticates access to a document and creates the connection.
      *
-     * <p>Runs the onAuthenticate hook for all extensions, allowing them to:
+     * <p>This method runs the onAuthenticate hook for all extensions, allowing them to:
      * <ul>
      *   <li>Reject access by throwing an exception (completes exceptionally)</li>
      *   <li>Set read-only mode via payload.setReadOnly(true)</li>
      *   <li>Enrich context with user information</li>
      * </ul>
      *
+     * <p>The connection is created and registered with the document BEFORE the
+     * afterLoadDocument hook fires, ensuring the triggering connection is available
+     * when extensions process the hook.</p>
+     *
      * @param documentName the document name
      * @param token authentication token (may be null)
-     * @return future that completes with the document and access mode
+     * @return future that completes with both the document and the connection
      */
-    private CompletableFuture<AuthResult> authenticateDocument(
+    private CompletableFuture<YHocuspocus.ConnectionResult> authenticateAndConnect(
         String documentName,
         String token
     ) {
@@ -176,9 +159,14 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
         );
 
         // Run onAuthenticate hooks - extensions can reject by throwing
+        // Then connect to document, which creates connection before afterLoadDocument fires
         return server.runHooks(payload, Extension::onAuthenticate)
-            .thenCompose(v -> server.getOrCreateDocument(documentName, context))
-            .thenApply(document -> new AuthResult(document, payload.isReadOnly()));
+            .thenCompose(v -> server.connectToDocument(
+                documentName,
+                context,
+                this,
+                payload.isReadOnly()
+            ));
     }
 
     /**
