@@ -21,29 +21,8 @@ import static org.junit.Assert.assertTrue;
 /**
  * Integration tests for connection management.
  *
- * <p><b>Note on Test Synchronization:</b> This test class demonstrates two approaches
- * for waiting on async operations:</p>
- *
- * <ol>
- *   <li><b>Polling-based (legacy tests):</b> Uses waitForDocument() and waitForCondition()
- *       helpers that poll until a condition is met or timeout occurs. Simple but slower.</li>
- *   <li><b>Extension-based (new tests):</b> Uses TestWaiter extension with CountDownLatch
- *       to wait for exact lifecycle events. Faster, more deterministic, and cleaner.</li>
- * </ol>
- *
- * <p>Example of extension-based synchronization:</p>
- * <pre>{@code
- * TestWaiter waiter = new TestWaiter();
- * YHocuspocus server = YHocuspocus.builder()
- *     .extension(waiter)
- *     .build();
- *
- * transport.receiveMessage(msg);
- * waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS);
- * // Document is now guaranteed to be loaded
- * }</pre>
- *
- * <p>See testDocumentCreationWithTestWaiter() for a complete example.</p>
+ * <p>Tests use the {@link TestWaiter} extension to synchronize on lifecycle events
+ * like document loading, avoiding polling-based waits.</p>
  */
 public class ConnectionIntegrationTest {
 
@@ -78,75 +57,6 @@ public class ConnectionIntegrationTest {
     }
 
     @Test
-    public void testDocumentCreation() throws Exception {
-        MockTransport transport = new MockTransport();
-        ClientConnection connection = server.handleConnection(transport, Map.of());
-
-        // Create sync step 1 message (request initial sync)
-        byte[] syncPayload = SyncProtocol.encodeSyncStep2(new byte[0]);
-        OutgoingMessage msg = OutgoingMessage.sync("test-doc", syncPayload);
-
-        // Send message
-        transport.receiveMessage(msg.encode());
-
-        // Wait for document to be loaded
-        assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
-
-        // Wait for document to be added to server's map
-        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
-
-        YDocument doc = server.getDocument("test-doc");
-        assertNotNull("Document should be created", doc);
-        assertEquals("Document name should match", "test-doc", doc.getName());
-        assertEquals("Document should have one connection", 1, doc.getConnectionCount());
-    }
-
-    /**
-     * Helper to wait for a condition to be true.
-     * Polls until condition is met or timeout.
-     */
-    private void waitForCondition(java.util.function.BooleanSupplier condition,
-                                   long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            if (condition.getAsBoolean()) {
-                return; // Condition met
-            }
-            Thread.sleep(10); // Small poll interval
-        }
-        throw new AssertionError("Timeout waiting for condition");
-    }
-
-    @Test
-    public void testMultipleDocumentsPerConnection() throws Exception {
-        // Reset latch to wait for 2 documents
-        waiter.resetAfterLoadDocumentLoatch(2);
-
-        MockTransport transport = new MockTransport();
-        ClientConnection connection = server.handleConnection(transport, Map.of());
-
-        // Connect to two documents
-        byte[] sync1 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        transport.receiveMessage(OutgoingMessage.sync("doc1", sync1).encode());
-
-        byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
-        transport.receiveMessage(OutgoingMessage.sync("doc2", sync2).encode());
-
-        // Wait for both documents to be loaded
-        assertTrue("Both documents should be created and loaded",
-                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
-
-        // Wait for both documents to be added to server's map
-        waitForCondition(() -> server.getDocument("doc1") != null, 1000);
-        waitForCondition(() -> server.getDocument("doc2") != null, 1000);
-
-        assertNotNull("Doc1 should exist", server.getDocument("doc1"));
-        assertNotNull("Doc2 should exist", server.getDocument("doc2"));
-        assertEquals("Should have 2 documents", 2, server.getDocumentCount());
-    }
-
-    @Test
     public void testInitialSyncSent() throws Exception {
         MockTransport transport = new MockTransport();
         ClientConnection connection = server.handleConnection(transport, Map.of());
@@ -159,10 +69,12 @@ public class ConnectionIntegrationTest {
         assertTrue("Document should be created and loaded",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
-        // Wait for document to be added to server's map and messages to be sent
-        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
-        // Expect: SyncStep2 + SyncStep1 + SyncStatus = 3 messages
-        waitForCondition(() -> transport.getSentMessages().size() >= 3, 1000);
+        // Document is now guaranteed to exist with connection registered
+        YDocument doc = server.getDocument("test-doc");
+        assertNotNull("Document should be created", doc);
+
+        // Wait for response messages to be sent (SyncStep2 + SyncStep1 + SyncStatus = 3)
+        waitForMessages(transport, 3, 1000);
 
         // Should have received messages (SyncStep2 + SyncStep1 + sync status)
         assertTrue("Should have sent at least 3 messages",
@@ -181,6 +93,8 @@ public class ConnectionIntegrationTest {
 
     @Test
     public void testSyncBetweenConnections() throws Exception {
+        // Second connection won't trigger afterLoadDocument since doc already exists,
+        // so we need to wait for both connections to be registered
         MockTransport transport1 = new MockTransport();
         MockTransport transport2 = new MockTransport();
 
@@ -194,17 +108,15 @@ public class ConnectionIntegrationTest {
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
         transport2.receiveMessage(OutgoingMessage.sync("shared-doc", sync2).encode());
 
-        // Wait for document to be loaded
+        // Wait for document to be loaded (first connection)
         assertTrue("Document should be created and loaded",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
-
-        // Wait for document to be added to server's map
-        waitForCondition(() -> server.getDocument("shared-doc") != null, 1000);
 
         YDocument doc = server.getDocument("shared-doc");
         assertNotNull("Document should exist", doc);
 
-        waitForCondition(() -> doc.getConnectionCount() == 2, 1000);
+        // Wait for second connection to join (it's async but doesn't trigger afterLoadDocument)
+        waitForConnectionCount(doc, 2, 1000);
         assertEquals("Should have 2 connections", 2, doc.getConnectionCount());
     }
 
@@ -219,11 +131,9 @@ public class ConnectionIntegrationTest {
 
         // Wait for document to be loaded
         assertTrue("Document should be created and loaded",
-                waiter.awaitAfterLoadDocument(30, TimeUnit.SECONDS));
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
-        // Wait for document to be added to server's map
-        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
-
+        // Document is now guaranteed to exist with connection registered
         YDocument doc = server.getDocument("test-doc");
         assertEquals("Should have 1 connection", 1, doc.getConnectionCount());
 
@@ -247,25 +157,16 @@ public class ConnectionIntegrationTest {
         assertTrue("Document should be created and loaded",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
-        // Wait for document to be added to server's map
-        waitForCondition(() -> server.getDocument("test-doc") != null, 1000);
-
+        // Document is now guaranteed to exist with connection registered
         YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should exist before close", doc);
-
-        // Wait for connection to be registered with the document
-        waitForCondition(() -> doc.getConnectionCount() == 1, 1000);
         assertEquals("Document should have 1 connection", 1, doc.getConnectionCount());
 
         // Close connection
         connection.close();
 
         // Verify connection count dropped immediately (synchronous)
-        assertEquals("Connection count should drop to 0",
-                    0, doc.getConnectionCount());
-
-        // Document unload is async, so we just verify the connection was removed
-        // Full unload testing will be done in later phases
+        assertEquals("Connection count should drop to 0", 0, doc.getConnectionCount());
     }
 
     @Test
@@ -287,36 +188,23 @@ public class ConnectionIntegrationTest {
             transports[i].receiveMessage(OutgoingMessage.sync("concurrent-doc", sync).encode());
         }
 
-        // Wait for document to be loaded
+        // Wait for document to be loaded (first connection triggers this)
         assertTrue("Document should be created and loaded",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
-
-        // Wait for document to be added to server's map
-        waitForCondition(() -> server.getDocument("concurrent-doc") != null, 1000);
 
         YDocument doc = server.getDocument("concurrent-doc");
         assertNotNull("Document should exist", doc);
 
-        final int expectedCount = numConnections;
-        waitForCondition(() -> doc.getConnectionCount() == expectedCount, 1000);
+        // Wait for all connections to join (only first triggers afterLoadDocument)
+        waitForConnectionCount(doc, numConnections, 2000);
 
-        // Should have exactly one document
+        // Should have exactly one document with all connections
         assertEquals("Should have 1 document", 1, server.getDocumentCount());
-        assertEquals("Should have all connections",
-                    numConnections, doc.getConnectionCount());
+        assertEquals("Should have all connections", numConnections, doc.getConnectionCount());
     }
 
-    /**
-     * Demonstrates using TestWaiter extension instead of polling.
-     *
-     * <p>Compare this with testDocumentCreation above to see the difference:
-     * - No more polling loops (waitForDocument)
-     * - No arbitrary sleeps
-     * - Wait for exact event (afterLoadDocument)
-     * - Faster and more deterministic
-     */
     @Test
-    public void testDocumentCreationWithTestWaiter() throws Exception {
+    public void testDocumentCreation() throws Exception {
         MockTransport transport = new MockTransport();
         ClientConnection connection = server.handleConnection(transport, Map.of());
 
@@ -326,22 +214,19 @@ public class ConnectionIntegrationTest {
         // Send message
         transport.receiveMessage(msg.encode());
 
-        // Wait for document to be fully loaded (no polling!)
+        // Wait for document to be fully loaded
         assertTrue("Document should be loaded",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
-        // Now we know for certain the document is loaded
+        // Document is now guaranteed to exist with connection registered
         YDocument doc = server.getDocument("test-doc");
         assertNotNull("Document should be created", doc);
         assertEquals("Document name should match", "test-doc", doc.getName());
         assertEquals("Document should have one connection", 1, doc.getConnectionCount());
     }
 
-    /**
-     * Demonstrates waiting for multiple connections with TestWaiter.
-     */
     @Test
-    public void testMultipleConnectionsWithTestWaiter() throws Exception {
+    public void testMultipleDocuments() throws Exception {
         // Reset latch to wait for 2 documents
         waiter.resetAfterLoadDocumentLoatch(2);
 
@@ -357,7 +242,7 @@ public class ConnectionIntegrationTest {
         byte[] sync2 = SyncProtocol.encodeSyncStep2(new byte[0]);
         transport2.receiveMessage(OutgoingMessage.sync("doc2", sync2).encode());
 
-        // Wait for both documents to be created (no polling!)
+        // Wait for both documents to be created
         assertTrue("Both documents should be created",
                 waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
 
@@ -367,5 +252,38 @@ public class ConnectionIntegrationTest {
         assertNotNull("Doc1 should exist", doc1);
         assertNotNull("Doc2 should exist", doc2);
         assertEquals("Should have 2 documents", 2, server.getDocumentCount());
+    }
+
+    /**
+     * Helper to wait for a transport to receive a minimum number of messages.
+     */
+    private void waitForMessages(MockTransport transport, int minCount, long timeoutMs)
+            throws InterruptedException {
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (transport.getSentMessages().size() >= minCount) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timeout waiting for " + minCount + " messages, got "
+                + transport.getSentMessages().size());
+    }
+
+    /**
+     * Helper to wait for a document to have a specific connection count.
+     * Used when multiple connections join an existing document (only first triggers hook).
+     */
+    private void waitForConnectionCount(YDocument doc, int expectedCount, long timeoutMs)
+            throws InterruptedException {
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (doc.getConnectionCount() == expectedCount) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timeout waiting for " + expectedCount + " connections, got "
+                + doc.getConnectionCount());
     }
 }
