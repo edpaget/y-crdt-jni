@@ -5,6 +5,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.function.Consumer;
 
+import net.carcdr.ycrdt.DefaultObserverErrorHandler;
+import net.carcdr.ycrdt.ObserverErrorHandler;
 import net.carcdr.ycrdt.UpdateObserver;
 import net.carcdr.ycrdt.YArray;
 import net.carcdr.ycrdt.YDoc;
@@ -29,6 +31,7 @@ public class PanamaYDoc implements YDoc {
     private volatile boolean closed = false;
     private final boolean ownsPointer;
     private final ThreadLocal<PanamaYTransaction> activeTransaction = new ThreadLocal<>();
+    private ObserverErrorHandler observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
 
     /**
      * Creates a new document.
@@ -328,6 +331,20 @@ public class PanamaYDoc implements YDoc {
             throw new IllegalArgumentException("Observer cannot be null");
         }
         return new PanamaYSubscription(this, observer);
+    }
+
+    @Override
+    public void setObserverErrorHandler(ObserverErrorHandler handler) {
+        if (handler == null) {
+            this.observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
+        } else {
+            this.observerErrorHandler = handler;
+        }
+    }
+
+    @Override
+    public ObserverErrorHandler getObserverErrorHandler() {
+        return observerErrorHandler;
     }
 
     @Override

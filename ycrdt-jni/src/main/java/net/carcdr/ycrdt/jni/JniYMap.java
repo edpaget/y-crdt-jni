@@ -727,8 +727,7 @@ public class JniYMap implements YMap, JniYObservable {
             try {
                 observer.onChange(event);
             } catch (Exception e) {
-                System.err.println("Observer threw exception: " + e.getMessage());
-                e.printStackTrace();
+                doc.getObserverErrorHandler().handleError(e, this);
             }
         }
     }

@@ -100,10 +100,13 @@ public class PanamaYSubscription implements YSubscription {
             // Invoke the Java observer
             // Note: yffi's v1 observer doesn't provide origin information
             observer.onUpdate(update, null);
-        } catch (Throwable e) {
-            // Log but don't propagate exceptions from callbacks
-            System.err.println("Exception in update observer: " + e.getMessage());
-            e.printStackTrace();
+        } catch (Exception e) {
+            // Use configured error handler - observers should not break each other
+            target.getObserverErrorHandler().handleError(e, target);
+        } catch (Throwable t) {
+            // For Errors and other Throwables, wrap and use error handler
+            target.getObserverErrorHandler().handleError(
+                new RuntimeException("Observer threw " + t.getClass().getSimpleName(), t), target);
         }
     }
 

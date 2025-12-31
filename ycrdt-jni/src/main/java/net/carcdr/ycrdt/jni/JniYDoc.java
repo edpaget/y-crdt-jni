@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import net.carcdr.ycrdt.DefaultObserverErrorHandler;
+import net.carcdr.ycrdt.ObserverErrorHandler;
 import net.carcdr.ycrdt.UpdateObserver;
 import net.carcdr.ycrdt.YDoc;
 import net.carcdr.ycrdt.YSubscription;
@@ -98,6 +100,11 @@ public class JniYDoc implements YDoc, JniYObservable {
      * Counter for generating unique subscription IDs.
      */
     private final AtomicLong nextSubscriptionId = new AtomicLong(1);
+
+    /**
+     * Handler for observer exceptions.
+     */
+    private ObserverErrorHandler observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
 
     /**
      * Creates a new JniYDoc instance with a randomly generated client ID.
@@ -918,6 +925,36 @@ public class JniYDoc implements YDoc, JniYObservable {
     }
 
     /**
+     * Sets the error handler for observer exceptions.
+     *
+     * <p>When an observer throws an exception, this handler will be called
+     * instead of letting the exception propagate. The default handler prints
+     * to stderr for backwards compatibility.</p>
+     *
+     * @param handler the error handler to use, or null to use the default handler
+     * @see ObserverErrorHandler
+     * @see DefaultObserverErrorHandler
+     */
+    @Override
+    public void setObserverErrorHandler(ObserverErrorHandler handler) {
+        if (handler == null) {
+            this.observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
+        } else {
+            this.observerErrorHandler = handler;
+        }
+    }
+
+    /**
+     * Gets the current error handler for observer exceptions.
+     *
+     * @return the current error handler (never null)
+     */
+    @Override
+    public ObserverErrorHandler getObserverErrorHandler() {
+        return observerErrorHandler;
+    }
+
+    /**
      * Called from native code when an update occurs.
      *
      * <p>This method is invoked by the native layer and dispatches the update
@@ -934,9 +971,8 @@ public class JniYDoc implements YDoc, JniYObservable {
             try {
                 observer.onUpdate(update, origin);
             } catch (Exception e) {
-                // Log but don't propagate - observers should not break each other
-                System.err.println("Error in update observer: " + e.getMessage());
-                e.printStackTrace();
+                // Use configured error handler - observers should not break each other
+                observerErrorHandler.handleError(e, this);
             }
         }
     }

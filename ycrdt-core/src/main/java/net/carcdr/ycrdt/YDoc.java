@@ -163,6 +163,26 @@ public interface YDoc extends AutoCloseable {
      */
     YSubscription observeUpdateV1(UpdateObserver observer);
 
+    /**
+     * Sets the error handler for observer exceptions.
+     *
+     * <p>When an observer throws an exception, this handler will be called
+     * instead of letting the exception propagate. The default handler prints
+     * to stderr for backwards compatibility.</p>
+     *
+     * @param handler the error handler to use, or null to use the default handler
+     * @see ObserverErrorHandler
+     * @see DefaultObserverErrorHandler
+     */
+    void setObserverErrorHandler(ObserverErrorHandler handler);
+
+    /**
+     * Gets the current error handler for observer exceptions.
+     *
+     * @return the current error handler (never null)
+     */
+    ObserverErrorHandler getObserverErrorHandler();
+
     // Lifecycle
 
     /**
