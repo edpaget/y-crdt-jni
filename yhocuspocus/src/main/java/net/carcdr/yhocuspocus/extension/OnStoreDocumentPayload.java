@@ -42,7 +42,11 @@ public class OnStoreDocumentPayload {
     /**
      * Gets the connection context.
      *
-     * @return context map
+     * <p>This context is read-only. Attempts to modify it will throw
+     * {@link UnsupportedOperationException}. Context can only be modified
+     * during the onConnect and onAuthenticate hooks.</p>
+     *
+     * @return read-only context map
      */
     public Map<String, Object> getContext() {
         return context;

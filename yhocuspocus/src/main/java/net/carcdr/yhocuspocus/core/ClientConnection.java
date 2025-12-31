@@ -6,6 +6,8 @@ import net.carcdr.yhocuspocus.protocol.MessageDecoder;
 import net.carcdr.yhocuspocus.protocol.IncomingMessage;
 import net.carcdr.yhocuspocus.extension.Extension;
 import net.carcdr.yhocuspocus.extension.OnAuthenticatePayload;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +38,8 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
     private final Map<String, Object> context;
     private final ConcurrentHashMap<String, DocumentConnection> documentConnections;
     private final ConcurrentHashMap<String, ConcurrentLinkedQueue<byte[]>> messageQueues;
+    private volatile boolean contextFrozen = false;
+    private Map<String, Object> frozenContext;
 
     /**
      * Creates a new client connection.
@@ -157,11 +161,13 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
         );
 
         // Run onAuthenticate hooks - extensions can reject by throwing
+        // Freeze context after authentication - this is the last chance for extensions to enrich it
         // Then connect to document, which creates connection before afterLoadDocument fires
         return server.runHooks(payload, Extension::onAuthenticate)
+            .thenRun(this::freezeContext)
             .thenCompose(v -> server.connectToDocument(
                 documentName,
-                context,
+                getContext(),
                 this,
                 payload.isReadOnly()
             ));
@@ -226,10 +232,38 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
     /**
      * Gets the connection context.
      *
-     * @return mutable context map
+     * <p>The context is mutable during the setup phase (onConnect and onAuthenticate
+     * hooks). After authentication completes, the context becomes read-only and
+     * attempts to modify it will throw {@link UnsupportedOperationException}.</p>
+     *
+     * @return context map (mutable during setup, read-only after)
      */
     public Map<String, Object> getContext() {
-        return context;
+        return contextFrozen ? frozenContext : context;
+    }
+
+    /**
+     * Freezes the context, making it immutable.
+     *
+     * <p>Called after the onAuthenticate hook completes. Once frozen, the context
+     * cannot be modified, ensuring thread-safe access during the connection lifecycle.</p>
+     *
+     * <p>This method is idempotent - subsequent calls have no effect.</p>
+     */
+    void freezeContext() {
+        if (!contextFrozen) {
+            frozenContext = Collections.unmodifiableMap(new HashMap<>(context));
+            contextFrozen = true;
+        }
+    }
+
+    /**
+     * Checks if the context has been frozen.
+     *
+     * @return true if context is frozen (read-only)
+     */
+    boolean isContextFrozen() {
+        return contextFrozen;
     }
 
     /**

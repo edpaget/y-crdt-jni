@@ -64,6 +64,10 @@ public class OnAuthenticatePayload {
     /**
      * Gets the connection context.
      *
+     * <p>This is the last opportunity to add information to the context.
+     * After this hook completes, the context becomes read-only and attempts
+     * to modify it will throw {@link UnsupportedOperationException}.</p>
+     *
      * @return mutable context map
      */
     public Map<String, Object> getContext() {

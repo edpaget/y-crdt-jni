@@ -38,7 +38,9 @@ public class OnConnectPayload {
      * Gets the connection context.
      *
      * <p>Extensions can add information to this context that will be
-     * available in subsequent hooks.</p>
+     * available in subsequent hooks. The context is mutable during this hook
+     * and the onAuthenticate hook. After authentication completes, the context
+     * becomes read-only.</p>
      *
      * @return mutable context map
      */

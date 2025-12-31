@@ -524,4 +524,180 @@ public class ExtensionIntegrationTest {
             updateDoc.close();
         }
     }
+
+    /**
+     * Test 10: Context is mutable during onConnect hook.
+     */
+    @Test
+    public void testContextMutableDuringOnConnect() throws Exception {
+        CountDownLatch connectLatch = new CountDownLatch(1);
+        final boolean[] contextMutable = {false};
+
+        Extension contextModifier = new Extension() {
+            @Override
+            public CompletableFuture<Void> onConnect(OnConnectPayload payload) {
+                try {
+                    payload.getContext().put("testKey", "testValue");
+                    contextMutable[0] = true;
+                } catch (UnsupportedOperationException e) {
+                    contextMutable[0] = false;
+                }
+                connectLatch.countDown();
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        server.close();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .extension(contextModifier)
+            .build();
+
+        MockTransport transport = new MockTransport();
+        server.handleConnection(transport, new ConcurrentHashMap<>());
+
+        assertTrue("onConnect should be called",
+                connectLatch.await(1, TimeUnit.SECONDS));
+        assertTrue("Context should be mutable during onConnect", contextMutable[0]);
+    }
+
+    /**
+     * Test 11: Context is mutable during onAuthenticate hook.
+     */
+    @Test
+    public void testContextMutableDuringOnAuthenticate() throws Exception {
+        CountDownLatch authLatch = new CountDownLatch(1);
+        final boolean[] contextMutable = {false};
+
+        Extension contextModifier = new Extension() {
+            @Override
+            public CompletableFuture<Void> onAuthenticate(OnAuthenticatePayload payload) {
+                try {
+                    payload.getContext().put("userId", "user123");
+                    contextMutable[0] = true;
+                } catch (UnsupportedOperationException e) {
+                    contextMutable[0] = false;
+                }
+                authLatch.countDown();
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        server.close();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .extension(contextModifier)
+            .build();
+
+        MockTransport transport = new MockTransport();
+        server.handleConnection(transport, new ConcurrentHashMap<>());
+
+        // Trigger authentication by sending a sync message
+        byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        transport.receiveMessage(OutgoingMessage.sync("auth-test-doc", sync).encode());
+
+        assertTrue("onAuthenticate should be called",
+                authLatch.await(1, TimeUnit.SECONDS));
+        assertTrue("Context should be mutable during onAuthenticate", contextMutable[0]);
+    }
+
+    /**
+     * Test 12: Context becomes frozen after onAuthenticate.
+     */
+    @Test
+    public void testContextFrozenAfterAuthentication() throws Exception {
+        CountDownLatch afterLoadLatch = new CountDownLatch(1);
+        final boolean[] contextFrozen = {false};
+
+        Extension contextChecker = new Extension() {
+            @Override
+            public CompletableFuture<Void> afterLoadDocument(AfterLoadDocumentPayload payload) {
+                try {
+                    payload.getContext().put("newKey", "newValue");
+                    contextFrozen[0] = false;
+                } catch (UnsupportedOperationException e) {
+                    contextFrozen[0] = true;
+                }
+                afterLoadLatch.countDown();
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        server.close();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .extension(contextChecker)
+            .build();
+
+        MockTransport transport = new MockTransport();
+        server.handleConnection(transport, new ConcurrentHashMap<>());
+
+        // Trigger authentication and document load
+        byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        transport.receiveMessage(OutgoingMessage.sync("frozen-test-doc", sync).encode());
+
+        assertTrue("afterLoadDocument should be called",
+                afterLoadLatch.await(1, TimeUnit.SECONDS));
+        assertTrue("Context should be frozen after authentication", contextFrozen[0]);
+    }
+
+    /**
+     * Test 13: Context values set during setup are accessible after freeze.
+     */
+    @Test
+    public void testContextValuesAccessibleAfterFreeze() throws Exception {
+        CountDownLatch afterLoadLatch = new CountDownLatch(1);
+        final String[] capturedValue = {null};
+
+        Extension contextEnricher = new Extension() {
+            @Override
+            public int priority() {
+                return 1000; // Run first
+            }
+
+            @Override
+            public CompletableFuture<Void> onAuthenticate(OnAuthenticatePayload payload) {
+                payload.getContext().put("enrichedKey", "enrichedValue");
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        Extension contextReader = new Extension() {
+            @Override
+            public int priority() {
+                return 50; // Run after enricher
+            }
+
+            @Override
+            public CompletableFuture<Void> afterLoadDocument(AfterLoadDocumentPayload payload) {
+                capturedValue[0] = (String) payload.getContext().get("enrichedKey");
+                afterLoadLatch.countDown();
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        server.close();
+        waiter = new TestWaiter();
+        server = YHocuspocus.builder()
+            .extension(waiter)
+            .extension(contextEnricher)
+            .extension(contextReader)
+            .build();
+
+        MockTransport transport = new MockTransport();
+        server.handleConnection(transport, new ConcurrentHashMap<>());
+
+        // Trigger authentication and document load
+        byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        transport.receiveMessage(OutgoingMessage.sync("value-test-doc", sync).encode());
+
+        assertTrue("afterLoadDocument should be called",
+                afterLoadLatch.await(1, TimeUnit.SECONDS));
+        assertEquals("Context values should be accessible after freeze",
+                "enrichedValue", capturedValue[0]);
+    }
+
 }
