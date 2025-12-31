@@ -1,5 +1,6 @@
 package net.carcdr.ycrdt.jni;
 
+import java.lang.ref.Cleaner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -57,6 +58,31 @@ public class JniYDoc implements YDoc, JniYObservable {
     private volatile boolean closed = false;
 
     /**
+     * Cleaner registration for cleaning up native resources when GC collects this object.
+     */
+    private final Cleaner.Cleanable cleanable;
+
+    /**
+     * Cleanup action that releases native resources.
+     * This is a static class to avoid preventing the JniYDoc from being garbage collected.
+     */
+    private static class CleanupAction implements Runnable {
+        private final AtomicLong ptr;
+
+        CleanupAction(long ptr) {
+            this.ptr = new AtomicLong(ptr);
+        }
+
+        @Override
+        public void run() {
+            long p = ptr.getAndSet(0);
+            if (p != 0) {
+                nativeDestroy(p);
+            }
+        }
+    }
+
+    /**
      * Thread-local storage for the currently active transaction.
      * This allows implicit transaction methods to reuse the active transaction
      * if one exists, preventing deadlocks from nested transaction attempts.
@@ -83,6 +109,7 @@ public class JniYDoc implements YDoc, JniYObservable {
         if (this.nativePtr == 0) {
             throw new RuntimeException("Failed to create JniYDoc: native pointer is null");
         }
+        this.cleanable = NativeCleaner.CLEANER.register(this, new CleanupAction(nativePtr));
     }
 
     /**
@@ -103,6 +130,7 @@ public class JniYDoc implements YDoc, JniYObservable {
         if (this.nativePtr == 0) {
             throw new RuntimeException("Failed to create JniYDoc: native pointer is null");
         }
+        this.cleanable = NativeCleaner.CLEANER.register(this, new CleanupAction(nativePtr));
     }
 
     /**
@@ -117,6 +145,7 @@ public class JniYDoc implements YDoc, JniYObservable {
         if (this.nativePtr == 0) {
             throw new RuntimeException("Invalid native pointer");
         }
+        this.cleanable = NativeCleaner.CLEANER.register(this, new CleanupAction(nativePtr));
     }
 
     /**
@@ -922,17 +951,8 @@ public class JniYDoc implements YDoc, JniYObservable {
      */
     @Override
     public void close() {
-        if (!closed) {
-            synchronized (this) {
-                if (!closed) {
-                    if (nativePtr != 0) {
-                        nativeDestroy(nativePtr);
-                        nativePtr = 0;
-                    }
-                    closed = true;
-                }
-            }
-        }
+        cleanable.clean();
+        closed = true;
     }
 
     /**
@@ -973,21 +993,6 @@ public class JniYDoc implements YDoc, JniYObservable {
      */
     long getNativeHandle() {
         return nativePtr;
-    }
-
-    /**
-     * Ensures proper cleanup of native resources if close() was not called.
-     *
-     * <p>This is a safety net - you should always call {@link #close()} explicitly
-     * or use try-with-resources.</p>
-     */
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            close();
-        } finally {
-            super.finalize();
-        }
     }
 
     // Native method declarations

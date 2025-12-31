@@ -100,15 +100,6 @@ public class JniYTransaction implements YTransaction {
         return doc;
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            close();
-        } finally {
-            super.finalize();
-        }
-    }
-
     // Native method declarations
     private static native void nativeCommit(long docPtr, long txnPtr);
     private static native void nativeRollback(long docPtr, long txnPtr);
