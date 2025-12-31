@@ -239,6 +239,7 @@ public final class YHocuspocus implements AutoCloseable {
                 clientConnection, existing, documentName, context
             );
             docConn.setReadOnly(readOnly);
+            clientConnection.registerDocumentConnection(documentName, docConn);
             return CompletableFuture.completedFuture(
                 new ConnectionResult(existing, docConn)
             );
@@ -253,6 +254,7 @@ public final class YHocuspocus implements AutoCloseable {
                     clientConnection, doc, documentName, context
                 );
                 docConn.setReadOnly(readOnly);
+                clientConnection.registerDocumentConnection(documentName, docConn);
                 return new ConnectionResult(doc, docConn);
             });
         }
@@ -275,7 +277,11 @@ public final class YHocuspocus implements AutoCloseable {
                 docConn.setReadOnly(readOnly);
                 connectionHolder[0] = docConn;
 
-                // Now fire afterLoadDocument - connection is already registered
+                // Register with ClientConnection BEFORE firing afterLoadDocument
+                // This ensures close() will properly clean up the connection
+                clientConnection.registerDocumentConnection(documentName, docConn);
+
+                // Now fire afterLoadDocument - connection is fully registered
                 AfterLoadDocumentPayload afterPayload = new AfterLoadDocumentPayload(
                     doc, context
                 );

@@ -103,10 +103,8 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
         // Run authentication hooks, then connect to document
         authenticateAndConnect(documentName, token)
             .thenAccept(result -> {
-                // Authentication succeeded - connection already created by connectToDocument
+                // Authentication succeeded - connection already registered by connectToDocument
                 DocumentConnection docConn = result.getConnection();
-
-                documentConnections.put(documentName, docConn);
 
                 // Process queued messages
                 ConcurrentLinkedQueue<byte[]> queue = messageQueues.remove(documentName);
@@ -167,6 +165,19 @@ public class ClientConnection implements ReceiveListener, AutoCloseable {
                 this,
                 payload.isReadOnly()
             ));
+    }
+
+    /**
+     * Registers a document connection with this client connection.
+     *
+     * <p>Package-private method called by {@link YHocuspocus#connectToDocument}
+     * to ensure the connection is registered before afterLoadDocument fires.</p>
+     *
+     * @param documentName the document name
+     * @param docConn the document connection
+     */
+    void registerDocumentConnection(String documentName, DocumentConnection docConn) {
+        documentConnections.put(documentName, docConn);
     }
 
     /**
