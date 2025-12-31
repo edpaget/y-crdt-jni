@@ -104,6 +104,7 @@ public final class YHocuspocus implements AutoCloseable {
     // Configuration
     private final Duration debounce;
     private final Duration maxDebounce;
+    private final ErrorHandler errorHandler;
 
     // Executors
     private final ScheduledExecutorService scheduler;
@@ -121,6 +122,8 @@ public final class YHocuspocus implements AutoCloseable {
         this.extensions = new ArrayList<>(builder.extensions);
         this.debounce = builder.debounce;
         this.maxDebounce = builder.maxDebounce;
+        this.errorHandler = builder.errorHandler != null
+            ? builder.errorHandler : new DefaultErrorHandler();
         this.scheduler = Executors.newScheduledThreadPool(builder.schedulerThreads);
         // Use virtual threads for document operations - allows blocking without thread exhaustion
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -408,8 +411,8 @@ public final class YHocuspocus implements AutoCloseable {
                 );
                 runHooksSync(afterPayload, Extension::afterStoreDocument);
             } catch (Exception e) {
-                // Log error but don't propagate
-                System.err.println("Error storing document " + document.getName() + ": " + e);
+                // Report error via handler but don't propagate
+                errorHandler.onStorageError(document.getName(), e);
             }
         });
     }
@@ -487,10 +490,47 @@ public final class YHocuspocus implements AutoCloseable {
         T payload,
         java.util.function.BiFunction<Extension, T, CompletableFuture<Void>> hookMethod
     ) {
+        return runHooks(payload, hookMethod, null);
+    }
+
+    /**
+     * Runs hooks asynchronously with hook name for error reporting.
+     *
+     * @param payload hook payload
+     * @param hookMethod method reference to the hook
+     * @param hookName name of the hook for error reporting (may be null)
+     * @param <T> payload type
+     * @return future that completes when all hooks finish
+     */
+    <T> CompletableFuture<Void> runHooks(
+        T payload,
+        java.util.function.BiFunction<Extension, T, CompletableFuture<Void>> hookMethod,
+        String hookName
+    ) {
         CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
 
         for (Extension ext : extensions) {
-            chain = chain.thenCompose(prev -> hookMethod.apply(ext, payload));
+            final Extension extension = ext;
+            chain = chain.thenCompose(prev -> {
+                try {
+                    return hookMethod.apply(extension, payload)
+                        .exceptionally(e -> {
+                            String extName = extension.getClass().getSimpleName();
+                            String hook = hookName != null ? hookName : "unknown";
+                            errorHandler.onHookError(extName, hook, (Exception) e);
+                            throw new RuntimeException(
+                                "Hook " + hook + " failed in " + extName, e
+                            );
+                        });
+                } catch (Exception e) {
+                    String extName = extension.getClass().getSimpleName();
+                    String hook = hookName != null ? hookName : "unknown";
+                    errorHandler.onHookError(extName, hook, e);
+                    throw new RuntimeException(
+                        "Hook " + hook + " failed in " + extName, e
+                    );
+                }
+            });
         }
 
         return chain;
@@ -507,10 +547,27 @@ public final class YHocuspocus implements AutoCloseable {
         T payload,
         java.util.function.BiFunction<Extension, T, CompletableFuture<Void>> hookMethod
     ) {
+        runHooksSync(payload, hookMethod, null);
+    }
+
+    /**
+     * Runs hooks synchronously (blocking) with hook name for error reporting.
+     *
+     * @param payload hook payload
+     * @param hookMethod method reference to the hook
+     * @param hookName name of the hook for error reporting (may be null)
+     * @param <T> payload type
+     */
+    <T> void runHooksSync(
+        T payload,
+        java.util.function.BiFunction<Extension, T, CompletableFuture<Void>> hookMethod,
+        String hookName
+    ) {
         try {
-            runHooks(payload, hookMethod).get();
+            runHooks(payload, hookMethod, hookName).get();
         } catch (Exception e) {
-            throw new RuntimeException("Hook execution failed", e);
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new RuntimeException(cause.getMessage(), cause);
         }
     }
 
@@ -540,6 +597,15 @@ public final class YHocuspocus implements AutoCloseable {
      */
     public List<Extension> getExtensions() {
         return List.copyOf(extensions);
+    }
+
+    /**
+     * Gets the error handler.
+     *
+     * @return the error handler
+     */
+    public ErrorHandler getErrorHandler() {
+        return errorHandler;
     }
 
     @Override
@@ -583,6 +649,7 @@ public final class YHocuspocus implements AutoCloseable {
         private Duration debounce = Duration.ofSeconds(2);
         private Duration maxDebounce = Duration.ofSeconds(10);
         private int schedulerThreads = 2;
+        private ErrorHandler errorHandler;
 
         /**
          * Sets the Y-CRDT binding implementation to use.
@@ -640,6 +707,20 @@ public final class YHocuspocus implements AutoCloseable {
          */
         public Builder schedulerThreads(int threads) {
             this.schedulerThreads = threads;
+            return this;
+        }
+
+        /**
+         * Sets the error handler for server errors.
+         *
+         * <p>If not set, defaults to {@link DefaultErrorHandler} which
+         * logs errors to stderr.</p>
+         *
+         * @param errorHandler the error handler
+         * @return this builder
+         */
+        public Builder errorHandler(ErrorHandler errorHandler) {
+            this.errorHandler = errorHandler;
             return this;
         }
 
