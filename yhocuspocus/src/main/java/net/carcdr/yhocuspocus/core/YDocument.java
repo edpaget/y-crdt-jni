@@ -43,6 +43,7 @@ public class YDocument implements AutoCloseable {
     private final ReentrantLock saveLock;
 
     private final ConcurrentHashMap<String, DocumentConnection> connections;
+    private final Object connectionLock;
     private volatile State state;
     private YSubscription updateSubscription;
 
@@ -60,6 +61,7 @@ public class YDocument implements AutoCloseable {
         this.awareness = new Awareness(doc);
         this.saveLock = new ReentrantLock();
         this.connections = new ConcurrentHashMap<>();
+        this.connectionLock = new Object();
         this.state = State.ACTIVE;
     }
 
@@ -75,26 +77,41 @@ public class YDocument implements AutoCloseable {
     /**
      * Adds a connection to this document.
      *
+     * <p>This method is thread-safe and will reject connections if the
+     * document is not in the ACTIVE state.</p>
+     *
      * @param connection the connection to add
+     * @return true if the connection was added, false if rejected
      */
-    public void addConnection(DocumentConnection connection) {
-        connections.put(connection.getConnectionId(), connection);
+    public boolean addConnection(DocumentConnection connection) {
+        synchronized (connectionLock) {
+            if (state != State.ACTIVE) {
+                return false;
+            }
+            connections.put(connection.getConnectionId(), connection);
+            return true;
+        }
     }
 
     /**
      * Removes a connection from this document.
      *
      * <p>If this is the last connection and the document is active,
-     * schedules the document for unloading.</p>
+     * schedules the document for unloading. This method is thread-safe
+     * and atomically checks the connection count and state before
+     * triggering unload.</p>
      *
      * @param connection the connection to remove
      */
     public void removeConnection(DocumentConnection connection) {
-        connections.remove(connection.getConnectionId());
+        synchronized (connectionLock) {
+            connections.remove(connection.getConnectionId());
 
-        // Unload if no more connections
-        if (connections.isEmpty() && state == State.ACTIVE) {
-            server.unloadDocument(name);
+            // Unload if no more connections
+            if (connections.isEmpty() && state == State.ACTIVE) {
+                state = State.UNLOADING;
+                server.unloadDocument(name);
+            }
         }
     }
 

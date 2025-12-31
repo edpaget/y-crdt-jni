@@ -45,6 +45,7 @@ public class DocumentConnection {
      * @param document the document
      * @param documentName the document name
      * @param context connection context
+     * @throws IllegalStateException if the document is not accepting connections
      */
     DocumentConnection(
         ClientConnection clientConnection,
@@ -58,8 +59,12 @@ public class DocumentConnection {
         this.context = context;
         this.readOnly = false;
 
-        // Add to document
-        document.addConnection(this);
+        // Add to document - may fail if document is not accepting connections
+        if (!document.addConnection(this)) {
+            throw new IllegalStateException(
+                "Document is not accepting connections: " + documentName
+            );
+        }
 
         // Don't send initial sync - client should initiate with SyncStep1
         // per y-protocol/sync specification

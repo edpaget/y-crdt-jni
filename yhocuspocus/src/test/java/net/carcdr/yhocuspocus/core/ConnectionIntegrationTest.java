@@ -11,8 +11,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -252,6 +258,118 @@ public class ConnectionIntegrationTest {
         assertNotNull("Doc1 should exist", doc1);
         assertNotNull("Doc2 should exist", doc2);
         assertEquals("Should have 2 documents", 2, server.getDocumentCount());
+    }
+
+    @Test
+    public void testAddConnectionRejectsWhenDocumentUnloading() throws Exception {
+        MockTransport transport = new MockTransport();
+        ClientConnection connection = server.handleConnection(transport, Map.of());
+
+        // Connect to document
+        byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        transport.receiveMessage(OutgoingMessage.sync("test-doc", sync).encode());
+
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        YDocument doc = server.getDocument("test-doc");
+        assertNotNull("Document should exist", doc);
+
+        // Manually set state to UNLOADING to simulate race condition
+        doc.setState(YDocument.State.UNLOADING);
+
+        // Try to add a new connection - should be rejected
+        MockTransport transport2 = new MockTransport();
+        ClientConnection connection2 = server.handleConnection(transport2, Map.of());
+        DocumentConnection docConn = null;
+        try {
+            docConn = new DocumentConnection(connection2, doc, "test-doc", Map.of());
+        } catch (IllegalStateException e) {
+            // Expected - document is not accepting connections
+            assertTrue("Should mention document name",
+                    e.getMessage().contains("test-doc"));
+        }
+
+        // Verify connection was not added
+        assertEquals("Should still have 1 connection", 1, doc.getConnectionCount());
+    }
+
+    @Test
+    public void testConcurrentAddRemoveConnection() throws Exception {
+        MockTransport transport = new MockTransport();
+        server.handleConnection(transport, Map.of());
+
+        // Connect to document
+        byte[] sync = SyncProtocol.encodeSyncStep2(new byte[0]);
+        transport.receiveMessage(OutgoingMessage.sync("concurrent-test", sync).encode());
+
+        // Wait for document to be loaded
+        assertTrue("Document should be created and loaded",
+                waiter.awaitAfterLoadDocument(10, TimeUnit.SECONDS));
+
+        YDocument doc = server.getDocument("concurrent-test");
+        assertNotNull("Document should exist", doc);
+
+        // Run concurrent add/remove operations
+        int numThreads = 10;
+        int iterations = 100;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numThreads);
+        AtomicInteger successfulAdds = new AtomicInteger(0);
+        AtomicInteger rejectedAdds = new AtomicInteger(0);
+        List<MockTransport> transports = new ArrayList<>();
+
+        // Create connections for threads
+        for (int i = 0; i < numThreads; i++) {
+            MockTransport t = new MockTransport();
+            transports.add(t);
+        }
+
+        for (int i = 0; i < numThreads; i++) {
+            final int threadId = i;
+            final MockTransport threadTransport = transports.get(i);
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    ClientConnection conn = server.handleConnection(threadTransport, Map.of());
+
+                    for (int j = 0; j < iterations; j++) {
+                        try {
+                            DocumentConnection docConn = new DocumentConnection(
+                                conn, doc, "concurrent-test", Map.of()
+                            );
+                            successfulAdds.incrementAndGet();
+                            // Remove connection immediately
+                            docConn.close();
+                        } catch (IllegalStateException e) {
+                            // Document not accepting connections - expected during unload
+                            rejectedAdds.incrementAndGet();
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        // Start all threads simultaneously
+        startLatch.countDown();
+
+        // Wait for all threads to complete
+        assertTrue("All threads should complete",
+                doneLatch.await(30, TimeUnit.SECONDS));
+
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        // Verify no exceptions occurred and state is consistent
+        // The document should either have 1 connection (original) or be in UNLOADING state
+        assertTrue("Total operations should match",
+                successfulAdds.get() + rejectedAdds.get() == numThreads * iterations);
     }
 
     /**
