@@ -1,6 +1,6 @@
 use crate::{
-    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
-    to_jstring, DocPtr, DocWrapper, JniEnvExt, MapPtr, TxnPtr,
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, get_string_or_throw,
+    throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt, MapPtr, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jlong, jstring};
@@ -26,15 +26,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeGetMap(
     name: JString,
 ) -> jlong {
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
-
-    // Convert Java string to Rust string
-    let name_str = match env.get_rust_string(&name) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return 0;
-        }
-    };
+    let name_str = get_string_or_throw!(&mut env, name, 0);
 
     let map = wrapper.doc.get_or_insert_map(name_str.as_str());
     to_java_ptr(map)
@@ -117,15 +109,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeGetStringWithTxn(
         "YTransaction",
         std::ptr::null_mut()
     );
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return std::ptr::null_mut();
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key, std::ptr::null_mut());
 
     match map.get(txn, &key_str) {
         Some(value) => {
@@ -158,15 +142,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeGetDoubleWithTxn(
     let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0.0);
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", 0.0);
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", 0.0);
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return 0.0;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key, 0.0);
 
     match map.get(txn, &key_str) {
         Some(value) => value.cast::<f64>().unwrap_or(0.0),
@@ -195,24 +171,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeSetStringWithTxn(
     let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
-
-    // Convert value to Rust string
-    let value_str = match env.get_rust_string(&value) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key);
+    let value_str = get_string_or_throw!(&mut env, value);
 
     map.insert(txn, key_str, value_str);
 }
@@ -238,15 +198,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeSetDoubleWithTxn(
     let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key);
 
     map.insert(txn, key_str, value);
 }
@@ -270,15 +222,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeRemoveWithTxn(
     let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key);
 
     map.remove(txn, &key_str);
 }
@@ -305,15 +249,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeContainsKeyWithTx
     let _wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", false);
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap", false);
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction", false);
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return false;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key, false);
 
     map.contains_key(txn, &key_str)
 }
@@ -468,15 +404,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeSetDocWithTxn(
     let map = get_ref_or_throw!(&mut env, MapPtr::from_raw(map_ptr), "YMap");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
     let subdoc_wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(subdoc_ptr), "subdocument");
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key);
 
     // Clone the inner doc for insertion (Doc implements Prelim)
     let subdoc_clone = subdoc_wrapper.doc.clone();
@@ -515,15 +443,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYMap_nativeGetDocWithTxn(
         throw_exception(&mut env, "Invalid transaction pointer");
         return 0;
     }
-
-    // Convert key to Rust string
-    let key_str = match env.get_rust_string(&key) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return 0;
-        }
-    };
+    let key_str = get_string_or_throw!(&mut env, key, 0);
 
     unsafe {
         let map = from_java_ptr::<MapRef>(map_ptr);

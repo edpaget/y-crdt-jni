@@ -233,6 +233,34 @@ macro_rules! free_if_valid {
     };
 }
 
+/// Convert a JString to a Rust String, or throw an exception and return.
+///
+/// # Arguments
+/// * `$env` - Mutable reference to JNIEnv
+/// * `$jstring` - The JString to convert
+/// * `$ret` - Value to return if conversion fails (omit for unit-returning functions)
+#[macro_export]
+macro_rules! get_string_or_throw {
+    ($env:expr, $jstring:expr) => {{
+        match $env.get_rust_string(&$jstring) {
+            Ok(s) => s,
+            Err(e) => {
+                $crate::throw_exception($env, &e.to_string());
+                return;
+            }
+        }
+    }};
+    ($env:expr, $jstring:expr, $ret:expr) => {{
+        match $env.get_rust_string(&$jstring) {
+            Ok(s) => s,
+            Err(e) => {
+                $crate::throw_exception($env, &e.to_string());
+                return $ret;
+            }
+        }
+    }};
+}
+
 //=============================================================================
 // Result-based Error Handling
 //=============================================================================

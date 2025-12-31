@@ -1,6 +1,6 @@
 use crate::{
-    free_if_valid, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr, to_jstring,
-    DocPtr, JniEnvExt, TextPtr, TxnPtr,
+    free_if_valid, get_mut_or_throw, get_ref_or_throw, get_string_or_throw, throw_exception,
+    to_java_ptr, to_jstring, DocPtr, JniEnvExt, TextPtr, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jint, jlong, jstring};
@@ -25,15 +25,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYText_nativeGetText(
     name: JString,
 ) -> jlong {
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
-
-    // Convert Java string to Rust string
-    let name_str = match env.get_rust_string(&name) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return 0;
-        }
-    };
+    let name_str = get_string_or_throw!(&mut env, name, 0);
 
     let text = wrapper.doc.get_or_insert_text(name_str.as_str());
     to_java_ptr(text)
@@ -132,15 +124,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYText_nativeInsertWithTxn(
 ) {
     let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert Java string to Rust string
-    let chunk_str = match env.get_rust_string(&chunk) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let chunk_str = get_string_or_throw!(&mut env, chunk);
 
     text.insert(txn, index as u32, &chunk_str);
 }
@@ -163,15 +147,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYText_nativePushWithTxn(
 ) {
     let text = get_ref_or_throw!(&mut env, TextPtr::from_raw(text_ptr), "YText");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert Java string to Rust string
-    let chunk_str = match env.get_rust_string(&chunk) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let chunk_str = get_string_or_throw!(&mut env, chunk);
 
     text.push(txn, &chunk_str);
 }

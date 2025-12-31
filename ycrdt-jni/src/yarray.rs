@@ -1,6 +1,6 @@
 use crate::{
-    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, throw_exception, to_java_ptr,
-    to_jstring, ArrayPtr, DocPtr, DocWrapper, JniEnvExt, TxnPtr,
+    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, get_string_or_throw,
+    throw_exception, to_java_ptr, to_jstring, ArrayPtr, DocPtr, DocWrapper, JniEnvExt, TxnPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jdouble, jint, jlong, jstring};
@@ -26,15 +26,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYArray_nativeGetArray(
     name: JString,
 ) -> jlong {
     let wrapper = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc", 0);
-
-    // Convert Java string to Rust string
-    let name_str = match env.get_rust_string(&name) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return 0;
-        }
-    };
+    let name_str = get_string_or_throw!(&mut env, name, 0);
 
     let array = wrapper.doc.get_or_insert_array(name_str.as_str());
     to_java_ptr(array)
@@ -177,15 +169,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYArray_nativeInsertStringWit
     let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert Java string to Rust string
-    let value_str = match env.get_rust_string(&value) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let value_str = get_string_or_throw!(&mut env, value);
 
     array.insert(txn, index as u32, value_str);
 }
@@ -234,15 +218,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYArray_nativePushStringWithT
     let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let array = get_ref_or_throw!(&mut env, ArrayPtr::from_raw(array_ptr), "YArray");
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
-
-    // Convert Java string to Rust string
-    let value_str = match env.get_rust_string(&value) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_exception(&mut env, &e.to_string());
-            return;
-        }
-    };
+    let value_str = get_string_or_throw!(&mut env, value);
 
     array.push_back(txn, value_str);
 }
