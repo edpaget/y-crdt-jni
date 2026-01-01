@@ -3,6 +3,7 @@ package net.carcdr.ycrdt.panama;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
 import net.carcdr.ycrdt.DefaultObserverErrorHandler;
@@ -32,6 +33,16 @@ public class PanamaYDoc implements YDoc {
     private final boolean ownsPointer;
     private final ThreadLocal<PanamaYTransaction> activeTransaction = new ThreadLocal<>();
     private ObserverErrorHandler observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
+
+    /**
+     * Lock to serialize transaction access. yffi's ydoc_write_transaction is non-blocking
+     * and returns NULL when another transaction is active. This lock ensures only one
+     * thread attempts to create a transaction at a time, matching JNI's blocking semantics.
+     *
+     * <p>Write lock: held during write transactions (beginTransaction to close)
+     * <p>Read lock: reserved for future read-only transaction support
+     */
+    private final ReentrantReadWriteLock txnLock = new ReentrantReadWriteLock(true);
 
     /**
      * Creates a new document.
@@ -286,16 +297,32 @@ public class PanamaYDoc implements YDoc {
 
     /**
      * Internal method to begin a transaction.
+     *
+     * <p>Acquires the write lock before creating the transaction. The lock is held
+     * until the transaction is closed, ensuring only one write transaction can be
+     * active at a time across all threads.</p>
      */
     private PanamaYTransaction beginTransactionInternal() {
         ensureNotClosed();
-        MemorySegment txnPtr = Yrs.ydocWriteTransaction(docPtr, 0, MemorySegment.NULL);
-        if (txnPtr.equals(MemorySegment.NULL)) {
-            throw new RuntimeException("Failed to create transaction");
+
+        // Acquire write lock - blocks until available
+        txnLock.writeLock().lock();
+        boolean lockHeld = true;
+        try {
+            MemorySegment txnPtr = Yrs.ydocWriteTransaction(docPtr, 0, MemorySegment.NULL);
+            if (txnPtr.equals(MemorySegment.NULL)) {
+                throw new RuntimeException("Failed to create transaction");
+            }
+            PanamaYTransaction txn = new PanamaYTransaction(this, txnPtr, true);
+            activeTransaction.set(txn);
+            lockHeld = false; // Transaction now owns the lock
+            return txn;
+        } finally {
+            if (lockHeld) {
+                // Release lock if transaction creation failed
+                txnLock.writeLock().unlock();
+            }
         }
-        PanamaYTransaction txn = new PanamaYTransaction(this, txnPtr);
-        activeTransaction.set(txn);
-        return txn;
     }
 
     /**
@@ -312,6 +339,13 @@ public class PanamaYDoc implements YDoc {
      */
     void clearActiveTransaction() {
         activeTransaction.remove();
+    }
+
+    /**
+     * Releases the write lock. Called by PanamaYTransaction when it closes.
+     */
+    void releaseWriteLock() {
+        txnLock.writeLock().unlock();
     }
 
     @Override

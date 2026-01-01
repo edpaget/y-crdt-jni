@@ -16,16 +16,19 @@ public class PanamaYTransaction implements YTransaction {
     private final PanamaYDoc doc;
     private MemorySegment txnPtr;
     private volatile boolean closed = false;
+    private final boolean ownsWriteLock;
 
     /**
      * Creates a new transaction for the given document.
      *
      * @param doc the document
      * @param txnPtr pointer to the native transaction
+     * @param ownsWriteLock true if this transaction holds the document's write lock
      */
-    PanamaYTransaction(PanamaYDoc doc, MemorySegment txnPtr) {
+    PanamaYTransaction(PanamaYDoc doc, MemorySegment txnPtr, boolean ownsWriteLock) {
         this.doc = doc;
         this.txnPtr = txnPtr;
+        this.ownsWriteLock = ownsWriteLock;
     }
 
     /**
@@ -56,10 +59,16 @@ public class PanamaYTransaction implements YTransaction {
         if (!closed) {
             synchronized (this) {
                 if (!closed && !txnPtr.equals(MemorySegment.NULL)) {
-                    Yrs.ytransactionCommit(txnPtr);
-                    txnPtr = MemorySegment.NULL;
-                    doc.clearActiveTransaction();
-                    closed = true;
+                    try {
+                        Yrs.ytransactionCommit(txnPtr);
+                        txnPtr = MemorySegment.NULL;
+                        doc.clearActiveTransaction();
+                    } finally {
+                        closed = true;
+                        if (ownsWriteLock) {
+                            doc.releaseWriteLock();
+                        }
+                    }
                 }
             }
         }
