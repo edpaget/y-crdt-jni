@@ -26,8 +26,6 @@ jobs:
       matrix:
         backend: [jetty, spring]
         binding: [jni, panama]
-    # Allow Panama tests to fail without failing the build (known sync issue under investigation)
-    continue-on-error: ${{ matrix.binding == 'panama' }}
 
     steps:
       - name: Checkout code
