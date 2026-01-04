@@ -270,27 +270,85 @@ public class PanamaYXmlText implements YXmlText {
     @Override
     public Object getParent() {
         ensureNotClosed();
-        // Parent navigation requires additional FFI bindings not yet implemented
-        throw new UnsupportedOperationException("Parent navigation not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getParent(activeTxn);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getParent(txn);
+        }
     }
 
     @Override
     public Object getParent(YTransaction txn) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("Parent navigation not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+
+        // Get parent branch pointer
+        MemorySegment parentPtr = Yrs.yxmlelemParent(branchPtr);
+        if (parentPtr.equals(MemorySegment.NULL)) {
+            return null;  // Root-level text has no parent
+        }
+
+        // Determine parent type using ytype_kind
+        int kind = Yrs.ytypeKind(parentPtr);
+        if (kind == Yrs.Y_XML_ELEM) {
+            return new PanamaYXmlElement(doc, parentPtr);
+        } else if (kind == Yrs.Y_XML_FRAG) {
+            return new PanamaYXmlFragment(doc, parentPtr);
+        }
+        return null;  // Unknown type
     }
 
     @Override
     public int getIndexInParent() {
         ensureNotClosed();
-        // Index in parent requires additional FFI bindings not yet implemented
-        throw new UnsupportedOperationException("getIndexInParent not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getIndexInParent(activeTxn);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getIndexInParent(txn);
+        }
     }
 
     @Override
     public int getIndexInParent(YTransaction txn) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("getIndexInParent not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+
+        // Get parent
+        MemorySegment parentPtr = Yrs.yxmlelemParent(branchPtr);
+        if (parentPtr.equals(MemorySegment.NULL)) {
+            return -1;  // No parent
+        }
+
+        // Get child count from parent
+        int childCount = Yrs.yxmlelemChildLen(parentPtr, ptxn.getTxnPtr());
+
+        // Iterate through children to find matching index
+        for (int i = 0; i < childCount; i++) {
+            MemorySegment childOutput = Yrs.yxmlelemGet(parentPtr, ptxn.getTxnPtr(), i);
+            if (!childOutput.equals(MemorySegment.NULL)) {
+                // Read the branch pointer from YOutput
+                MemorySegment childBranch = Yrs.youtputReadYxmlelem(childOutput);
+                if (childBranch.equals(MemorySegment.NULL)) {
+                    childBranch = Yrs.youtputReadYxmltext(childOutput);
+                }
+                Yrs.youtputDestroy(childOutput);
+
+                // Compare branch pointers
+                if (childBranch.equals(branchPtr)) {
+                    return i;
+                }
+            }
+        }
+        return -1;  // Not found (shouldn't happen)
     }
 
     @Override

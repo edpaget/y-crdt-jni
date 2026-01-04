@@ -161,19 +161,7 @@ XML type observers require Panama upcall stubs similar to `PanamaYSubscription` 
 
 **Complexity:** High - requires understanding the yffi callback signatures for XML events (`yxmlelem_observe`, `yxmltext_observe`) and creating appropriate upcall stubs. The event data structures differ from document update events.
 
-### 2. Parent Navigation
-
-Navigation up the XML tree.
-
-**Missing:**
-- `YXmlElement.getParent()` / `getParent(YTransaction)`
-- `YXmlElement.getIndexInParent()` / `getIndexInParent(YTransaction)`
-- `YXmlText.getParent()` / `getParent(YTransaction)`
-- `YXmlText.getIndexInParent()` / `getIndexInParent(YTransaction)`
-
-**Complexity:** Medium - requires wrapping `yxmlelem_parent` and similar FFI functions, plus determining parent type (element vs fragment) from the returned pointer.
-
-### 3. Text Formatting
+### 2. Text Formatting
 
 Rich text formatting within XML text nodes.
 
@@ -187,7 +175,7 @@ Rich text formatting within XML text nodes.
 - Parsing delta/chunk output from yffi for `getFormattingChunks`
 - Creating a `FormattingChunk` implementation class
 
-### 4. Element Attributes
+### 3. Element Attributes
 
 Currently implemented but may need verification.
 
@@ -197,7 +185,7 @@ Currently implemented but may need verification.
 **Potentially Missing:**
 - `getTag()` for elements created via `insertElement` (currently only tested on fragments)
 
-### 5. Top-Level YXmlText
+### 4. Top-Level YXmlText
 
 yffi doesn't provide a direct way to create top-level XML text nodes.
 
@@ -210,11 +198,10 @@ yffi doesn't provide a direct way to create top-level XML text nodes.
 ## Priority Order
 
 1. **E2E Test Debugging** - Critical for production readiness
-2. **Parent Navigation** - Medium effort, useful for tree traversal
-3. **Element Tag** - Verify existing implementation works for child elements
-4. **Observers** - High effort, needed for reactive applications
-5. **Text Formatting** - High effort, needed for rich text editing
-6. **Top-Level YXmlText** - Low priority, workaround exists
+2. **Element Tag** - Verify existing implementation works for child elements
+3. **Observers** - High effort, needed for reactive applications
+4. **Text Formatting** - High effort, needed for rich text editing
+5. **Top-Level YXmlText** - Low priority, workaround exists
 
 ## Other Pending Features
 

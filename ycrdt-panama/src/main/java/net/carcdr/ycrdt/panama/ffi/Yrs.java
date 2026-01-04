@@ -1120,6 +1120,54 @@ public final class Yrs {
     // Branch Functions
     // =========================================================================
 
+    // Type kind constants from libyrs.h
+    /** YOutput tag for YXmlElement. */
+    public static final int Y_XML_ELEM = 4;
+    /** YOutput tag for YXmlText. */
+    public static final int Y_XML_TEXT = 5;
+    /** YOutput tag for YXmlFragment. */
+    public static final int Y_XML_FRAG = 6;
+
+    // int8_t ytype_kind(const Branch *branch)
+    private static final MethodHandle YTYPE_KIND = LINKER.downcallHandle(
+        LOOKUP.find("ytype_kind").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.JAVA_BYTE, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the type kind of a branch.
+     *
+     * @param branch pointer to the branch
+     * @return the type kind (Y_XML_ELEM, Y_XML_TEXT, Y_XML_FRAG, etc.)
+     */
+    public static int ytypeKind(MemorySegment branch) {
+        try {
+            return (byte) YTYPE_KIND.invokeExact(branch);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ytype_kind", t);
+        }
+    }
+
+    // Branch *yxmlelem_parent(const Branch *xml)
+    private static final MethodHandle YXMLELEM_PARENT = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_parent").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the parent of an XML element or text node.
+     *
+     * @param xml pointer to the xml branch
+     * @return pointer to the parent branch, or null if root-level
+     */
+    public static MemorySegment yxmlelemParent(MemorySegment xml) {
+        try {
+            return (MemorySegment) YXMLELEM_PARENT.invokeExact(xml);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_parent", t);
+        }
+    }
+
     // char *ybranch_json(Branch *branch, YTransaction *txn)
     private static final MethodHandle YBRANCH_JSON = LINKER.downcallHandle(
         LOOKUP.find("ybranch_json").orElseThrow(),
