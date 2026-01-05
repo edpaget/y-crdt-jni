@@ -7,9 +7,14 @@ plugins {
 group = 'net.carcdr'
 version = rootProject.version
 
+// Test binding selection: -PtestBinding=jni (default) or -PtestBinding=panama
+def testBindingType = project.hasProperty('testBinding') ? project.property('testBinding') : 'jni'
+
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Use Java 22 when testing with Panama (required for FFM API)
+    def javaVersion = testBindingType == 'panama' ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
     withJavadocJar()
     withSourcesJar()
 }
@@ -20,6 +25,7 @@ repositories {
 
 dependencies {
     // YHocuspocus core (for Extension interface)
+    // This transitively provides ycrdt-core interfaces
     api project(':yhocuspocus')
 
     // Redis client (Lettuce for async support)
@@ -32,6 +38,13 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.mockito:mockito-core:5.21.0'
     testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+
+    // Select Y-CRDT implementation for tests based on testBinding property
+    if (testBindingType == 'panama') {
+        testRuntimeOnly project(':ycrdt-panama')
+    } else {
+        testRuntimeOnly project(':ycrdt-jni')
+    }
 
     // TestContainers for Redis integration testing
     testImplementation 'org.testcontainers:testcontainers:1.19.8'
@@ -52,6 +65,10 @@ test {
         events 'passed', 'skipped', 'failed'
         exceptionFormat 'full'
         showStandardStreams = false
+    }
+    // Enable native access for Panama FFM when testing with Panama
+    if (testBindingType == 'panama') {
+        jvmArgs '--enable-native-access=ALL-UNNAMED'
     }
 }
 
