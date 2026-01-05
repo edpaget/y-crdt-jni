@@ -167,7 +167,71 @@ XML type observers are implemented with basic functionality.
 **Known Limitations:**
 - Attribute change value extraction not implemented (native YOutput parsing complex)
 - Tests limited to fragment observers due to native memory handling issues with element/text observers
-- TODO: Implement full YOutput parsing for attribute old/new values
+
+#### Limitation Details and Fix Plan
+
+**1. Native Memory Crash with Element/Text Observers**
+
+When running tests that observe attribute changes or use multiple element/text observers in sequence, the JVM crashes with:
+```
+panicked at yffi/src/lib.rs: unrecognized YInput tag: 99
+```
+
+**Root Cause Analysis:**
+- The crash occurs during native memory access when parsing `YEventKeyChange` structs
+- The `old_value` and `new_value` fields are `YOutput*` pointers that require type-tag checking before reading
+- VarHandle returns `MemorySegment` objects where `address() == 0` for null pointers, but these don't equal `MemorySegment.NULL`
+- The native memory may be freed or corrupted between tests
+
+**Attempted Fixes:**
+1. Changed null checks from `equals(MemorySegment.NULL)` to `address() != 0` - partially helped
+2. Removed YOutput value extraction entirely - crash still occurs in some test sequences
+
+**Recommended Fix:**
+1. Investigate yffi struct layouts more carefully - the `YEventKeyChange` struct may have different padding/alignment than assumed
+2. Use `Arena.ofConfined()` for temporary parsing rather than `reinterpret()` with unbounded size
+3. Add explicit null checks for all pointer fields before dereferencing
+4. Consider deferring attribute value parsing until explicitly requested (lazy evaluation)
+
+**2. Attribute Value Extraction Not Implemented**
+
+The `YOutput` struct from yffi is a tagged union that requires checking the type tag before reading the value:
+
+```c
+struct YOutput {
+    int8_t tag;       // Type discriminator
+    union {
+        char flag;           // Y_JSON_BOOL
+        double num;          // Y_JSON_NUM
+        char* str;           // Y_JSON_STR
+        YOutput* array;      // Y_JSON_ARR
+        // ... other types
+    };
+};
+```
+
+**To implement full attribute parsing:**
+1. Add `YOUTPUT_LAYOUT` struct definition to `Yrs.java` with proper padding
+2. Create `PanamaYOutput` class to wrap and parse the tagged union
+3. Add type-specific reader methods: `readString()`, `readNumber()`, `readBoolean()`, etc.
+4. Handle nested types (arrays, maps) recursively
+5. Update `parseKeyChanges()` to use the new parsing
+
+**3. Tests Limited to Fragment Observers**
+
+Current tests only cover:
+- `testFragmentChildInsertionObserver` - INSERT changes for child elements
+- `testFragmentChildRemovalObserver` - DELETE changes
+- `testFragmentUnsubscribe` - verify close() stops callbacks
+- `testSubscriptionIsClosed` - verify isClosed() state
+
+**Tests needed once memory issues are resolved:**
+- `testElementChildInsertionObserver` - observe element child changes
+- `testElementAttributeObserver` - observe attribute INSERT/UPDATE/DELETE
+- `testTextInsertionObserver` - observe text content changes
+- `testTextDeletionObserver` - observe text deletions
+- `testMultipleObservers` - multiple observers on same target
+- `testObserverException` - verify exceptions don't break other observers
 
 ### 2. Text Formatting
 
