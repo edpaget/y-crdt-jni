@@ -65,6 +65,15 @@ public class PanamaYXmlElement implements YXmlElement {
         return branchPtr;
     }
 
+    /**
+     * Gets the document for internal use.
+     *
+     * @return the document
+     */
+    PanamaYDoc getDoc() {
+        return doc;
+    }
+
     @Override
     public NodeType getNodeType() {
         return NodeType.ELEMENT;
@@ -532,8 +541,7 @@ public class PanamaYXmlElement implements YXmlElement {
         if (observer == null) {
             throw new IllegalArgumentException("Observer cannot be null");
         }
-        // Observers for XML elements require complex upcall stubs - deferred
-        throw new UnsupportedOperationException("XML element observers not yet implemented");
+        return new PanamaYXmlSubscription(this, observer, PanamaYXmlSubscription.Type.ELEMENT);
     }
 
     @Override

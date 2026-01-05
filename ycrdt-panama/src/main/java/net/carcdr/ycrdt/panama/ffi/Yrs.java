@@ -1252,6 +1252,302 @@ public final class Yrs {
     }
 
     // =========================================================================
+    // XML Observer Functions
+    // =========================================================================
+
+    // Event change type constants
+    /** Change type: elements were added. */
+    public static final int Y_EVENT_CHANGE_ADD = 1;
+    /** Change type: elements were deleted. */
+    public static final int Y_EVENT_CHANGE_DELETE = 2;
+    /** Change type: elements were retained (no change). */
+    public static final int Y_EVENT_CHANGE_RETAIN = 3;
+    /** Key change type: attribute was added. */
+    public static final int Y_EVENT_KEY_CHANGE_ADD = 4;
+    /** Key change type: attribute was deleted. */
+    public static final int Y_EVENT_KEY_CHANGE_DELETE = 5;
+    /** Key change type: attribute was updated. */
+    public static final int Y_EVENT_KEY_CHANGE_UPDATE = 6;
+
+    /**
+     * FunctionDescriptor for XML element/fragment observer callback.
+     * Signature: void callback(void* state, const YXmlEvent* event)
+     */
+    public static final FunctionDescriptor YXML_CALLBACK_DESCRIPTOR = FunctionDescriptor.ofVoid(
+        ValueLayout.ADDRESS,  // void* state
+        ValueLayout.ADDRESS   // const YXmlEvent* event
+    );
+
+    /**
+     * FunctionDescriptor for XML text observer callback.
+     * Signature: void callback(void* state, const YXmlTextEvent* event)
+     */
+    public static final FunctionDescriptor YXMLTEXT_CALLBACK_DESCRIPTOR = FunctionDescriptor.ofVoid(
+        ValueLayout.ADDRESS,  // void* state
+        ValueLayout.ADDRESS   // const YXmlTextEvent* event
+    );
+
+    // YSubscription *yxmlelem_observe(const Branch *xml, void *state, callback)
+    private static final MethodHandle YXMLELEM_OBSERVE = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_observe").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,    // YSubscription* return
+            ValueLayout.ADDRESS,    // const Branch* xml
+            ValueLayout.ADDRESS,    // void* state
+            ValueLayout.ADDRESS     // callback function pointer
+        )
+    );
+
+    /**
+     * Registers an observer for XML element/fragment changes.
+     *
+     * @param xml pointer to the xml branch
+     * @param state opaque state pointer passed to callback
+     * @param callback function pointer for the callback
+     * @return pointer to the subscription
+     */
+    public static MemorySegment yxmlelemObserve(
+            MemorySegment xml, MemorySegment state, MemorySegment callback) {
+        try {
+            return (MemorySegment) YXMLELEM_OBSERVE.invokeExact(xml, state, callback);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_observe", t);
+        }
+    }
+
+    // YSubscription *yxmltext_observe(const Branch *xml, void *state, callback)
+    private static final MethodHandle YXMLTEXT_OBSERVE = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_observe").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,    // YSubscription* return
+            ValueLayout.ADDRESS,    // const Branch* xml
+            ValueLayout.ADDRESS,    // void* state
+            ValueLayout.ADDRESS     // callback function pointer
+        )
+    );
+
+    /**
+     * Registers an observer for XML text changes.
+     *
+     * @param xml pointer to the xml text branch
+     * @param state opaque state pointer passed to callback
+     * @param callback function pointer for the callback
+     * @return pointer to the subscription
+     */
+    public static MemorySegment yxmltextObserve(
+            MemorySegment xml, MemorySegment state, MemorySegment callback) {
+        try {
+            return (MemorySegment) YXMLTEXT_OBSERVE.invokeExact(xml, state, callback);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_observe", t);
+        }
+    }
+
+    // Branch *yxmlelem_event_target(const YXmlEvent *e)
+    private static final MethodHandle YXMLELEM_EVENT_TARGET = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_event_target").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the target branch of an XML element event.
+     *
+     * @param event pointer to the event
+     * @return pointer to the target branch
+     */
+    public static MemorySegment yxmlelemEventTarget(MemorySegment event) {
+        try {
+            return (MemorySegment) YXMLELEM_EVENT_TARGET.invokeExact(event);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_event_target", t);
+        }
+    }
+
+    // Branch *yxmltext_event_target(const YXmlTextEvent *e)
+    private static final MethodHandle YXMLTEXT_EVENT_TARGET = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_event_target").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the target branch of an XML text event.
+     *
+     * @param event pointer to the event
+     * @return pointer to the target branch
+     */
+    public static MemorySegment yxmltextEventTarget(MemorySegment event) {
+        try {
+            return (MemorySegment) YXMLTEXT_EVENT_TARGET.invokeExact(event);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_event_target", t);
+        }
+    }
+
+    // struct YEventChange *yxmlelem_event_delta(const YXmlEvent *e, uint32_t *len)
+    private static final MethodHandle YXMLELEM_EVENT_DELTA = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_event_delta").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the delta (child changes) from an XML element event.
+     *
+     * @param event pointer to the event
+     * @param lenOut pointer to uint32_t to receive length
+     * @return pointer to array of YEventChange structs
+     */
+    public static MemorySegment yxmlelemEventDelta(MemorySegment event, MemorySegment lenOut) {
+        try {
+            return (MemorySegment) YXMLELEM_EVENT_DELTA.invokeExact(event, lenOut);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_event_delta", t);
+        }
+    }
+
+    // struct YEventKeyChange *yxmlelem_event_keys(const YXmlEvent *e, uint32_t *len)
+    private static final MethodHandle YXMLELEM_EVENT_KEYS = LINKER.downcallHandle(
+        LOOKUP.find("yxmlelem_event_keys").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the key changes (attribute changes) from an XML element event.
+     *
+     * @param event pointer to the event
+     * @param lenOut pointer to uint32_t to receive length
+     * @return pointer to array of YEventKeyChange structs
+     */
+    public static MemorySegment yxmlelemEventKeys(MemorySegment event, MemorySegment lenOut) {
+        try {
+            return (MemorySegment) YXMLELEM_EVENT_KEYS.invokeExact(event, lenOut);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmlelem_event_keys", t);
+        }
+    }
+
+    // struct YDeltaOut *yxmltext_event_delta(const YXmlTextEvent *e, uint32_t *len)
+    private static final MethodHandle YXMLTEXT_EVENT_DELTA = LINKER.downcallHandle(
+        LOOKUP.find("yxmltext_event_delta").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Gets the delta (text changes) from an XML text event.
+     *
+     * @param event pointer to the event
+     * @param lenOut pointer to uint32_t to receive length
+     * @return pointer to array of YDeltaOut structs
+     */
+    public static MemorySegment yxmltextEventDelta(MemorySegment event, MemorySegment lenOut) {
+        try {
+            return (MemorySegment) YXMLTEXT_EVENT_DELTA.invokeExact(event, lenOut);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yxmltext_event_delta", t);
+        }
+    }
+
+    // void yevent_delta_destroy(struct YEventChange *delta, uint32_t len)
+    private static final MethodHandle YEVENT_DELTA_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("yevent_delta_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+    );
+
+    /**
+     * Destroys an array of YEventChange structs.
+     *
+     * @param delta pointer to the array
+     * @param len length of the array
+     */
+    public static void yeventDeltaDestroy(MemorySegment delta, int len) {
+        try {
+            YEVENT_DELTA_DESTROY.invokeExact(delta, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yevent_delta_destroy", t);
+        }
+    }
+
+    // void yevent_keys_destroy(struct YEventKeyChange *keys, uint32_t len)
+    private static final MethodHandle YEVENT_KEYS_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("yevent_keys_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+    );
+
+    /**
+     * Destroys an array of YEventKeyChange structs.
+     *
+     * @param keys pointer to the array
+     * @param len length of the array
+     */
+    public static void yeventKeysDestroy(MemorySegment keys, int len) {
+        try {
+            YEVENT_KEYS_DESTROY.invokeExact(keys, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call yevent_keys_destroy", t);
+        }
+    }
+
+    // void ytext_delta_destroy(struct YDeltaOut *delta, uint32_t len)
+    private static final MethodHandle YTEXT_DELTA_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("ytext_delta_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+    );
+
+    /**
+     * Destroys an array of YDeltaOut structs.
+     *
+     * @param delta pointer to the array
+     * @param len length of the array
+     */
+    public static void ytextDeltaDestroy(MemorySegment delta, int len) {
+        try {
+            YTEXT_DELTA_DESTROY.invokeExact(delta, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ytext_delta_destroy", t);
+        }
+    }
+
+    // Struct layouts for event parsing
+
+    /**
+     * Layout for YEventChange struct.
+     * struct YEventChange { uint8_t tag; uint32_t len; const YOutput *values; }
+     */
+    public static final StructLayout YEVENT_CHANGE_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.ADDRESS.withName("values")
+    );
+
+    /**
+     * Layout for YEventKeyChange struct.
+     * struct YEventKeyChange { const char *key; char tag; const YOutput *old_value;
+     *                          const YOutput *new_value; }
+     */
+    public static final StructLayout YEVENT_KEY_CHANGE_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.ADDRESS.withName("key"),
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(7),
+        ValueLayout.ADDRESS.withName("old_value"),
+        ValueLayout.ADDRESS.withName("new_value")
+    );
+
+    /**
+     * Layout for YDeltaOut struct.
+     * struct YDeltaOut { uint8_t tag; uint32_t len; uint32_t attributes_len;
+     *                    YDeltaAttr *attributes; YOutput *insert; }
+     */
+    public static final StructLayout YDELTA_OUT_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.JAVA_INT.withName("attributes_len"),
+        MemoryLayout.paddingLayout(4),
+        ValueLayout.ADDRESS.withName("attributes"),
+        ValueLayout.ADDRESS.withName("insert")
+    );
+
+    // =========================================================================
     // XmlFragment Functions
     // =========================================================================
 

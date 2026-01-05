@@ -60,6 +60,15 @@ public class PanamaYXmlFragment implements YXmlFragment {
         return branchPtr;
     }
 
+    /**
+     * Gets the document for internal use.
+     *
+     * @return the document
+     */
+    PanamaYDoc getDoc() {
+        return doc;
+    }
+
     @Override
     public int length() {
         ensureNotClosed();
@@ -435,8 +444,7 @@ public class PanamaYXmlFragment implements YXmlFragment {
         if (observer == null) {
             throw new IllegalArgumentException("Observer cannot be null");
         }
-        // Observers for XML fragments require complex upcall stubs - deferred
-        throw new UnsupportedOperationException("XML fragment observers not yet implemented");
+        return new PanamaYXmlSubscription(this, observer, PanamaYXmlSubscription.Type.FRAGMENT);
     }
 
     @Override

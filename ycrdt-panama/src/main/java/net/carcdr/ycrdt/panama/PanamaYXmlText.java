@@ -43,6 +43,15 @@ public class PanamaYXmlText implements YXmlText {
         return branchPtr;
     }
 
+    /**
+     * Gets the document for internal use.
+     *
+     * @return the document
+     */
+    PanamaYDoc getDoc() {
+        return doc;
+    }
+
     @Override
     public NodeType getNodeType() {
         return NodeType.TEXT;
@@ -370,8 +379,7 @@ public class PanamaYXmlText implements YXmlText {
         if (observer == null) {
             throw new IllegalArgumentException("Observer cannot be null");
         }
-        // Observers for XML text require complex upcall stubs - deferred
-        throw new UnsupportedOperationException("XML text observers not yet implemented");
+        return new PanamaYXmlSubscription(this, observer, PanamaYXmlSubscription.Type.TEXT);
     }
 
     @Override
