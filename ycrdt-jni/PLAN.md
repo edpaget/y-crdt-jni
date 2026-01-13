@@ -14,10 +14,15 @@
    - Establish baseline metrics for regression testing
    - Target: < 20% JNI overhead, > 100k ops/sec for basic operations
 
-2. **Concurrent Access Patterns**
-   - Test thread safety under concurrent load
-   - Document threading model and constraints
-   - Add concurrent access tests
+2. **Concurrent Access Patterns** (Completed)
+   - Added ConcurrentAccessTest.java with 18 multi-threaded test scenarios
+   - Validated synchronized access patterns (YText, YArray, YMap, transactions)
+   - Tested concurrent document creation/destruction
+   - Tested thread-per-document isolation pattern
+   - Tested concurrent sync operations and differential sync
+   - Tested observer callbacks under concurrent load
+   - Verified high-contention scenarios (16 threads competing for single lock)
+   - Threading model documented in JniYDoc JavaDoc
 
 3. **Maven Central Publishing**
    - Set up Maven Central account
