@@ -131,11 +131,23 @@ public class PanamaYXmlElement implements YXmlElement {
         PanamaYTransaction ptxn = (PanamaYTransaction) txn;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment namePtr = Yrs.createString(arena, name);
-            MemorySegment valuePtr = Yrs.yxmlelemGetAttr(branchPtr, ptxn.getTxnPtr(), namePtr);
-            if (valuePtr.equals(MemorySegment.NULL)) {
+            // yxmlelem_get_attr returns YOutput*, not raw string
+            MemorySegment output = Yrs.yxmlelemGetAttr(branchPtr, ptxn.getTxnPtr(), namePtr);
+            if (output.equals(MemorySegment.NULL)) {
                 return null;
             }
-            return Yrs.readAndFreeString(valuePtr);
+            try {
+                // Read string value from YOutput - returns internal pointer, not to be freed separately
+                MemorySegment strPtr = Yrs.youtputReadString(output);
+                if (strPtr.equals(MemorySegment.NULL)) {
+                    return null;
+                }
+                // Copy string before destroying the YOutput that owns it
+                return strPtr.reinterpret(Long.MAX_VALUE).getString(0);
+            } finally {
+                // youtput_destroy frees both the YOutput and its internal string data
+                Yrs.youtputDestroy(output);
+            }
         }
     }
 
@@ -174,7 +186,9 @@ public class PanamaYXmlElement implements YXmlElement {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment namePtr = Yrs.createString(arena, name);
             MemorySegment valuePtr = Yrs.createString(arena, value);
-            Yrs.yxmlelemInsertAttr(branchPtr, ptxn.getTxnPtr(), namePtr, valuePtr);
+            // yxmlelem_insert_attr expects YInput, not raw string
+            MemorySegment yinputValue = Yrs.yinputString(arena, valuePtr);
+            Yrs.yxmlelemInsertAttr(branchPtr, ptxn.getTxnPtr(), namePtr, yinputValue);
         }
     }
 
