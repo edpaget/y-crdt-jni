@@ -104,8 +104,7 @@ jobs:
         if: matrix.binding == 'panama'
         run: |
           ./gradlew :ycrdt-panama:build --info
-          # Note: yprosemirror excluded until Panama XML support is complete
-          ./gradlew :yhocuspocus:test :yhocuspocus-websocket:test :yhocuspocus-spring-websocket:test -PtestBinding=panama --info
+          ./gradlew :yprosemirror:test :yhocuspocus:test :yhocuspocus-websocket:test :yhocuspocus-spring-websocket:test -PtestBinding=panama --info
 
       - name: Upload test reports
         if: always()
