@@ -9,6 +9,7 @@ import java.lang.foreign.StructLayout;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.Map;
 
 /**
  * Panama FFM bindings for the yffi (Y-CRDT C FFI) library.
@@ -723,45 +724,57 @@ public final class Yrs {
     // =========================================================================
 
     // YInput tag constants from libyrs.h
-    private static final byte Y_JSON_NUM = -7;  // double
-    private static final byte Y_JSON_INT = -6;  // int64
-    private static final byte Y_JSON_STR = -5;  // string
-    private static final byte Y_DOC = 7;        // subdocument
+    private static final byte Y_JSON_NUM = -7;   // double
+    private static final byte Y_JSON_INT = -6;   // int64
+    private static final byte Y_JSON_STR = -5;   // string
+    private static final byte Y_JSON_MAP = -2;   // map (for formatting attributes)
+    private static final byte Y_JSON_NULL = -1;  // null (for removing formatting)
 
     /**
-     * Layout for the YInput struct.
-     * The struct is: tag (1) + padding (3) + len (4) + union value (8 for ptr/double/long).
+     * Tag constant for boolean values in YInput/YOutput.
+     */
+    public static final byte Y_JSON_BOOL = -8;   // boolean
+
+    private static final byte Y_DOC = 7;         // subdocument
+
+    /**
+     * Layout for the YInput struct (24 bytes).
+     * The struct is: tag (1) + padding (3) + len (4) + union value (16 for YMapInputData).
      *
-     * <p>Note: The actual C struct is 24 bytes (union is 16 bytes for YMapInputData),
-     * but for simple values (string, double, long) only the first 8 bytes of the union
-     * are used. We construct these structs manually to avoid ARM64 ABI issues with
-     * struct-by-value returns > 16 bytes.</p>
+     * <p>The native YInput struct is 24 bytes total. The union can hold various types
+     * including YMapInputData (two pointers = 16 bytes). We construct these structs
+     * manually to avoid ARM64 ABI issues with struct-by-value returns.</p>
      */
     public static final StructLayout YINPUT_LAYOUT = MemoryLayout.structLayout(
         ValueLayout.JAVA_BYTE.withName("tag"),
         MemoryLayout.paddingLayout(3),
         ValueLayout.JAVA_INT.withName("len"),
-        ValueLayout.ADDRESS.withName("value")
+        ValueLayout.ADDRESS.withName("value_ptr1"),
+        ValueLayout.ADDRESS.withName("value_ptr2")
     );
 
     /**
-     * Layout for YInput with double value in the union.
+     * Layout for YInput with double value in the union (24 bytes).
+     * Double is stored at offset 8 (first 8 bytes of union).
      */
     private static final StructLayout YINPUT_FLOAT_LAYOUT = MemoryLayout.structLayout(
         ValueLayout.JAVA_BYTE.withName("tag"),
         MemoryLayout.paddingLayout(3),
         ValueLayout.JAVA_INT.withName("len"),
-        ValueLayout.JAVA_DOUBLE.withName("value")
+        ValueLayout.JAVA_DOUBLE.withName("value"),
+        MemoryLayout.paddingLayout(8)  // Remaining 8 bytes of union
     );
 
     /**
-     * Layout for YInput with long value in the union.
+     * Layout for YInput with long value in the union (24 bytes).
+     * Long is stored at offset 8 (first 8 bytes of union).
      */
     private static final StructLayout YINPUT_LONG_LAYOUT = MemoryLayout.structLayout(
         ValueLayout.JAVA_BYTE.withName("tag"),
         MemoryLayout.paddingLayout(3),
         ValueLayout.JAVA_INT.withName("len"),
-        ValueLayout.JAVA_LONG.withName("value")
+        ValueLayout.JAVA_LONG.withName("value"),
+        MemoryLayout.paddingLayout(8)  // Remaining 8 bytes of union
     );
 
     // VarHandles for accessing YInput struct fields
@@ -770,7 +783,9 @@ public final class Yrs {
     private static final java.lang.invoke.VarHandle YINPUT_LEN =
         YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("len"));
     private static final java.lang.invoke.VarHandle YINPUT_VALUE_PTR =
-        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
+        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value_ptr1"));
+    private static final java.lang.invoke.VarHandle YINPUT_VALUE_PTR2 =
+        YINPUT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value_ptr2"));
     private static final java.lang.invoke.VarHandle YINPUT_VALUE_DOUBLE =
         YINPUT_FLOAT_LAYOUT.varHandle(MemoryLayout.PathElement.groupElement("value"));
     private static final java.lang.invoke.VarHandle YINPUT_VALUE_LONG =
@@ -846,6 +861,109 @@ public final class Yrs {
         YINPUT_LEN.set(yinput, 0L, 1);
         YINPUT_VALUE_PTR.set(yinput, 0L, docPtr);
         return yinput;
+    }
+
+    /**
+     * Creates a YInput containing a boolean value.
+     *
+     * @param arena the arena to allocate the struct in
+     * @param value the boolean value
+     * @return the YInput struct as a MemorySegment
+     */
+    public static MemorySegment yinputBool(Arena arena, boolean value) {
+        MemorySegment yinput = arena.allocate(YINPUT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_BOOL);
+        YINPUT_LEN.set(yinput, 0L, 1);
+        // Boolean is stored as the first byte of the union (flag field)
+        yinput.set(ValueLayout.JAVA_BYTE, 8, value ? (byte) 1 : (byte) 0);
+        return yinput;
+    }
+
+    /**
+     * Creates a YInput containing null (used for removing formatting attributes).
+     *
+     * @param arena the arena to allocate the struct in
+     * @return the YInput struct as a MemorySegment
+     */
+    public static MemorySegment yinputNull(Arena arena) {
+        MemorySegment yinput = arena.allocate(YINPUT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_NULL);
+        YINPUT_LEN.set(yinput, 0L, 0);
+        return yinput;
+    }
+
+    /**
+     * Creates a YInput containing a map of attributes (for text formatting).
+     *
+     * <p>This is used to pass formatting attributes to yxmltext_insert and yxmltext_format.
+     * The map is converted to the native YMapInputData format with separate arrays
+     * for keys and values.</p>
+     *
+     * @param arena the arena to allocate all memory in
+     * @param attributes the attributes map (can be null or empty)
+     * @return pointer to the YInput struct, or NULL segment if attributes is null/empty
+     */
+    public static MemorySegment yinputMap(Arena arena, Map<String, Object> attributes) {
+        if (attributes == null || attributes.isEmpty()) {
+            return MemorySegment.NULL;
+        }
+
+        int count = attributes.size();
+
+        // Allocate array of string pointers (char**)
+        MemorySegment keysArray = arena.allocate(ValueLayout.ADDRESS, count);
+
+        // Allocate array of YInput structs (use 16-byte layout for each value)
+        long yinputSize = YINPUT_LAYOUT.byteSize();
+        MemorySegment valuesArray = arena.allocate(yinputSize * count);
+
+        int i = 0;
+        for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+            // Allocate and set key string
+            MemorySegment keyStr = arena.allocateFrom(entry.getKey());
+            keysArray.setAtIndex(ValueLayout.ADDRESS, i, keyStr);
+
+            // Create YInput for value and copy to values array
+            MemorySegment valueYInput = createYInputFromObject(arena, entry.getValue());
+            MemorySegment.copy(valueYInput, 0, valuesArray, i * yinputSize, yinputSize);
+            i++;
+        }
+
+        // Create the map YInput struct (24 bytes)
+        // For maps: value_ptr1 = keys (char**), value_ptr2 = values (YInput*)
+        MemorySegment yinput = arena.allocate(YINPUT_LAYOUT);
+        YINPUT_TAG.set(yinput, 0L, Y_JSON_MAP);
+        YINPUT_LEN.set(yinput, 0L, count);
+        YINPUT_VALUE_PTR.set(yinput, 0L, keysArray);
+        YINPUT_VALUE_PTR2.set(yinput, 0L, valuesArray);
+
+        return yinput;
+    }
+
+    /**
+     * Creates a YInput from a Java Object based on its type.
+     *
+     * @param arena the arena to allocate in
+     * @param value the Java value (Boolean, String, Number, or null)
+     * @return the YInput struct
+     */
+    private static MemorySegment createYInputFromObject(Arena arena, Object value) {
+        if (value == null) {
+            return yinputNull(arena);
+        } else if (value instanceof Boolean) {
+            return yinputBool(arena, (Boolean) value);
+        } else if (value instanceof String) {
+            MemorySegment strPtr = arena.allocateFrom((String) value);
+            return yinputString(arena, strPtr);
+        } else if (value instanceof Double || value instanceof Float) {
+            return yinputFloat(arena, ((Number) value).doubleValue());
+        } else if (value instanceof Number) {
+            return yinputLong(arena, ((Number) value).longValue());
+        } else {
+            // Fallback: convert to string
+            MemorySegment strPtr = arena.allocateFrom(value.toString());
+            return yinputString(arena, strPtr);
+        }
     }
 
     // =========================================================================
@@ -975,6 +1093,26 @@ public final class Yrs {
             return (MemorySegment) YOUTPUT_READ_YDOC.invokeExact(val);
         } catch (Throwable t) {
             throw new RuntimeException("Failed to call youtput_read_ydoc", t);
+        }
+    }
+
+    // const uint8_t *youtput_read_bool(const struct YOutput *val)
+    private static final MethodHandle YOUTPUT_READ_BOOL = LINKER.downcallHandle(
+        LOOKUP.find("youtput_read_bool").orElseThrow(),
+        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    );
+
+    /**
+     * Reads a boolean from a YOutput value.
+     *
+     * @param val pointer to the YOutput
+     * @return pointer to the boolean (uint8_t), or null if not a boolean
+     */
+    public static MemorySegment youtputReadBool(MemorySegment val) {
+        try {
+            return (MemorySegment) YOUTPUT_READ_BOOL.invokeExact(val);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call youtput_read_bool", t);
         }
     }
 
@@ -2123,5 +2261,171 @@ public final class Yrs {
         } catch (Throwable t) {
             throw new RuntimeException("Failed to call youtput_read_yxmltext", t);
         }
+    }
+
+    // =========================================================================
+    // YChunk Functions (for reading formatted text chunks)
+    // =========================================================================
+
+    /**
+     * Layout for the YOutput struct.
+     * struct YOutput { int8_t tag; uint32_t len; union value (16 bytes) }
+     */
+    public static final StructLayout YOUTPUT_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_BYTE.withName("tag"),
+        MemoryLayout.paddingLayout(3),
+        ValueLayout.JAVA_INT.withName("len"),
+        ValueLayout.ADDRESS.withName("value_ptr1"),
+        ValueLayout.ADDRESS.withName("value_ptr2")
+    );
+
+    /** YOutput tag for string content. */
+    public static final byte YOUTPUT_TAG_STRING = -5;
+
+    /**
+     * Reads the tag byte from a YOutput struct.
+     *
+     * @param output the YOutput memory segment
+     * @return the tag byte indicating the content type
+     */
+    public static byte youtputGetTag(MemorySegment output) {
+        return output.get(ValueLayout.JAVA_BYTE, 0);
+    }
+
+    /**
+     * Layout for YChunk formatting entry (embedded YOutput, not pointer).
+     * struct YChunkFmtEntry { const char *key; struct YOutput value; }
+     *
+     * <p>Note: Different from YMAP_ENTRY_LAYOUT which has pointer to YOutput.
+     * This layout has embedded YOutput, so total size is 8 + 24 = 32 bytes.</p>
+     */
+    public static final StructLayout YCHUNK_FMT_ENTRY_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.ADDRESS.withName("key"),
+        YOUTPUT_LAYOUT.withName("value")
+    );
+
+    // Unaligned layout for reading fmt entries at non-aligned addresses
+    private static final ValueLayout.OfLong UNALIGNED_ADDRESS =
+            ValueLayout.JAVA_LONG.withByteAlignment(1);
+    private static final long YCHUNK_FMT_ENTRY_KEY_OFFSET = 0;
+    private static final long YCHUNK_FMT_ENTRY_VALUE_OFFSET = ValueLayout.ADDRESS.byteSize();
+
+    /**
+     * Layout for the YChunk struct.
+     * struct YChunk { YOutput data; uint32_t fmt_len; YMapEntry *fmt; }
+     */
+    public static final StructLayout YCHUNK_LAYOUT = MemoryLayout.structLayout(
+        YOUTPUT_LAYOUT.withName("data"),
+        ValueLayout.JAVA_INT.withName("fmt_len"),
+        MemoryLayout.paddingLayout(4),
+        ValueLayout.ADDRESS.withName("fmt")
+    );
+
+    // Manual offsets for YChunk fields
+    private static final long YCHUNK_FMT_LEN_OFFSET = YOUTPUT_LAYOUT.byteSize(); // 24
+    private static final long YCHUNK_FMT_OFFSET = YCHUNK_FMT_LEN_OFFSET + 8;     // 32 (4 + 4 padding)
+
+    // struct YChunk *ytext_chunks(const Branch *txt, const YTransaction *txn, uint32_t *len)
+    private static final MethodHandle YTEXT_CHUNKS = LINKER.downcallHandle(
+        LOOKUP.find("ytext_chunks").orElseThrow(),
+        FunctionDescriptor.of(
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS
+        )
+    );
+
+    /**
+     * Gets formatted text chunks from a text node (YText or YXmlText).
+     *
+     * @param txt pointer to the text branch
+     * @param txn pointer to the transaction
+     * @param lenOut pointer to uint32_t to receive chunk count
+     * @return pointer to YChunk array (must be freed with ychunksDestroy)
+     */
+    public static MemorySegment ytextChunks(MemorySegment txt, MemorySegment txn,
+                                             MemorySegment lenOut) {
+        try {
+            return (MemorySegment) YTEXT_CHUNKS.invokeExact(txt, txn, lenOut);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ytext_chunks", t);
+        }
+    }
+
+    // void ychunks_destroy(struct YChunk *chunks, uint32_t len)
+    private static final MethodHandle YCHUNKS_DESTROY = LINKER.downcallHandle(
+        LOOKUP.find("ychunks_destroy").orElseThrow(),
+        FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+    );
+
+    /**
+     * Frees a YChunk array returned by ytextChunks.
+     *
+     * @param chunks pointer to the chunks array
+     * @param len number of chunks
+     */
+    public static void ychunksDestroy(MemorySegment chunks, int len) {
+        try {
+            YCHUNKS_DESTROY.invokeExact(chunks, len);
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to call ychunks_destroy", t);
+        }
+    }
+
+    /**
+     * Gets the embedded YOutput data from a YChunk.
+     *
+     * @param chunk pointer to the YChunk
+     * @return memory segment pointing to the embedded YOutput data
+     */
+    public static MemorySegment ychunkGetData(MemorySegment chunk) {
+        return chunk.asSlice(0, YOUTPUT_LAYOUT.byteSize());
+    }
+
+    /**
+     * Gets the formatting entry count from a YChunk.
+     *
+     * @param chunk pointer to the YChunk
+     * @return the number of formatting entries
+     */
+    public static int ychunkGetFmtLen(MemorySegment chunk) {
+        return chunk.get(ValueLayout.JAVA_INT, YCHUNK_FMT_LEN_OFFSET);
+    }
+
+    /**
+     * Gets the formatting entries pointer from a YChunk.
+     *
+     * @param chunk pointer to the YChunk
+     * @return pointer to the formatting entries array, or NULL if none
+     */
+    public static MemorySegment ychunkGetFmt(MemorySegment chunk) {
+        return chunk.get(ValueLayout.ADDRESS, YCHUNK_FMT_OFFSET);
+    }
+
+    /**
+     * Reads the key from a YChunk formatting entry.
+     *
+     * @param entry pointer to the formatting entry
+     * @return the key string
+     */
+    public static String ychunkFmtEntryReadKey(MemorySegment entry) {
+        // Use unaligned read to handle non-aligned fmt array
+        long keyAddr = entry.get(UNALIGNED_ADDRESS, YCHUNK_FMT_ENTRY_KEY_OFFSET);
+        if (keyAddr == 0) {
+            return null;
+        }
+        MemorySegment keyPtr = MemorySegment.ofAddress(keyAddr);
+        return keyPtr.reinterpret(Long.MAX_VALUE).getString(0);
+    }
+
+    /**
+     * Gets a slice of the embedded YOutput value from a YChunk formatting entry.
+     *
+     * @param entry pointer to the formatting entry
+     * @return memory segment pointing to the embedded YOutput
+     */
+    public static MemorySegment ychunkFmtEntryGetValue(MemorySegment entry) {
+        return entry.asSlice(YCHUNK_FMT_ENTRY_VALUE_OFFSET, YOUTPUT_LAYOUT.byteSize());
     }
 }

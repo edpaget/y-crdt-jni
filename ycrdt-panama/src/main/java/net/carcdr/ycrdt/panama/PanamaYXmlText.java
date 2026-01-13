@@ -2,6 +2,9 @@ package net.carcdr.ycrdt.panama;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -233,12 +236,14 @@ public class PanamaYXmlText implements YXmlText {
         if (index < 0) {
             throw new IndexOutOfBoundsException("Index cannot be negative: " + index);
         }
-        // For now, ignore attributes and just insert text
-        // Full attribute support requires constructing YInput map which is complex
-        if (attributes != null && !attributes.isEmpty()) {
-            throw new UnsupportedOperationException("Attributes not yet supported");
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment strPtr = Yrs.createString(arena, chunk);
+            MemorySegment attrsPtr = (attributes == null || attributes.isEmpty())
+                    ? MemorySegment.NULL
+                    : Yrs.yinputMap(arena, attributes);
+            Yrs.yxmltextInsert(branchPtr, ptxn.getTxnPtr(), index, strPtr, attrsPtr);
         }
-        insert(txn, index, chunk);
     }
 
     @Override
@@ -272,8 +277,14 @@ public class PanamaYXmlText implements YXmlText {
         if (length < 0) {
             throw new IllegalArgumentException("Length cannot be negative: " + length);
         }
-        // Full formatting support requires constructing YInput map
-        throw new UnsupportedOperationException("Formatting not yet implemented");
+        if (attributes == null || attributes.isEmpty()) {
+            return; // No-op if no attributes to apply
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment attrsPtr = Yrs.yinputMap(arena, attributes);
+            Yrs.yxmltextFormat(branchPtr, ptxn.getTxnPtr(), index, length, attrsPtr);
+        }
     }
 
     @Override
@@ -363,14 +374,141 @@ public class PanamaYXmlText implements YXmlText {
     @Override
     public List<FormattingChunk> getFormattingChunks() {
         ensureNotClosed();
-        // Formatting chunks require parsing the internal delta format
-        throw new UnsupportedOperationException("Formatting chunks not yet implemented");
+        PanamaYTransaction activeTxn = doc.getActiveTransaction();
+        if (activeTxn != null) {
+            return getFormattingChunks(activeTxn);
+        }
+        try (PanamaYTransaction txn = doc.beginTransaction()) {
+            return getFormattingChunks(txn);
+        }
     }
 
     @Override
     public List<FormattingChunk> getFormattingChunks(YTransaction txn) {
         ensureNotClosed();
-        throw new UnsupportedOperationException("Formatting chunks not yet implemented");
+        if (txn == null) {
+            throw new IllegalArgumentException("Transaction cannot be null");
+        }
+        PanamaYTransaction ptxn = (PanamaYTransaction) txn;
+        List<FormattingChunk> result = new ArrayList<>();
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment lenPtr = arena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment chunksPtr = Yrs.ytextChunks(branchPtr, ptxn.getTxnPtr(), lenPtr);
+            int chunksLen = lenPtr.get(ValueLayout.JAVA_INT, 0);
+
+            if (chunksPtr.address() == 0 || chunksLen == 0) {
+                return result;
+            }
+
+            try {
+                long chunkSize = Yrs.YCHUNK_LAYOUT.byteSize();
+                MemorySegment chunksArray = chunksPtr.reinterpret(chunkSize * chunksLen);
+
+                for (int i = 0; i < chunksLen; i++) {
+                    MemorySegment chunk = chunksArray.asSlice(i * chunkSize, chunkSize);
+                    MemorySegment dataOutput = Yrs.ychunkGetData(chunk);
+                    byte tag = Yrs.youtputGetTag(dataOutput);
+
+                    // Only process string chunks (tag == -5)
+                    // Non-string chunks (XML elements, etc.) are skipped
+                    if (tag == Yrs.YOUTPUT_TAG_STRING) {
+                        String text = readChunkText(chunk, dataOutput);
+                        Map<String, Object> attributes = readChunkAttributes(chunk);
+                        result.add(new PanamaFormattingChunk(text, attributes));
+                    }
+                }
+            } finally {
+                Yrs.ychunksDestroy(chunksPtr, chunksLen);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Reads the text content from a YChunk.
+     *
+     * @param chunk the YChunk memory segment
+     * @param dataOutput the pre-extracted YOutput data segment
+     */
+    private String readChunkText(MemorySegment chunk, MemorySegment dataOutput) {
+        MemorySegment strPtr = Yrs.youtputReadString(dataOutput);
+        if (strPtr.address() == 0) {
+            return "";
+        }
+        // Read the string (owned by chunk, will be freed by ychunks_destroy)
+        return strPtr.reinterpret(Long.MAX_VALUE).getString(0);
+    }
+
+    /**
+     * Reads formatting attributes from a YChunk.
+     *
+     * <p>Note: For YXmlText, formatting is typically expressed via XML elements
+     * rather than inline attributes. String chunks within YXmlText may not have
+     * formatting attributes.</p>
+     */
+    private Map<String, Object> readChunkAttributes(MemorySegment chunk) {
+        // Use accessor methods to get formatting info
+        int fmtLen = Yrs.ychunkGetFmtLen(chunk);
+        if (fmtLen <= 0 || fmtLen > 1000) {
+            // Safety check: no attributes or invalid count
+            return null;
+        }
+
+        MemorySegment fmtPtr = Yrs.ychunkGetFmt(chunk);
+        if (fmtPtr.address() == 0) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> attrs = new HashMap<>();
+            long entrySize = Yrs.YCHUNK_FMT_ENTRY_LAYOUT.byteSize();
+            MemorySegment fmtArray = fmtPtr.reinterpret(entrySize * fmtLen);
+
+            for (int j = 0; j < fmtLen; j++) {
+                MemorySegment entry = fmtArray.asSlice(j * entrySize, entrySize);
+                String key = Yrs.ychunkFmtEntryReadKey(entry);
+                if (key != null) {
+                    Object value = readYOutputValue(Yrs.ychunkFmtEntryGetValue(entry));
+                    attrs.put(key, value);
+                }
+            }
+            return attrs.isEmpty() ? null : attrs;
+        } catch (Exception e) {
+            // Safety: if reading fails, return null attributes
+            return null;
+        }
+    }
+
+    /**
+     * Reads a value from a YOutput struct, trying different types.
+     */
+    private Object readYOutputValue(MemorySegment output) {
+        // Try boolean first
+        MemorySegment boolPtr = Yrs.youtputReadBool(output);
+        if (boolPtr.address() != 0) {
+            return boolPtr.reinterpret(1).get(ValueLayout.JAVA_BYTE, 0) != 0;
+        }
+
+        // Try string
+        MemorySegment strPtr = Yrs.youtputReadString(output);
+        if (strPtr.address() != 0) {
+            return strPtr.reinterpret(Long.MAX_VALUE).getString(0);
+        }
+
+        // Try double
+        MemorySegment doublePtr = Yrs.youtputReadFloat(output);
+        if (doublePtr.address() != 0) {
+            return doublePtr.reinterpret(8).get(ValueLayout.JAVA_DOUBLE, 0);
+        }
+
+        // Try long
+        MemorySegment longPtr = Yrs.youtputReadLong(output);
+        if (longPtr.address() != 0) {
+            return longPtr.reinterpret(8).get(ValueLayout.JAVA_LONG, 0);
+        }
+
+        return null;
     }
 
     @Override
