@@ -4,14 +4,14 @@
 
 ### Production Readiness (v1.0.0)
 
-1. **Performance Benchmarking** (See [plans/YCRDT_BENCHMARKS.md](../plans/YCRDT_BENCHMARKS.md))
-   - Set up JMH (Java Microbenchmark Harness) infrastructure
-   - Benchmark all CRDT types: YText, YArray, YMap, YXml
-   - Measure JNI overhead vs native Rust
-   - Compare transaction performance (implicit vs explicit)
-   - Benchmark sync protocol operations
-   - Identify and optimize bottlenecks
-   - Establish baseline metrics for regression testing
+1. **Performance Benchmarking** (In Progress - See [ycrdt-benchmarks/README.md](../ycrdt-benchmarks/README.md))
+   - [x] JMH infrastructure configured (3 warmup, 5 measurement, 2 forks)
+   - [x] Core types benchmarked: YText, YArray, YMap, YDoc, Sync (56 benchmarks)
+   - [x] XML types benchmarked: YXmlFragment, YXmlElement (YXmlBenchmark.java)
+   - [x] Observer performance benchmarked (ObserverBenchmark.java)
+   - [x] Baseline metrics captured in baseline.json
+   - [x] JNI vs Panama comparison automated via @Param
+   - [ ] Run full benchmark suite and validate targets
    - Target: < 20% JNI overhead, > 100k ops/sec for basic operations
 
 2. **Concurrent Access Patterns** (Completed)

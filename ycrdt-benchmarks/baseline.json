@@ -1,0 +1,545 @@
+{
+  "metadata": {
+    "capturedAt": "2026-01-13",
+    "jdkVersion": "22",
+    "vmName": "OpenJDK 64-Bit Server VM",
+    "note": "Baseline metrics for regression testing"
+  },
+  "targets": {
+    "basicOpsMinThroughput": 100000,
+    "maxJniOverheadPercent": 20,
+    "regressionThresholdPercent": 10
+  },
+  "benchmarks": {
+    "bidirectionalSync_jni": {
+      "score": 2294.62,
+      "scoreError": 10.19,
+      "scoreUnit": "ops/s"
+    },
+    "bidirectionalSync_panama": {
+      "score": 2209.62,
+      "scoreError": 30.72,
+      "scoreUnit": "ops/s"
+    },
+    "differentialSync_jni": {
+      "score": 934046.92,
+      "scoreError": 17273.17,
+      "scoreUnit": "ops/s"
+    },
+    "differentialSync_panama": {
+      "score": 1062857.57,
+      "scoreError": 15299.74,
+      "scoreUnit": "ops/s"
+    },
+    "fullSync_jni": {
+      "score": 616636.66,
+      "scoreError": 29825.08,
+      "scoreUnit": "ops/s"
+    },
+    "fullSync_panama": {
+      "score": 681097.38,
+      "scoreError": 9840.25,
+      "scoreUnit": "ops/s"
+    },
+    "fullSyncLargeDocument_jni": {
+      "score": 17043.99,
+      "scoreError": 387.55,
+      "scoreUnit": "ops/s"
+    },
+    "fullSyncLargeDocument_panama": {
+      "score": 17351.31,
+      "scoreError": 116.37,
+      "scoreUnit": "ops/s"
+    },
+    "bulkInsertDoubles_jni": {
+      "score": 2442591.41,
+      "scoreError": 114301.32,
+      "scoreUnit": "ops/s"
+    },
+    "bulkInsertDoubles_panama": {
+      "score": 2047136.2,
+      "scoreError": 101539.14,
+      "scoreUnit": "ops/s"
+    },
+    "bulkInsertStrings_jni": {
+      "score": 1303460.56,
+      "scoreError": 23473.11,
+      "scoreUnit": "ops/s"
+    },
+    "bulkInsertStrings_panama": {
+      "score": 1975353.98,
+      "scoreError": 44876.28,
+      "scoreUnit": "ops/s"
+    },
+    "deleteFromEnd_jni": {
+      "score": 8175776.93,
+      "scoreError": 161323.64,
+      "scoreUnit": "ops/s"
+    },
+    "deleteFromEnd_panama": {
+      "score": 8486110.21,
+      "scoreError": 164236.3,
+      "scoreUnit": "ops/s"
+    },
+    "insertDoubleAtBeginning_jni": {
+      "score": 2881346.0,
+      "scoreError": 253946.82,
+      "scoreUnit": "ops/s"
+    },
+    "insertDoubleAtBeginning_panama": {
+      "score": 2469715.69,
+      "scoreError": 79301.56,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeArray_jni": {
+      "score": 1424578.32,
+      "scoreError": 13911.5,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeArray_panama": {
+      "score": 2177281.48,
+      "scoreError": 31819.39,
+      "scoreUnit": "ops/s"
+    },
+    "insertStringAtBeginning_jni": {
+      "score": 1441973.18,
+      "scoreError": 50956.5,
+      "scoreUnit": "ops/s"
+    },
+    "insertStringAtBeginning_panama": {
+      "score": 2263755.1,
+      "scoreError": 20433.04,
+      "scoreUnit": "ops/s"
+    },
+    "insertStringAtMiddle_jni": {
+      "score": 36186.95,
+      "scoreError": 2378.06,
+      "scoreUnit": "ops/s"
+    },
+    "insertStringAtMiddle_panama": {
+      "score": 34346.92,
+      "scoreError": 330.31,
+      "scoreUnit": "ops/s"
+    },
+    "largeArrayToJson_jni": {
+      "score": 5169.45,
+      "scoreError": 78.13,
+      "scoreUnit": "ops/s"
+    },
+    "largeArrayToJson_panama": {
+      "score": 5592.45,
+      "scoreError": 54.5,
+      "scoreUnit": "ops/s"
+    },
+    "pushDouble_jni": {
+      "score": 2561388.26,
+      "scoreError": 50710.93,
+      "scoreUnit": "ops/s"
+    },
+    "pushDouble_panama": {
+      "score": 2163869.67,
+      "scoreError": 54509.6,
+      "scoreUnit": "ops/s"
+    },
+    "pushString_jni": {
+      "score": 1335135.94,
+      "scoreError": 25332.79,
+      "scoreUnit": "ops/s"
+    },
+    "pushString_panama": {
+      "score": 2056555.91,
+      "scoreError": 43249.82,
+      "scoreUnit": "ops/s"
+    },
+    "readLength_jni": {
+      "score": 7908710.44,
+      "scoreError": 509878.13,
+      "scoreUnit": "ops/s"
+    },
+    "readLength_panama": {
+      "score": 8694446.63,
+      "scoreError": 175570.46,
+      "scoreUnit": "ops/s"
+    },
+    "toJson_jni": {
+      "score": 3522629.84,
+      "scoreError": 39849.93,
+      "scoreUnit": "ops/s"
+    },
+    "toJson_panama": {
+      "score": 4962003.26,
+      "scoreError": 430406.96,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkInsertDoubles_jni": {
+      "score": 457931.77,
+      "scoreError": 11487.73,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkInsertDoubles_panama": {
+      "score": 382026.97,
+      "scoreError": 3525.38,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkInsertStrings_jni": {
+      "score": 352006.62,
+      "scoreError": 5557.41,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkInsertStrings_panama": {
+      "score": 331853.44,
+      "scoreError": 4045.67,
+      "scoreUnit": "ops/s"
+    },
+    "applyUpdateToEmptyDoc_jni": {
+      "score": 132499.07,
+      "scoreError": 373.44,
+      "scoreUnit": "ops/s"
+    },
+    "applyUpdateToEmptyDoc_panama": {
+      "score": 135984.42,
+      "scoreError": 1208.65,
+      "scoreUnit": "ops/s"
+    },
+    "createAndCloseEmptyDoc_jni": {
+      "score": 4676945.62,
+      "scoreError": 96410.56,
+      "scoreUnit": "ops/s"
+    },
+    "createAndCloseEmptyDoc_panama": {
+      "score": 6844498.09,
+      "scoreError": 283726.36,
+      "scoreUnit": "ops/s"
+    },
+    "createDocWithText_jni": {
+      "score": 1098254.01,
+      "scoreError": 27029.33,
+      "scoreUnit": "ops/s"
+    },
+    "createDocWithText_panama": {
+      "score": 1864822.33,
+      "scoreError": 62417.59,
+      "scoreUnit": "ops/s"
+    },
+    "encodeDiff_jni": {
+      "score": 149087.62,
+      "scoreError": 2967.49,
+      "scoreUnit": "ops/s"
+    },
+    "encodeDiff_panama": {
+      "score": 157585.08,
+      "scoreError": 3201.61,
+      "scoreUnit": "ops/s"
+    },
+    "encodeStateAsUpdate_jni": {
+      "score": 96451.11,
+      "scoreError": 1263.39,
+      "scoreUnit": "ops/s"
+    },
+    "encodeStateAsUpdate_panama": {
+      "score": 96275.0,
+      "scoreError": 2399.92,
+      "scoreUnit": "ops/s"
+    },
+    "encodeStateVector_jni": {
+      "score": 3097998.72,
+      "scoreError": 27881.55,
+      "scoreUnit": "ops/s"
+    },
+    "encodeStateVector_panama": {
+      "score": 3476301.19,
+      "scoreError": 35362.4,
+      "scoreUnit": "ops/s"
+    },
+    "bulkSetDoubles_jni": {
+      "score": 1099358.17,
+      "scoreError": 45997.45,
+      "scoreUnit": "ops/s"
+    },
+    "bulkSetDoubles_panama": {
+      "score": 1457817.17,
+      "scoreError": 29794.15,
+      "scoreUnit": "ops/s"
+    },
+    "bulkSetStrings_jni": {
+      "score": 779607.64,
+      "scoreError": 11965.99,
+      "scoreUnit": "ops/s"
+    },
+    "bulkSetStrings_panama": {
+      "score": 1327204.3,
+      "scoreError": 29205.65,
+      "scoreUnit": "ops/s"
+    },
+    "clear_jni": {
+      "score": 8051153.64,
+      "scoreError": 154357.95,
+      "scoreUnit": "ops/s"
+    },
+    "clear_panama": {
+      "score": 7489333.58,
+      "scoreError": 202953.48,
+      "scoreUnit": "ops/s"
+    },
+    "containsKey_jni": {
+      "score": 2168195.21,
+      "scoreError": 76334.84,
+      "scoreUnit": "ops/s"
+    },
+    "containsKey_panama": {
+      "score": 7263940.65,
+      "scoreError": 112522.36,
+      "scoreUnit": "ops/s"
+    },
+    "containsKeyInLargeMap_jni": {
+      "score": 1940179.83,
+      "scoreError": 13825.2,
+      "scoreUnit": "ops/s"
+    },
+    "containsKeyInLargeMap_panama": {
+      "score": 4265636.14,
+      "scoreError": 39788.14,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeMap_jni": {
+      "score": 798338.0,
+      "scoreError": 7907.55,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeMap_panama": {
+      "score": 1338781.67,
+      "scoreError": 100456.17,
+      "scoreUnit": "ops/s"
+    },
+    "keys_jni": {
+      "score": 2657759.77,
+      "scoreError": 37899.78,
+      "scoreUnit": "ops/s"
+    },
+    "keys_panama": {
+      "score": 7397729.84,
+      "scoreError": 130641.31,
+      "scoreUnit": "ops/s"
+    },
+    "keysFromLargeMap_jni": {
+      "score": 554.23,
+      "scoreError": 2.46,
+      "scoreUnit": "ops/s"
+    },
+    "keysFromLargeMap_panama": {
+      "score": 1065.99,
+      "scoreError": 8.41,
+      "scoreUnit": "ops/s"
+    },
+    "largeMapToJson_jni": {
+      "score": 865.73,
+      "scoreError": 13.09,
+      "scoreUnit": "ops/s"
+    },
+    "largeMapToJson_panama": {
+      "score": 925.85,
+      "scoreError": 8.43,
+      "scoreUnit": "ops/s"
+    },
+    "remove_jni": {
+      "score": 2175401.99,
+      "scoreError": 160104.04,
+      "scoreUnit": "ops/s"
+    },
+    "remove_panama": {
+      "score": 6975591.0,
+      "scoreError": 136397.18,
+      "scoreUnit": "ops/s"
+    },
+    "setDouble_jni": {
+      "score": 1122433.77,
+      "scoreError": 79055.91,
+      "scoreUnit": "ops/s"
+    },
+    "setDouble_panama": {
+      "score": 1557493.73,
+      "scoreError": 27274.06,
+      "scoreUnit": "ops/s"
+    },
+    "setString_jni": {
+      "score": 819594.68,
+      "scoreError": 5354.76,
+      "scoreUnit": "ops/s"
+    },
+    "setString_panama": {
+      "score": 1424250.53,
+      "scoreError": 99940.0,
+      "scoreUnit": "ops/s"
+    },
+    "size_jni": {
+      "score": 8157921.94,
+      "scoreError": 176853.71,
+      "scoreUnit": "ops/s"
+    },
+    "size_panama": {
+      "score": 8684730.41,
+      "scoreError": 186801.69,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkSetDoubles_jni": {
+      "score": 1954022.79,
+      "scoreError": 35491.82,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkSetDoubles_panama": {
+      "score": 3056302.22,
+      "scoreError": 33067.93,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkSetStrings_jni": {
+      "score": 1156986.14,
+      "scoreError": 16258.64,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalBulkSetStrings_panama": {
+      "score": 2673184.53,
+      "scoreError": 25073.83,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtBeginning_jni": {
+      "score": 1422552.24,
+      "scoreError": 61458.31,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtBeginning_panama": {
+      "score": 2393568.42,
+      "scoreError": 36244.39,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtEnd_jni": {
+      "score": 64323.2,
+      "scoreError": 181.69,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtEnd_panama": {
+      "score": 64968.89,
+      "scoreError": 219.32,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtMiddle_jni": {
+      "score": 35121.66,
+      "scoreError": 2527.81,
+      "scoreUnit": "ops/s"
+    },
+    "insertAtMiddle_panama": {
+      "score": 25075.44,
+      "scoreError": 155.13,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeDocument_jni": {
+      "score": 1388691.07,
+      "scoreError": 12396.66,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoLargeDocument_panama": {
+      "score": 2328711.18,
+      "scoreError": 30294.86,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoMediumDocument_jni": {
+      "score": 1374950.14,
+      "scoreError": 14615.01,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoMediumDocument_panama": {
+      "score": 2328825.15,
+      "scoreError": 30210.36,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoSmallDocument_jni": {
+      "score": 1426104.55,
+      "scoreError": 8452.77,
+      "scoreUnit": "ops/s"
+    },
+    "insertIntoSmallDocument_panama": {
+      "score": 2335001.83,
+      "scoreError": 58426.49,
+      "scoreUnit": "ops/s"
+    },
+    "mixedOperations_jni": {
+      "score": 2157492.18,
+      "scoreError": 78138.92,
+      "scoreUnit": "ops/s"
+    },
+    "mixedOperations_panama": {
+      "score": 2909425.47,
+      "scoreError": 49388.4,
+      "scoreUnit": "ops/s"
+    },
+    "randomInserts_jni": {
+      "score": 23249.06,
+      "scoreError": 774.87,
+      "scoreUnit": "ops/s"
+    },
+    "randomInserts_panama": {
+      "score": 23100.32,
+      "scoreError": 519.91,
+      "scoreUnit": "ops/s"
+    },
+    "readFromLargeDocument_jni": {
+      "score": 1591.8,
+      "scoreError": 61.33,
+      "scoreUnit": "ops/s"
+    },
+    "readFromLargeDocument_panama": {
+      "score": 4967.07,
+      "scoreError": 22.99,
+      "scoreUnit": "ops/s"
+    },
+    "readFromMediumDocument_jni": {
+      "score": 142156.4,
+      "scoreError": 9012.75,
+      "scoreUnit": "ops/s"
+    },
+    "readFromMediumDocument_panama": {
+      "score": 467878.05,
+      "scoreError": 9432.76,
+      "scoreUnit": "ops/s"
+    },
+    "readFromSmallDocument_jni": {
+      "score": 2731589.42,
+      "scoreError": 37663.28,
+      "scoreUnit": "ops/s"
+    },
+    "readFromSmallDocument_panama": {
+      "score": 4501414.92,
+      "scoreError": 319161.75,
+      "scoreUnit": "ops/s"
+    },
+    "readToString_jni": {
+      "score": 4572552.32,
+      "scoreError": 112144.91,
+      "scoreUnit": "ops/s"
+    },
+    "readToString_panama": {
+      "score": 7435298.13,
+      "scoreError": 217560.43,
+      "scoreUnit": "ops/s"
+    },
+    "sequentialInserts_jni": {
+      "score": 63598.88,
+      "scoreError": 420.32,
+      "scoreUnit": "ops/s"
+    },
+    "sequentialInserts_panama": {
+      "score": 64315.14,
+      "scoreError": 172.96,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalInserts_jni": {
+      "score": 482794.15,
+      "scoreError": 7663.23,
+      "scoreUnit": "ops/s"
+    },
+    "transactionalInserts_panama": {
+      "score": 609946.69,
+      "scoreError": 7653.86,
+      "scoreUnit": "ops/s"
+    }
+  }
+}
