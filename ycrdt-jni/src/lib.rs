@@ -1,9 +1,9 @@
 use jni::objects::GlobalRef;
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::sync::RwLock;
 use yrs::{ArrayRef, Doc, MapRef, Subscription, TextRef, TransactionMut};
 use yrs::{XmlElementRef, XmlFragmentRef, XmlTextRef};
 
@@ -32,10 +32,10 @@ pub struct DocWrapper {
     /// The underlying yrs document
     pub doc: Doc,
     /// Subscriptions keyed by subscription ID
-    /// Using RefCell since JNI calls are serialized per-document
-    subscriptions: RefCell<HashMap<jlong, Subscription>>,
+    /// Using RwLock for thread-safe access from multiple threads (e.g., observer callbacks)
+    subscriptions: RwLock<HashMap<jlong, Subscription>>,
     /// Java GlobalRefs for callback objects, keyed by subscription ID
-    java_refs: RefCell<HashMap<jlong, GlobalRef>>,
+    java_refs: RwLock<HashMap<jlong, GlobalRef>>,
 }
 
 impl DocWrapper {
@@ -43,8 +43,8 @@ impl DocWrapper {
     pub fn new() -> Self {
         Self {
             doc: Doc::new(),
-            subscriptions: RefCell::new(HashMap::new()),
-            java_refs: RefCell::new(HashMap::new()),
+            subscriptions: RwLock::new(HashMap::new()),
+            java_refs: RwLock::new(HashMap::new()),
         }
     }
 
@@ -52,8 +52,8 @@ impl DocWrapper {
     pub fn with_options(options: yrs::Options) -> Self {
         Self {
             doc: Doc::with_options(options),
-            subscriptions: RefCell::new(HashMap::new()),
-            java_refs: RefCell::new(HashMap::new()),
+            subscriptions: RwLock::new(HashMap::new()),
+            java_refs: RwLock::new(HashMap::new()),
         }
     }
 
@@ -61,27 +61,37 @@ impl DocWrapper {
     pub fn from_doc(doc: Doc) -> Self {
         Self {
             doc,
-            subscriptions: RefCell::new(HashMap::new()),
-            java_refs: RefCell::new(HashMap::new()),
+            subscriptions: RwLock::new(HashMap::new()),
+            java_refs: RwLock::new(HashMap::new()),
         }
     }
 
     /// Store a subscription and its associated Java GlobalRef
     pub fn add_subscription(&self, id: jlong, subscription: Subscription, java_ref: GlobalRef) {
-        self.subscriptions.borrow_mut().insert(id, subscription);
-        self.java_refs.borrow_mut().insert(id, java_ref);
+        // Use write locks for exclusive access
+        if let Ok(mut subs) = self.subscriptions.write() {
+            subs.insert(id, subscription);
+        }
+        if let Ok(mut refs) = self.java_refs.write() {
+            refs.insert(id, java_ref);
+        }
     }
 
     /// Remove a subscription and its associated Java GlobalRef
     /// Returns the removed subscription (if any) so it can be dropped outside any locks
     pub fn remove_subscription(&self, id: jlong) -> Option<Subscription> {
-        self.java_refs.borrow_mut().remove(&id);
-        self.subscriptions.borrow_mut().remove(&id)
+        if let Ok(mut refs) = self.java_refs.write() {
+            refs.remove(&id);
+        }
+        if let Ok(mut subs) = self.subscriptions.write() {
+            return subs.remove(&id);
+        }
+        None
     }
 
     /// Get a reference to a Java GlobalRef by subscription ID
     pub fn get_java_ref(&self, id: jlong) -> Option<GlobalRef> {
-        self.java_refs.borrow().get(&id).cloned()
+        self.java_refs.read().ok()?.get(&id).cloned()
     }
 }
 
@@ -516,7 +526,7 @@ mod tests {
         assert_eq!(ptr.raw(), raw);
 
         let doc_ref = unsafe { ptr.as_ref() }.unwrap();
-        assert!(doc_ref.subscriptions.borrow().is_empty());
+        assert!(doc_ref.subscriptions.read().unwrap().is_empty());
 
         unsafe {
             free_java_ptr::<DocWrapper>(raw);
