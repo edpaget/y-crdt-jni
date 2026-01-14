@@ -21,8 +21,14 @@ java {
 }
 
 kotlin {
-    def kotlinJvmVersion = testBindingType == 'panama' ? 22 : 21
-    jvmToolchain(kotlinJvmVersion)
+    compilerOptions {
+        // Set bytecode target version for compatibility (21 for JNI, 22 for Panama)
+        // Use current JDK toolchain instead of forcing specific version
+        def targetVersion = testBindingType == 'panama'
+            ? org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_22
+            : org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        jvmTarget.set(targetVersion)
+    }
 }
 
 javadoc {
