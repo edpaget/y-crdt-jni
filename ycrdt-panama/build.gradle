@@ -73,7 +73,42 @@ task buildYffi(type: Exec) {
     description = 'Builds the yffi native library from upstream y-crdt'
 
     workingDir rootProject.projectDir
-    commandLine 'bash', 'scripts/build-yffi.sh'
+
+    // Determine expected library name based on OS
+    def libName
+    if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
+        libName = 'libyrs.so'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+        libName = 'libyrs.dylib'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        libName = 'yrs.dll'
+    } else {
+        libName = 'libyrs.so'
+    }
+
+    def nativeLibFile = file("${rootProject.buildDir}/native/${libName}")
+
+    // Declare outputs so Gradle can skip if up-to-date
+    outputs.file(nativeLibFile)
+
+    // Skip if the library already exists (e.g., built by CI before Gradle runs)
+    onlyIf {
+        !nativeLibFile.exists()
+    }
+
+    // On Windows, use Git Bash explicitly instead of WSL bash
+    if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        // Try common Git Bash locations
+        def gitBashPaths = [
+            'C:\\Program Files\\Git\\bin\\bash.exe',
+            'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+            System.getenv('PROGRAMFILES') + '\\Git\\bin\\bash.exe',
+        ]
+        def gitBash = gitBashPaths.find { new File(it).exists() } ?: 'bash'
+        commandLine gitBash, 'scripts/build-yffi.sh'
+    } else {
+        commandLine 'bash', 'scripts/build-yffi.sh'
+    }
 
     doLast {
         println "yffi library built successfully"
