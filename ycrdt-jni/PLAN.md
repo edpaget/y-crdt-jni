@@ -36,10 +36,14 @@
    - Performance optimization guide
    - Migration guide from JavaScript Y.js
 
-5. **Multi-Platform Distribution**
-   - Automate cross-compilation for Linux/macOS/Windows
-   - Create fat JAR with all native libraries
-   - Test on all supported platforms
+5. **Multi-Platform Distribution** (In Progress)
+   - [x] CI builds Linux x86_64, macOS aarch64, Windows x86_64 (JNI)
+   - [x] CI builds Linux x86_64, macOS aarch64 (Panama)
+   - [x] NativeLoader auto-detects OS/arch and extracts from JAR
+   - [x] Fat JAR packaging with all native libraries
+   - [x] Linux aarch64 cross-compilation added to CI
+   - [x] Windows Panama builds enabled in CI
+   - [ ] Test on all supported platforms before release
 
 ## Future Enhancements (Post-v1.0)
 

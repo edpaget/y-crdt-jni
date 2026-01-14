@@ -52,9 +52,6 @@ jobs:
           # Panama requires Java 22+
           - java: '21'
             binding: panama
-          # Panama not supported on Windows
-          - os: windows-latest
-            binding: panama
 
     steps:
       - name: Checkout code
@@ -123,12 +120,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
+          # Linux x86_64 builds
           - os: ubuntu-latest
             arch: x86_64
             target: x86_64-unknown-linux-gnu
             lib_name: libycrdt_jni.so
             resource_path: native/linux/x86_64
+            cross: false
+
+          # Linux aarch64 builds (cross-compiled)
+          - os: ubuntu-latest
+            arch: aarch64
+            target: aarch64-unknown-linux-gnu
+            lib_name: libycrdt_jni.so
+            resource_path: native/linux/aarch64
+            cross: true
 
           # macOS builds
           - os: macos-latest
@@ -136,6 +142,7 @@ jobs:
             target: aarch64-apple-darwin
             lib_name: libycrdt_jni.dylib
             resource_path: native/macos/aarch64
+            cross: false
 
           # Windows builds
           - os: windows-latest
@@ -143,6 +150,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             lib_name: ycrdt_jni.dll
             resource_path: native/windows/x86_64
+            cross: false
 
     steps:
       - name: Checkout code
@@ -167,8 +175,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      - name: Build release library
+      - name: Install cross (for cross-compilation)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build release library (native)
+        if: ${{ !matrix.cross }}
         run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
+
+      - name: Build release library (cross-compiled)
+        if: matrix.cross
+        run: cd ycrdt-jni && cross build --release --target ${{ matrix.target }}
 
       - name: Create resource directory
         run: mkdir -p build/resources/${{ matrix.resource_path }}
@@ -214,13 +231,23 @@ jobs:
       - name: Organize native libraries
         run: |
           mkdir -p ycrdt-jni/src/main/resources/native/linux/x86_64
+          mkdir -p ycrdt-jni/src/main/resources/native/linux/aarch64
           mkdir -p ycrdt-jni/src/main/resources/native/macos/aarch64
           mkdir -p ycrdt-jni/src/main/resources/native/windows/x86_64
 
           # Copy each platform's library to the correct location
-          find downloaded-artifacts -name "*.so" -exec cp {} ycrdt-jni/src/main/resources/native/linux/x86_64/ \;
-          find downloaded-artifacts -name "*.dylib" -exec cp {} ycrdt-jni/src/main/resources/native/macos/aarch64/ \;
-          find downloaded-artifacts -name "*.dll" -exec cp {} ycrdt-jni/src/main/resources/native/windows/x86_64/ \;
+          # Linux x86_64
+          cp downloaded-artifacts/native-lib-ubuntu-latest-x86_64/*.so ycrdt-jni/src/main/resources/native/linux/x86_64/ || true
+          # Linux aarch64
+          cp downloaded-artifacts/native-lib-ubuntu-latest-aarch64/*.so ycrdt-jni/src/main/resources/native/linux/aarch64/ || true
+          # macOS aarch64
+          cp downloaded-artifacts/native-lib-macos-latest-aarch64/*.dylib ycrdt-jni/src/main/resources/native/macos/aarch64/ || true
+          # Windows x86_64
+          cp downloaded-artifacts/native-lib-windows-latest-x86_64/*.dll ycrdt-jni/src/main/resources/native/windows/x86_64/ || true
+
+          # List what we copied
+          echo "=== Organized native libraries ==="
+          find ycrdt-jni/src/main/resources/native -type f
 
       - name: Build JAR with Gradle
         run: ./gradlew :ycrdt-jni:jar --info
