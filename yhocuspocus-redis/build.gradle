@@ -29,7 +29,7 @@ dependencies {
     api project(':yhocuspocus')
 
     // Redis client (Lettuce for async support)
-    implementation 'io.lettuce:lettuce-core:6.3.2.RELEASE'
+    implementation 'io.lettuce:lettuce-core:7.2.1.RELEASE'
 
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.17'
@@ -47,10 +47,10 @@ dependencies {
     }
 
     // TestContainers for Redis integration testing
-    testImplementation 'org.testcontainers:testcontainers:1.19.8'
+    testImplementation 'org.testcontainers:testcontainers:2.0.3'
 
     // Jedis for testing both client options
-    testImplementation 'redis.clients:jedis:5.1.2'
+    testImplementation 'redis.clients:jedis:7.2.1'
 }
 
 // Checkstyle configuration
