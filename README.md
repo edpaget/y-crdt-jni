@@ -4,245 +4,96 @@
 [![License: Apache 2](https://img.shields.io/badge/license-Apache%202-blue.svg)](LICENSE)
 [![Javadoc](https://img.shields.io/badge/javadoc-latest-blue.svg)](https://carcdr.net/y-crdt-jni/)
 
-Java bindings for the [y-crdt](https://github.com/y-crdt/y-crdt) (yrs) Rust library, providing Conflict-free Replicated Data Types (CRDTs) for the JVM.
+Java bindings for [y-crdt](https://github.com/y-crdt/y-crdt) (yrs), providing CRDTs for collaborative editing on the JVM.
 
-## Overview
-
-Y-CRDT is a CRDT implementation that enables real-time collaborative editing with automatic conflict resolution. This library provides JNI bindings to make y-crdt available to Java, Kotlin, and other JVM languages.
-
-## Modules
-
-This project consists of multiple modules, each with its own purpose and documentation:
-
-### Core Library
-
-- **ycrdt-core** - Core interfaces and factory for Y-CRDT bindings
-  - Provides: YBinding, YDoc, YText, YArray, YMap interfaces
-  - YBindingFactory for selecting implementations
-  - No native dependencies
-
-- **[ycrdt-jni](ycrdt-jni/README.md)** - JNI-based implementation using Rust
-  - Requires: Java 21+, native library bundled in JAR
-  - Full feature support including XML types
-  - [Technical Details](ycrdt-jni/IMPLEMENTATION.md)
-
-- **ycrdt-panama** - Panama FFM implementation using yffi
-  - Requires: Java 22+, `--enable-native-access=ALL-UNNAMED`
-  - Uses Java's Foreign Function & Memory API (no JNI)
-  - Core types implemented (YDoc, YText, YArray, YMap)
-
-### Integrations
-
-- **[yprosemirror](yprosemirror/README.md)** - ProseMirror integration for collaborative rich-text editing
-  - Bidirectional sync between ProseMirror and Y-CRDT
-  - Change loop prevention
-  - Position mapping
-  - [Technical Details](yprosemirror/IMPLEMENTATION.md)
-
-### Server
-
-- **[yhocuspocus](yhocuspocus/README.md)** - Transport-agnostic collaborative editing server
-  - Y.js-compatible sync protocol
-  - Extension system with 12 lifecycle hooks
-  - Debounced persistence
-  - Awareness protocol (user presence)
-  - [Technical Details](yhocuspocus/IMPLEMENTATION.md)
-
-- **[yhocuspocus-websocket](yhocuspocus-websocket/README.md)** - WebSocket transport for yhocuspocus
-  - Jetty 12 WebSocket server implementation
-  - Reference implementation
-  - Yjs/Hocuspocus compatibility
-  - [Technical Details](yhocuspocus-websocket/IMPLEMENTATION.md)
-
-### Examples
-
-- **[example-fullstack](example-fullstack/README.md)** - Full-stack collaborative editor example
-  - Backend: Java YHocuspocus WebSocket server
-  - Frontend: React + TypeScript + Tiptap editor
-  - Real-time collaboration with collaborative cursors
-  - Demonstrates complete integration
-
-## Quick Start
-
-### Installation
+## Installation
 
 Build from source (Maven Central publishing planned):
-
-```bash
-./gradlew build
-```
-
-### Example Usage
-
-```java
-import net.carcdr.ycrdt.*;
-
-public class Example {
-    public static void main(String[] args) {
-        // Create a document using the default implementation
-        YBinding binding = YBindingFactory.auto();
-        try (YDoc doc = binding.createDoc()) {
-            // Collaborative text editing
-            try (YText text = doc.getText("myText")) {
-                text.push("Hello, ");
-                text.push("World!");
-                System.out.println(text.toString()); // "Hello, World!"
-            }
-
-            // Synchronize with another document
-            byte[] update = doc.encodeStateAsUpdate();
-            try (YDoc doc2 = binding.createDoc()) {
-                doc2.applyUpdate(update);
-                // doc2 now has the same state as doc
-            }
-        }
-    }
-}
-```
-
-For more examples, see [ycrdt-jni/README.md](ycrdt-jni/README.md).
-
-## Choosing an Implementation
-
-The library provides two native implementations. Use `YBindingFactory` to select:
-
-```java
-import net.carcdr.ycrdt.*;
-
-// Auto-detect (uses first available via ServiceLoader)
-YBinding binding = YBindingFactory.auto();
-
-// Explicitly use JNI implementation
-YBinding jni = YBindingFactory.jni();
-
-// Explicitly use Panama FFM implementation
-YBinding panama = YBindingFactory.panama();
-
-// Create documents with chosen implementation
-try (YDoc doc = binding.createDoc()) {
-    // ...
-}
-```
-
-### Comparison
-
-| Feature | ycrdt-jni | ycrdt-panama |
-|---------|-----------|--------------|
-| Java Version | 21+ | 22+ |
-| Native Access | JNI (Rust) | Panama FFM (yffi) |
-| JVM Args | None | `--enable-native-access=ALL-UNNAMED` |
-| XML Types | Yes | Not yet |
-| Maturity | Stable | Experimental |
-
-### Gradle Dependencies
 
 ```groovy
 // Core interfaces (required)
 implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
 
-// Choose one or both implementations:
-implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'     // JNI
-implementation 'net.carcdr:ycrdt-panama:0.1.0-SNAPSHOT'  // Panama FFM
+// JNI implementation (recommended) - Java 21+
+implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'
 ```
 
-### Running with Panama
+## Usage
 
-When using the Panama implementation, add this JVM argument:
+```java
+import net.carcdr.ycrdt.*;
 
-```bash
-java --enable-native-access=ALL-UNNAMED -jar myapp.jar
-```
+YBinding binding = YBindingFactory.auto();
+try (YDoc doc = binding.createDoc()) {
+    try (YText text = doc.getText("myText")) {
+        text.push("Hello, ");
+        text.push("World!");
+        System.out.println(text.toString()); // "Hello, World!"
+    }
 
-Or in Gradle:
-
-```groovy
-application {
-    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    // Sync state to another document
+    byte[] update = doc.encodeStateAsUpdate();
+    try (YDoc doc2 = binding.createDoc()) {
+        doc2.applyUpdate(update);
+    }
 }
 ```
 
-## Features
+See [ycrdt-jni/README.md](ycrdt-jni/README.md) for more examples.
 
-- **CRDT Types**: YDoc, YText, YArray, YMap, YXmlText, YXmlElement, YXmlFragment
-- **Subdocuments**: Embed YDocs within collections for hierarchical structures
-- **Observer API**: Change notifications for all CRDT types
-- **Binary Updates**: State synchronization
-- **ProseMirror Integration**: Bidirectional sync with ProseMirror editors
-- **Collaborative Server**: yhocuspocus server with WebSocket transport
-- **Memory Management**: Resource management with AutoCloseable
-- **Multi-platform**: Linux, macOS, and Windows support
+## Modules
 
-## Requirements
+| Module | Description |
+|--------|-------------|
+| [ycrdt-core](ycrdt-core/) | Interfaces: YDoc, YText, YArray, YMap. No native deps. |
+| [ycrdt-jni](ycrdt-jni/) | JNI implementation (Rust). Java 21+. |
+| [ycrdt-panama](ycrdt-panama/) | Panama FFM implementation. Java 22+. Experimental. |
+| [yprosemirror](yprosemirror/) | ProseMirror <-> Y-CRDT sync |
+| [yhocuspocus](yhocuspocus/) | Collaborative editing server (transport-agnostic) |
+| [yhocuspocus-websocket](yhocuspocus-websocket/) | WebSocket transport (Jetty 12) |
+| [yhocuspocus-spring-websocket](yhocuspocus-spring-websocket/) | WebSocket transport (Spring) |
+| [yhocuspocus-redis](yhocuspocus-redis/) | Redis extension for yhocuspocus |
+| [examples](examples/) | Full-stack example apps (React + Tiptap + Java) |
 
-- Java 21 or higher
-- Rust 1.70+ (for building from source)
-- Gradle 7.0+ (included via wrapper)
+## JNI vs Panama
 
-## Building
+| | ycrdt-jni | ycrdt-panama |
+|--|-----------|--------------|
+| Java | 21+ | 22+ |
+| Native access | JNI (Rust) | Panama FFM (yffi) |
+| JVM args | None | `--enable-native-access=ALL-UNNAMED` |
+| XML types | Yes | Not yet |
+| Maturity | Stable | Experimental |
 
-```bash
-# Build all modules
-./gradlew build
-
-# Build specific module
-./gradlew :ycrdt:build
-./gradlew :yprosemirror:build
-./gradlew :yhocuspocus:build
-
-# Run tests
-./gradlew test
-
-# Run the example
-./gradlew :example-fullstack:backend:run
+```java
+YBinding jni    = YBindingFactory.jni();    // explicit JNI
+YBinding panama = YBindingFactory.panama(); // explicit Panama
+YBinding auto   = YBindingFactory.auto();   // first available
 ```
-
-See individual module documentation for module-specific build instructions.
-
-## Project Status
-
-**Current Version**: 0.1.0-SNAPSHOT
-
-**Test Coverage**:
-- 36 Rust unit tests (100% passing)
-- 239 Java tests in ycrdt (100% passing)
-- 22 Java tests in yprosemirror (100% passing)
-- 122 Java tests in yhocuspocus + yhocuspocus-websocket (100% passing)
-
-**Total**: 419 tests, 100% passing
 
 ## Documentation
 
-- **API Reference**: [https://carcdr.net/y-crdt-jni/](https://carcdr.net/y-crdt-jni/)
-- **Module Documentation**: See each module's README.md and IMPLEMENTATION.md
-- **Example Application**: [example-fullstack/README.md](example-fullstack/README.md)
-- **Development Guide**: [.claude/CLAUDE.md](.claude/CLAUDE.md)
+- [API Reference (Javadoc)](https://carcdr.net/y-crdt-jni/)
+- [Example apps](examples/)
 
-## CI/CD
+## Development
 
-GitHub Actions workflows:
-- **Quick Check** - Linting and formatting on every PR
-- **CI** - Test suite on Linux, macOS, and Windows
-- **Release** - Automated release creation and artifact publishing
-- **Javadoc** - API documentation published to GitHub Pages
+Requires Java 21+ and Rust 1.70+ (for building from source). Gradle wrapper included.
 
-Pre-built binaries available from [GitHub Actions](https://github.com/edpaget/y-crdt-jni/actions) and [Releases](https://github.com/edpaget/y-crdt-jni/releases).
+```bash
+./gradlew build          # build all modules
+./gradlew test           # run all tests
+./gradlew check          # tests + checkstyle
+```
 
-## Contributing
-
-Contributions are welcome. See each module's documentation for development plans:
-- [ycrdt/PLAN.md](ycrdt/PLAN.md)
-- [yprosemirror/PLAN.md](yprosemirror/PLAN.md)
-- [yhocuspocus/PLAN.md](yhocuspocus/PLAN.md)
-- [yhocuspocus-websocket/PLAN.md](yhocuspocus-websocket/PLAN.md)
-
-Also see [.claude/CLAUDE.md](.claude/CLAUDE.md) for development guidelines.
+See [.claude/CLAUDE.md](.claude/CLAUDE.md) for development guidelines and per-module PLAN.md files for roadmaps.
 
 ## License
 
-This project is licensed under the Apache License v2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License v2.0 -- see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- [y-crdt](https://github.com/y-crdt/y-crdt) - The Rust CRDT implementation
-- [jni-rs](https://github.com/jni-rs/jni-rs) - Rust JNI bindings
-- [Hocuspocus](https://github.com/ueberdosis/hocuspocus) - Inspiration for yhocuspocus server
+- [y-crdt](https://github.com/y-crdt/y-crdt) -- Rust CRDT implementation
+- [jni-rs](https://github.com/jni-rs/jni-rs) -- Rust JNI bindings
+- [Hocuspocus](https://github.com/ueberdosis/hocuspocus) -- inspiration for yhocuspocus
