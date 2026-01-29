@@ -267,42 +267,8 @@ Objects created per update:
 
 All properly closed via try-with-resources.
 
-## Known Limitations
-
-1. **No Transaction Support** - Cannot integrate with ProseMirror's transaction system
-2. **Document-Level Only** - No incremental updates
-3. **Limited Mark Support** - Only simple key-value marks
-4. **No Position Mapping** - Phase 3 feature (not yet implemented)
-5. **Schema Constraints** - Requires compatible node/mark definitions
-
-## Future Enhancements
-
-### Transaction-Level Sync
-
-- Map ProseMirror steps to Y-CRDT operations
-- More efficient for large documents
-- Enables undo/redo integration
-
-### Position Mapping
-
-- Convert positions between ProseMirror and Y-CRDT
-- Essential for cursor tracking
-- Required for collaborative features
-
-### Incremental Updates
-
-- Only sync changed portions
-- Reduce data transfer
-- Better performance
-
-### Cursor Synchronization
-
-- Track remote cursors
-- Display in editor
-- Requires position mapping
-
 ## References
 
-- [y-prosemirror](https://github.com/yjs/y-prosemirror) - Reference TypeScript implementation
-- [prosemirror-kotlin](https://github.com/atlassian-labs/prosemirror-kotlin) - ProseMirror JVM
-- [Y-CRDT](https://github.com/y-crdt/y-crdt) - Rust CRDT implementation
+- [y-prosemirror](https://github.com/yjs/y-prosemirror) -- reference TypeScript implementation
+- [prosemirror-kotlin](https://github.com/atlassian-labs/prosemirror-kotlin) -- ProseMirror JVM
+- [Y-CRDT](https://github.com/y-crdt/y-crdt) -- Rust CRDT implementation

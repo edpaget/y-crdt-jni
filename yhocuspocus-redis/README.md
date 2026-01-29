@@ -1,10 +1,6 @@
 # yhocuspocus-redis
 
-Redis extension for horizontal scaling of yhocuspocus instances using pub/sub synchronization.
-
-## Overview
-
-This module enables multiple yhocuspocus server instances to synchronize document state through Redis pub/sub. When a document is modified on one instance, the update is published to Redis and received by all other instances subscribed to that document's channel.
+Redis extension for horizontal scaling of yhocuspocus instances. Document updates are published via Redis pub/sub and received by all other instances subscribed to that document's channel.
 
 ## Features
 

@@ -464,44 +464,6 @@ Test utility:
 - Can't batch operations explicitly
 - Each operation commits immediately
 
-## Known Limitations
-
-1. **Single Instance** - No horizontal scaling support yet (Redis extension planned for post-v1.0)
-2. **Documentation Incomplete** - Phase 8 in progress (comprehensive testing, API docs, user guide)
-3. **No Distributed Locking** - Required for horizontal scaling
-
-## Completed Enhancements
-
-### Extension System (Phase 5) ✅
-
-- Hook-based customization with 12 lifecycle hooks
-- Priority-ordered execution
-- Context enrichment across hooks
-- DatabaseExtension abstract class for persistence
-- InMemoryDatabaseExtension reference implementation
-
-### Persistence & Debouncing (Phase 6) ✅
-
-- DebouncedDocumentSaver with configurable debounce/maxDebounce
-- Automatic document saving after quiet period
-- Immediate save on document unload
-- Extension-based storage (onLoadDocument/onStoreDocument hooks)
-- Save mutex for thread safety
-
-### WebSocket Transport (Phase 7) ✅
-
-- yhocuspocus-websocket module (separate Gradle module)
-- Jetty 12 WebSocket server implementation
-- WebSocketTransport implementing Transport interface
-- WebSocketServer with builder pattern
-- Production-ready with example application
-
-### Horizontal Scaling
-
-- Redis pub/sub
-- Distributed locking
-- State vector synchronization
-- Cross-instance awareness
 
 ## References
 

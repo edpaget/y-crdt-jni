@@ -4,7 +4,7 @@ Technical implementation details for the WebSocket transport module.
 
 ## Architecture
 
-The yhocuspocus-websocket module provides a production-ready WebSocket transport implementation for YHocuspocus using Jetty 12.
+The yhocuspocus-websocket module provides a WebSocket transport implementation for YHocuspocus using Jetty 12.
 
 ### Design Principles
 

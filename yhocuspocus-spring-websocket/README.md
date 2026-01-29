@@ -195,13 +195,6 @@ ymap.observe(event => {
 ./gradlew :yhocuspocus-spring-websocket:check
 ```
 
-## Test Coverage
-
-- 19 SpringWebSocketTransport tests
-- 13 SpringWebSocketHandler tests
-- 10 YHocuspocusWebSocketConfigurer tests
-- Total: 42 tests, 100% passing
-
 ## Architecture
 
 ```

@@ -1,253 +1,76 @@
-# YProseMirror - ProseMirror Y-CRDT Integration for Java
+# yprosemirror - ProseMirror Y-CRDT Integration
 
-Java implementation of ProseMirror integration with Y-CRDT, enabling real-time collaborative editing for ProseMirror documents.
+Bidirectional synchronization between ProseMirror documents (via [prosemirror-kotlin](https://github.com/atlassian-labs/prosemirror-kotlin)) and Y-CRDT, for building collaborative editors on the JVM.
 
-## Overview
+## Installation
 
-This module provides bidirectional synchronization between ProseMirror documents (using Atlassian's prosemirror-kotlin library) and Y-CRDT documents. It enables building real-time collaborative editors on the JVM.
+```groovy
+implementation 'net.carcdr:yprosemirror:0.1.0-SNAPSHOT'
+```
 
-## Status: Phase 2 Complete
+Build from source: `./gradlew :yprosemirror:build`
 
-### Implemented Features
+## Usage
 
-- **Phase 1: Core Conversion** (Complete)
-  - ProseMirror to Y-CRDT conversion (`ProseMirrorConverter`)
-  - Y-CRDT to ProseMirror conversion (`YCrdtConverter`)
-  - Support for complex document structures
-  - Support for text formatting (marks)
-  - Support for element attributes
-  - Comprehensive conversion tests (7 tests, all passing)
-
-- **Phase 2: Real-time Sync Binding** (Complete)
-  - Document-level bidirectional synchronization (`YProseMirrorBinding`)
-  - Callback-based update mechanism
-  - Automatic change loop prevention
-  - Observer integration for Y-CRDT changes
-  - Resource management (AutoCloseable)
-
-### Architecture
-
-The YProseMirror module consists of three main components:
-
-#### 1. ProseMirrorConverter
-Converts ProseMirror documents to Y-CRDT:
-- `nodeToYXml(Node, YXmlFragment, Schema)` - Convert ProseMirror node to Y-CRDT
-- Handles nested elements, text content, and formatting marks
-- Preserves document structure and attributes
-
-#### 2. YCrdtConverter
-Converts Y-CRDT documents to ProseMirror:
-- `yXmlToNode(YXmlFragment, Schema)` - Convert Y-CRDT to ProseMirror node
-- Reconstructs document structure from Y-CRDT
-- Applies marks and attributes correctly
-
-#### 3. YProseMirrorBinding
-Provides real-time bidirectional synchronization:
-- `YProseMirrorBinding(YXmlFragment, Schema, Consumer<Node>)` - Create binding with callback
-- `updateFromProseMirror(Node)` - Push local changes to Y-CRDT
-- `getCurrentDocument()` - Get current ProseMirror document from Y-CRDT
-- Automatic observer setup for Y-CRDT changes
-- Prevents infinite update loops
-
-## Quick Start
+### Binding (Real-time Sync)
 
 ```java
 import net.carcdr.ycrdt.*;
 import net.carcdr.yprosemirror.*;
-import com.atlassian.prosemirror.model.Node;
-import com.atlassian.prosemirror.model.Schema;
+import com.atlassian.prosemirror.model.*;
 
-public class CollaborativeEditor {
-    public static void main(String[] args) {
-        // Create Y-CRDT document
-        try (YDoc ydoc = new YDoc()) {
-            YXmlFragment yFragment = ydoc.getXmlFragment("prosemirror");
+YBinding binding = YBindingFactory.jni();
 
-            // Create ProseMirror schema (see prosemirror-kotlin documentation)
-            Schema schema = createMySchema();
+try (YDoc ydoc = binding.createDoc()) {
+    try (YXmlFragment yFragment = ydoc.getXmlFragment("prosemirror")) {
+        Schema schema = createMySchema();
 
-            // Create binding with update callback
-            try (YProseMirrorBinding binding = new YProseMirrorBinding(
-                yFragment,
-                schema,
-                (newDoc) -> {
-                    // Update your ProseMirror editor with the new document
-                    System.out.println("Document updated: " + newDoc);
-                }
-            )) {
-                // When ProseMirror content changes locally
-                Node proseMirrorDoc = createProseMirrorDocument();
-                binding.updateFromProseMirror(proseMirrorDoc);
-
-                // Get current document
-                Node currentDoc = binding.getCurrentDocument();
-
-                // Binding automatically cleans up when closed
+        try (YProseMirrorBinding pmBinding = new YProseMirrorBinding(
+            yFragment, schema,
+            newDoc -> {
+                // Called when Y-CRDT receives remote changes
+                updateEditor(newDoc);
             }
+        )) {
+            // Push local ProseMirror changes to Y-CRDT
+            pmBinding.updateFromProseMirror(localDoc);
+
+            // Read current state
+            Node current = pmBinding.getCurrentDocument();
         }
     }
 }
 ```
 
-## API Overview
-
-### YProseMirrorBinding
-
-Main class for real-time synchronization:
+### One-off Conversion
 
 ```java
-public class YProseMirrorBinding implements Closeable {
-    // Constructor
-    public YProseMirrorBinding(
-        YXmlFragment yFragment,
-        Schema schema,
-        Consumer<Node> onUpdate
-    );
+// ProseMirror -> Y-CRDT
+ProseMirrorConverter.nodeToYXml(proseMirrorNode, yFragment, schema);
 
-    // Update Y-CRDT from ProseMirror
-    public void updateFromProseMirror(Node proseMirrorDoc);
-
-    // Get current document
-    public Node getCurrentDocument();
-
-    // Check if closed
-    public boolean isClosed();
-
-    // Clean up resources
-    public void close();
-}
+// Y-CRDT -> ProseMirror
+Node doc = YCrdtConverter.yXmlToNode(yFragment, schema);
 ```
 
-### ProseMirrorConverter
+## How It Works
 
-Static utility for ProseMirror to Y-CRDT conversion:
-
-```java
-public class ProseMirrorConverter {
-    public static void nodeToYXml(
-        Node node,
-        YXmlFragment fragment,
-        Schema schema
-    );
-}
-```
-
-### YCrdtConverter
-
-Static utility for Y-CRDT to ProseMirror conversion:
-
-```java
-public class YCrdtConverter {
-    public static Node yXmlToNode(
-        YXmlFragment fragment,
-        Schema schema
-    );
-}
-```
-
-## Design Decisions
-
-### Document-Level Synchronization
-
-The current implementation uses **document-level synchronization** rather than transaction-level synchronization. This means:
-
-- Changes are synchronized by replacing the entire Y-CRDT content
-- Less efficient than transaction-level sync, but simpler and more reliable
-- Works around prosemirror-kotlin API limitations when called from Java
-
-**Rationale**: The prosemirror-kotlin API differs significantly from the JavaScript ProseMirror API, particularly around transactions and state management. Document-level sync provides a robust foundation while avoiding API compatibility issues.
-
-### Callback-Based Updates
-
-The binding uses a callback pattern (`Consumer<Node>`) rather than direct integration with ProseMirror's plugin system:
-
-- More flexible - works with any ProseMirror integration
-- Simpler - no need to manage ProseMirror state internally
-- Testable - easy to verify behavior with mock callbacks
-
-**Rationale**: Provides maximum flexibility for different integration approaches while keeping the API simple.
-
-### Change Loop Prevention
-
-The binding uses an `AtomicBoolean` flag to prevent infinite update loops:
-
-- Tracks whether changes originated locally or remotely
-- Prevents remote changes from being sent back to Y-CRDT
-- Simple and reliable mechanism
-
-## Testing Limitations
-
-The module includes comprehensive conversion tests (Phase 1) but limited binding tests (Phase 2) due to prosemirror-kotlin API constraints:
-
-- **Conversion Tests**: 7 tests, all passing
-  - Simple and complex document structures
-  - Text formatting with marks
-  - Element attributes
-  - Nested elements
-  - Document synchronization
-
-- **Binding Tests**: Not comprehensive due to Schema construction challenges
-  - Creating valid ProseMirror Schema instances from Java is complex
-  - Requires non-null SchemaSpec parameter with proper node/mark definitions
-  - Full testing requires actual ProseMirror editor integration
-
-The binding implementation is functional, but comprehensive unit testing requires a proper ProseMirror environment.
-
-## Dependencies
-
-```gradle
-dependencies {
-    // Y-CRDT bindings (core library)
-    api project(':ycrdt')
-
-    // ProseMirror Kotlin (consumed from Java)
-    implementation 'com.atlassian.prosemirror:prosemirror-kotlin:1.1.13'
-
-    // Kotlin standard library (required for Kotlin interop)
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
-}
-```
-
-## Roadmap
-
-See [YPROSEMIRROR_PLAN.md](../plans/YPROSEMIRROR_PLAN.md) for the complete implementation plan.
-
-### Completed
-- Phase 1: Core Conversion
-  - ProseMirror to Y-CRDT conversion
-  - Y-CRDT to ProseMirror conversion
-  - **Bidirectional mark (formatting) conversion** - Text formatting like bold, italic now preserved in both directions
-- Phase 2: Real-time Sync Binding (document-level)
-
-### Future Work
-- Phase 3: Position Mapping - Accurate position mapping between ProseMirror and Y-CRDT
-- Phase 4: Testing & Documentation - Enhanced testing with proper ProseMirror environment
-- Phase 5: Advanced Features (Optional)
-  - Cursor synchronization
-  - Collaborative undo/redo
-  - Offline support
-  - Performance optimization with incremental updates
+- **Document-level sync**: On each change, the entire Y-CRDT content is replaced. Simpler than transaction-level sync, works around prosemirror-kotlin API differences from JavaScript ProseMirror.
+- **Change loop prevention**: An `AtomicBoolean` flag prevents infinite loops when local changes trigger the Y-CRDT observer.
+- **Callback-based updates**: Uses `Consumer<Node>` rather than direct ProseMirror plugin integration, keeping the binding decoupled from any specific editor setup.
 
 ## Known Limitations
 
-1. **Document-Level Sync**: Not as efficient as transaction-level sync for large documents
+1. Document-level sync only (no incremental updates)
+2. No position mapping between ProseMirror and Y-CRDT coordinate systems
+3. Only simple key-value marks supported
+4. Schema construction from Java is complex (Kotlin interop)
 
-2. **Limited Testing**: Binding tests limited by Schema construction challenges
+## Documentation
 
-3. **No Transaction Support**: Cannot directly integrate with ProseMirror's transaction system
-
-4. **No Position Mapping**: Phase 3 features not yet implemented
-
-## Contributing
-
-Contributions welcome! See the main project [README](../README.md) for contribution guidelines.
+- [Technical Details](IMPLEMENTATION.md)
+- [Development Plan](PLAN.md)
+- [y-prosemirror](https://github.com/yjs/y-prosemirror) -- reference TypeScript implementation
 
 ## License
 
-Apache License 2.0 - See [LICENSE](../LICENSE) file for details.
-
-## Acknowledgments
-
-- [y-prosemirror](https://github.com/yjs/y-prosemirror) - Reference TypeScript implementation
-- [prosemirror-kotlin](https://github.com/atlassian-labs/prosemirror-kotlin) - ProseMirror for the JVM
-- [Y-CRDT](https://github.com/y-crdt/y-crdt) - Rust CRDT implementation
+Apache License 2.0

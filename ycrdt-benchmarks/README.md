@@ -135,9 +135,12 @@ Performance varies by operation type:
 3. **Sync operations** are comparable between implementations
 4. **Large document operations** (~100KB) perform at ~17k ops/s regardless of implementation
 
+## Additional Benchmarks
+
+Also included (not shown in baseline above):
+- `YXmlBenchmark` -- YXmlFragment, YXmlElement, YXmlText operations
+- `ObserverBenchmark` -- Observer registration, notification, high-frequency updates
+
 ## Future Benchmarks
 
-Planned additions:
-- XML type operations (YXmlElement, YXmlText, YXmlFragment)
-- Observer registration and notification performance
 - Concurrent access patterns (with external synchronization)

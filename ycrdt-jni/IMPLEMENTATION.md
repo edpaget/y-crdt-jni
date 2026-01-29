@@ -159,77 +159,16 @@ Validation order:
 
 ## Testing
 
-### Rust Tests (36 total)
-
-Unit tests in each module covering:
-- Creation and destruction
-- Basic operations
-- Type conversions
-- Memory safety
-
-### Java Tests (306 total)
-
-Integration tests covering:
-- Lifecycle and resource management
-- All CRDT operations
-- Unicode and emoji support
-- Document synchronization
-- Error handling
-- Memory stress tests
-- Subdocument operations
-- Observer functionality
-- Advanced sync operations
-
-All tests pass with 100% success rate.
-
-## Performance
-
-### JNI Overhead
-
-Cost breakdown:
-- JNI call: ~10-50ns
-- String conversion: ~100-500ns
-- Object allocation: ~50-100ns
-- Transaction: ~1-10µs
-
-Optimization strategies:
-- Batch operations where possible
-- Avoid excessive string conversions
-- Use transactions for multiple operations
-
-### Memory Efficiency
-
-- Zero-copy where possible
-- Binary state encoding
-- Shared references for Y types
-- Minimal wrapper overhead
+Rust unit tests validate JNI bindings. Java integration tests cover CRDT operations, Unicode, synchronization, memory stress, subdocuments, observers, transactions, and concurrent access. See [ycrdt-benchmarks](../ycrdt-benchmarks/) for performance data.
 
 ## Platform Support
 
-Tested and supported platforms:
-- Linux x86_64
-- macOS x86_64 (Intel)
-- macOS aarch64 (Apple Silicon)
+- Linux x86_64, aarch64
+- macOS x86_64 (Intel), aarch64 (Apple Silicon)
 - Windows x86_64
 
 ## Known Limitations
 
-1. Single-threaded access (external synchronization required for core operations)
+1. External synchronization required for concurrent access to the same document
 2. Limited type support in arrays/maps (strings, doubles, subdocuments only)
-3. No explicit transaction API (operations are auto-transactional)
-4. Platform builds not cross-compiled automatically
-
-## Future Extensibility
-
-To add new Y-CRDT types:
-1. Create `src/ytype.rs` with native methods
-2. Add to `lib.rs`
-3. Create `YType.java` with Closeable pattern
-4. Add getter to `YDoc.java`
-5. Create test suite
-6. Add examples
-
-Potential features:
-- Explicit transaction API
-- Additional type support
-- Cross-platform build automation
+3. Nested transactions not supported (one active transaction per document)
