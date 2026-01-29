@@ -63,7 +63,7 @@ See [ycrdt-jni/README.md](ycrdt-jni/README.md) for more examples.
 | Native access | JNI (Rust) | Panama FFM (yffi) |
 | JVM args | None | `--enable-native-access=ALL-UNNAMED` |
 | XML types | Yes | Not yet |
-| Maturity | Stable | Experimental |
+| Maturity | More mature | Experimental |
 
 ```java
 YBinding jni    = YBindingFactory.jni();    // explicit JNI
