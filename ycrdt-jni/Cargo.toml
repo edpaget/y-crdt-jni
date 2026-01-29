@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 name = "ycrdt_jni"
 
 [dependencies]
+dashmap = "6.1.0"
 jni = "0.21.1"
 yrs = "0.25.0"
 lazy_static = "1.4.0"
