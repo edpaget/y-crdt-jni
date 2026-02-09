@@ -28,16 +28,16 @@ dependencies {
     api project(':yhocuspocus')
 
     // Jetty WebSocket server
-    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-server:12.1.5'
-    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-api:12.1.5'
-    implementation 'org.eclipse.jetty:jetty-server:12.1.5'
+    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-server:12.1.6'
+    implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-api:12.1.6'
+    implementation 'org.eclipse.jetty:jetty-server:12.1.6'
 
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.17'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-client:12.1.5'
+    testImplementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-client:12.1.6'
     testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
     // Select implementation for tests based on testBinding property
     if (testBindingType == 'panama') {
