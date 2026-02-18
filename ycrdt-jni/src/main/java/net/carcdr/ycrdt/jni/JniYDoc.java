@@ -2,6 +2,7 @@ package net.carcdr.ycrdt.jni;
 
 import java.lang.ref.Cleaner;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -105,6 +106,17 @@ public class JniYDoc implements YDoc, JniYObservable {
      * Handler for observer exceptions.
      */
     private ObserverErrorHandler observerErrorHandler = DefaultObserverErrorHandler.INSTANCE;
+
+    /**
+     * Queue of native subscription IDs whose Rust-side Subscription objects
+     * need to be dropped. The Java observer map is updated immediately so
+     * callbacks become no-ops, but the actual native unsubscribe is deferred
+     * to the next safe synchronization point (transaction begin, observer
+     * registration, or doc close) to avoid racing with yrs EventHandler
+     * dispatch on another thread.
+     */
+    private final ConcurrentLinkedQueue<Long> pendingNativeUnsubscribes =
+        new ConcurrentLinkedQueue<>();
 
     /**
      * Creates a new JniYDoc instance with a randomly generated client ID.
@@ -757,6 +769,34 @@ public class JniYDoc implements YDoc, JniYObservable {
     }
 
     /**
+     * Enqueues a native subscription ID for deferred unsubscription.
+     * The Java-side observer map should already be updated so callbacks
+     * become no-ops. The actual native Subscription drop happens at the
+     * next safe point.
+     *
+     * @param subscriptionId the native subscription ID to drop later
+     */
+    void deferNativeUnsubscribe(long subscriptionId) {
+        pendingNativeUnsubscribes.add(subscriptionId);
+    }
+
+    /**
+     * Drains the pending native unsubscribe queue, calling
+     * nativeUnobserveUpdateV1 for each queued ID. Must be called
+     * at a point where no concurrent yrs EventHandler dispatch is
+     * occurring (e.g. before beginning a transaction, before registering
+     * an observer, or during close).
+     */
+    private void drainPendingUnsubscribes() {
+        Long id;
+        while ((id = pendingNativeUnsubscribes.poll()) != null) {
+            if (!closed && nativePtr != 0) {
+                nativeUnobserveUpdateV1(nativePtr, id);
+            }
+        }
+    }
+
+    /**
      * Begin a new transaction for batching operations.
      *
      * <p>Transactions allow multiple CRDT operations to be batched together,
@@ -791,6 +831,7 @@ public class JniYDoc implements YDoc, JniYObservable {
      */
     private JniYTransaction beginTransactionInternal() {
         ensureNotClosed();
+        drainPendingUnsubscribes();
         long txnPtr = nativeBeginTransaction(nativePtr);
         if (txnPtr == 0) {
             throw new RuntimeException("Failed to create transaction: native pointer is null");
@@ -901,7 +942,8 @@ public class JniYDoc implements YDoc, JniYObservable {
         long subscriptionId = nextSubscriptionId.getAndIncrement();
         updateObservers.put(subscriptionId, observer);
 
-        // Register with native layer
+        // Drain any pending unsubscribes before registering with native layer
+        drainPendingUnsubscribes();
         nativeObserveUpdateV1(nativePtr, subscriptionId, this);
 
         return new JniYSubscription(subscriptionId, null, this);
@@ -919,7 +961,7 @@ public class JniYDoc implements YDoc, JniYObservable {
     public void unobserveById(long subscriptionId) {
         if (updateObservers.remove(subscriptionId) != null) {
             if (!closed && nativePtr != 0) {
-                nativeUnobserveUpdateV1(nativePtr, subscriptionId);
+                deferNativeUnsubscribe(subscriptionId);
             }
         }
     }
@@ -987,6 +1029,7 @@ public class JniYDoc implements YDoc, JniYObservable {
      */
     @Override
     public void close() {
+        drainPendingUnsubscribes();
         cleanable.clean();
         closed = true;
     }

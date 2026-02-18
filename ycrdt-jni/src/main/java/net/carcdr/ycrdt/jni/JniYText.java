@@ -351,7 +351,7 @@ public class JniYText implements YText, JniYObservable {
     public void unobserveById(long subscriptionId) {
         if (observers.remove(subscriptionId) != null) {
             if (!closed && nativePtr != 0) {
-                nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+                doc.deferNativeUnsubscribe(subscriptionId);
             }
         }
     }

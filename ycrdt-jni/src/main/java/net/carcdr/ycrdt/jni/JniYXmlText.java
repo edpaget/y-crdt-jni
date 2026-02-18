@@ -730,7 +730,7 @@ public class JniYXmlText implements YXmlText, JniYObservable {
     public void unobserveById(long subscriptionId) {
         if (observers.remove(subscriptionId) != null) {
             if (!closed && nativePtr != 0) {
-                nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+                doc.deferNativeUnsubscribe(subscriptionId);
             }
         }
     }
@@ -766,10 +766,10 @@ public class JniYXmlText implements YXmlText, JniYObservable {
         if (!closed) {
             synchronized (this) {
                 if (!closed) {
-                    // Unregister all observers
+                    // Defer unregistration of all observers
                     for (Long subscriptionId : observers.keySet()) {
                         if (nativePtr != 0) {
-                            nativeUnobserve(doc.getNativePtr(), nativePtr, subscriptionId);
+                            doc.deferNativeUnsubscribe(subscriptionId);
                         }
                     }
                     observers.clear();

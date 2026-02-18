@@ -681,7 +681,7 @@ public class JniYXmlFragment implements YXmlFragment, JniYObservable {
     public void unobserveById(long subscriptionId) {
         if (observers.remove(subscriptionId) != null) {
             if (!closed && nativeHandle != 0) {
-                nativeUnobserve(doc.getNativeHandle(), nativeHandle, subscriptionId);
+                doc.deferNativeUnsubscribe(subscriptionId);
             }
         }
     }
@@ -715,10 +715,10 @@ public class JniYXmlFragment implements YXmlFragment, JniYObservable {
         if (!closed) {
             synchronized (this) {
                 if (!closed) {
-                    // Unregister all observers
+                    // Defer unregistration of all observers
                     for (Long subscriptionId : observers.keySet()) {
                         if (nativeHandle != 0) {
-                            nativeUnobserve(doc.getNativeHandle(), nativeHandle, subscriptionId);
+                            doc.deferNativeUnsubscribe(subscriptionId);
                         }
                     }
                     observers.clear();
