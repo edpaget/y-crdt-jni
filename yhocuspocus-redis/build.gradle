@@ -36,7 +36,7 @@ dependencies {
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core:5.22.0'
+    testImplementation 'org.mockito:mockito-core:5.23.0'
     testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
 
     // Select Y-CRDT implementation for tests based on testBinding property
@@ -50,7 +50,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers:2.0.3'
 
     // Jedis for testing both client options
-    testImplementation 'redis.clients:jedis:7.3.0'
+    testImplementation 'redis.clients:jedis:7.4.0'
 }
 
 // Checkstyle configuration
