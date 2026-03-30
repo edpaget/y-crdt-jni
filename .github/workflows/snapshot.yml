@@ -158,7 +158,7 @@ jobs:
           java-version: '22'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Download all native libraries
         uses: actions/download-artifact@v8
