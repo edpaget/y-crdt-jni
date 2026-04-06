@@ -29,14 +29,14 @@ dependencies {
     api project(':yhocuspocus')
 
     // Redis client (Lettuce for async support)
-    implementation 'io.lettuce:lettuce-core:7.5.0.RELEASE'
+    implementation 'io.lettuce:lettuce-core:7.5.1.RELEASE'
 
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.17'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core:5.22.0'
+    testImplementation 'org.mockito:mockito-core:5.23.0'
     testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
 
     // Select Y-CRDT implementation for tests based on testBinding property
@@ -47,10 +47,10 @@ dependencies {
     }
 
     // TestContainers for Redis integration testing
-    testImplementation 'org.testcontainers:testcontainers:2.0.3'
+    testImplementation 'org.testcontainers:testcontainers:2.0.4'
 
     // Jedis for testing both client options
-    testImplementation 'redis.clients:jedis:7.3.0'
+    testImplementation 'redis.clients:jedis:7.4.1'
 }
 
 // Checkstyle configuration
