@@ -83,3 +83,4 @@ plans/
 .claude/*
 !.claude/CLAUDE.md
 !.claude/commands/
+!.claude/skills/
