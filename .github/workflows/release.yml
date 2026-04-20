@@ -1,107 +1,137 @@
 name: Release
 
+# Triggered by module-scoped tags (<module>/<version>) pushed by
+# prepare-release.yml. Parses the tag, validates the version, conditionally
+# builds native libraries for ycrdt-jni / ycrdt-panama, publishes the module
+# to Maven Central via the vanniktech plugin, and creates a GitHub Release.
+
 on:
   push:
     tags:
-      - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., v0.1.0)'
-        required: true
-        type: string
+      # GitHub tag filters only support *, **, ? — not regex. Validate the
+      # concrete format in the parse-tag job below.
+      - '*/*'
+
+permissions:
+  contents: write
+
+# Serialize runs for the same tag (prevents re-pushed tags from racing Central
+# staging) while letting different module tags publish in parallel.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  e2e-tests:
-    name: E2E Tests
-    uses: ./.github/workflows/e2e.yml
-
-  create-release:
-    name: Create Release
+  parse-tag:
+    name: Parse tag
     runs-on: ubuntu-latest
-    needs: e2e-tests
+    timeout-minutes: 5
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-
+      module: ${{ steps.parse.outputs.module }}
+      version: ${{ steps.parse.outputs.version }}
+      needs_native_jni: ${{ steps.parse.outputs.needs_native_jni }}
+      needs_native_panama: ${{ steps.parse.outputs.needs_native_panama }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Get version
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION=${GITHUB_REF#refs/tags/}
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Version: ${VERSION}"
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Parse and validate tag
+        id: parse
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
-          draft: false
-          prerelease: false
-          body: |
-            # Y-CRDT JNI ${{ steps.get_version.outputs.version }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          tag="${REF#refs/tags/}"
+          module="${tag%/*}"
+          version="${tag##*/}"
 
-            Java bindings for y-crdt (yrs) - High-performance CRDTs for the JVM
+          publishable_modules=(
+            ycrdt-core ycrdt-jni ycrdt-panama yprosemirror
+            yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis
+            ycrdt-bom
+          )
+          is_publishable=false
+          for m in "${publishable_modules[@]}"; do
+            [ "$m" = "$module" ] && is_publishable=true && break
+          done
+          if [ "$is_publishable" != "true" ]; then
+            echo "::error::Tag '${tag}' does not reference a publishable module; module='${module}' is not in the allowlist"
+            exit 1
+          fi
 
-            ## Features
-            - YDoc: Core document type with synchronization support
-            - Multi-platform support (Linux, macOS, Windows)
-            - Memory-safe JNI bindings
+          # Strict semver rejects any -SNAPSHOT suffix and any non-release form
+          # (e.g. 1.0.0-alpha, 1.0) in a single check.
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '${version}' is not strict semver (MAJOR.MINOR.PATCH); refusing to release -SNAPSHOT or pre-release tags"
+            exit 1
+          fi
 
-            ## Installation
-            Download the JAR file and add it to your classpath. Native libraries for all platforms are included.
+          # Cross-check: the tagged commit's version.properties must match the tag.
+          file_version=$(awk -F= '/^version=/{print $2}' "${module}/version.properties" | tr -d '[:space:]')
+          if [ "$file_version" != "$version" ]; then
+            echo "::error::${module}/version.properties is '${file_version}' but tag says '${version}'"
+            exit 1
+          fi
 
-            ## Changes
-            See [CHANGELOG.md](CHANGELOG.md) for details.
+          # BOM releases must not pin any -SNAPSHOT constituent.
+          if [ "$module" = "ycrdt-bom" ]; then
+            for m in ycrdt-core ycrdt-jni ycrdt-panama yprosemirror yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis; do
+              v=$(awk -F= '/^version=/{print $2}' "${m}/version.properties" | tr -d '[:space:]')
+              if [[ "$v" == *-SNAPSHOT ]]; then
+                echo "::error::Cannot release ycrdt-bom while ${m} is still at ${v}; release ${m} first"
+                exit 1
+              fi
+            done
+          fi
 
-  build-and-upload-jni:
-    name: Build JNI (${{ matrix.os }} - ${{ matrix.arch }})
+          needs_native_jni=false
+          needs_native_panama=false
+          [ "$module" = "ycrdt-jni" ] && needs_native_jni=true
+          [ "$module" = "ycrdt-panama" ] && needs_native_panama=true
+
+          {
+            echo "module=${module}"
+            echo "version=${version}"
+            echo "needs_native_jni=${needs_native_jni}"
+            echo "needs_native_panama=${needs_native_panama}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Tag: ${tag}"
+          echo "Module: ${module}"
+          echo "Version: ${version}"
+          echo "Needs JNI natives: ${needs_native_jni}"
+          echo "Needs Panama natives: ${needs_native_panama}"
+
+  build-native-jni:
+    name: Build JNI native (${{ matrix.os }} - ${{ matrix.arch }})
+    needs: parse-tag
+    if: needs.parse-tag.outputs.needs_native_jni == 'true'
     runs-on: ${{ matrix.os }}
-    needs: create-release
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
           - os: ubuntu-latest
             arch: x86_64
             target: x86_64-unknown-linux-gnu
             lib_name: libycrdt_jni.so
-            asset_name: libycrdt_jni-linux-x86_64.so
             resource_path: native/linux/x86_64
-
-          # macOS builds
           - os: macos-latest
             arch: aarch64
             target: aarch64-apple-darwin
             lib_name: libycrdt_jni.dylib
-            asset_name: libycrdt_jni-macos-aarch64.dylib
             resource_path: native/macos/aarch64
-
-          # Windows builds
           - os: windows-latest
             arch: x86_64
             target: x86_64-pc-windows-msvc
             lib_name: ycrdt_jni.dll
-            asset_name: ycrdt_jni-windows-x86_64.dll
             resource_path: native/windows/x86_64
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Rust
@@ -110,41 +140,35 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt-jni/target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
       - name: Build release library
         run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
-
-      - name: Create resource directory
-        run: mkdir -p build/resources/${{ matrix.resource_path }}
-
-      - name: Copy native library (Unix)
-        if: runner.os != 'Windows'
-        run: cp ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
-
-      - name: Copy native library (Windows)
-        if: runner.os == 'Windows'
-        run: Copy-Item ycrdt-jni\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v7
         with:
           name: native-lib-jni-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          path: ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
           retention-days: 1
 
-  build-and-upload-panama:
-    name: Build Panama (${{ matrix.os }} - ${{ matrix.arch }})
+  build-native-panama:
+    name: Build Panama native (${{ matrix.os }} - ${{ matrix.arch }})
+    needs: parse-tag
+    if: needs.parse-tag.outputs.needs_native_panama == 'true'
     runs-on: ${{ matrix.os }}
-    needs: create-release
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -152,17 +176,13 @@ jobs:
           - os: ubuntu-latest
             arch: x86_64
             lib_name: libyrs.so
-            asset_name: libyrs-linux-x86_64.so
             resource_path: native/linux/x86_64
-
           - os: macos-latest
             arch: aarch64
             lib_name: libyrs.dylib
-            asset_name: libyrs-macos-aarch64.dylib
             resource_path: native/macos/aarch64
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Rust
@@ -170,41 +190,48 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            build/y-crdt/
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-
+
       - name: Build yffi native library
         run: |
           chmod +x scripts/build-yffi.sh
           bash scripts/build-yffi.sh
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: build/native/${{ matrix.lib_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
-
-      - name: Create resource directory
-        run: mkdir -p build/resources/${{ matrix.resource_path }}
-
-      - name: Copy native library
-        run: cp build/native/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
-
       - name: Upload native library artifact
         uses: actions/upload-artifact@v7
         with:
           name: native-lib-panama-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          path: build/native/${{ matrix.lib_name }}
           retention-days: 1
 
-  build-release-jar:
-    name: Build and Upload Release JARs
+  publish:
+    name: Publish to Maven Central
+    needs: [parse-tag, build-native-jni, build-native-panama]
+    # Run if parse-tag succeeded; native-build dependencies may be skipped
+    # for pure-Java modules, which is fine.
+    if: |
+      always() &&
+      needs.parse-tag.result == 'success' &&
+      (needs.build-native-jni.result == 'success' || needs.build-native-jni.result == 'skipped') &&
+      (needs.build-native-panama.result == 'success' || needs.build-native-panama.result == 'skipped')
     runs-on: ubuntu-latest
-    needs: [create-release, build-and-upload-jni, build-and-upload-panama]
-
+    timeout-minutes: 30
+    env:
+      MODULE: ${{ needs.parse-tag.outputs.module }}
+      VERSION: ${{ needs.parse-tag.outputs.version }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Java
@@ -216,106 +243,102 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Download all native libraries
+      - name: Download native libraries
+        if: needs.parse-tag.outputs.needs_native_jni == 'true' || needs.parse-tag.outputs.needs_native_panama == 'true'
         uses: actions/download-artifact@v8
         with:
           path: downloaded-artifacts
 
-      - name: Organize JNI native libraries
+      - name: Stage JNI native libraries
+        if: needs.parse-tag.outputs.needs_native_jni == 'true'
         run: |
+          set -euo pipefail
           mkdir -p ycrdt-jni/src/main/resources/native/linux/x86_64
           mkdir -p ycrdt-jni/src/main/resources/native/macos/aarch64
           mkdir -p ycrdt-jni/src/main/resources/native/windows/x86_64
-
           find downloaded-artifacts -path "*native-lib-jni*" -name "*.so" -exec cp {} ycrdt-jni/src/main/resources/native/linux/x86_64/ \;
           find downloaded-artifacts -path "*native-lib-jni*" -name "*.dylib" -exec cp {} ycrdt-jni/src/main/resources/native/macos/aarch64/ \;
           find downloaded-artifacts -path "*native-lib-jni*" -name "*.dll" -exec cp {} ycrdt-jni/src/main/resources/native/windows/x86_64/ \;
+          find ycrdt-jni/src/main/resources/native -type f
 
-      - name: Organize Panama native libraries
+      - name: Stage Panama native libraries
+        if: needs.parse-tag.outputs.needs_native_panama == 'true'
         run: |
+          set -euo pipefail
           mkdir -p ycrdt-panama/src/main/resources/native/linux/x86_64
           mkdir -p ycrdt-panama/src/main/resources/native/macos/aarch64
-
           find downloaded-artifacts -path "*native-lib-panama*" -name "*.so" -exec cp {} ycrdt-panama/src/main/resources/native/linux/x86_64/ \;
           find downloaded-artifacts -path "*native-lib-panama*" -name "*.dylib" -exec cp {} ycrdt-panama/src/main/resources/native/macos/aarch64/ \;
+          find ycrdt-panama/src/main/resources/native -type f
 
-      - name: Verify native libraries
+      - name: Verify module builds and tests
+        run: ./gradlew ":${MODULE}:check"
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        # --no-configuration-cache: the vanniktech publish tasks are not yet
+        # configuration-cache compatible as of plugin 0.36.0. Revisit when the
+        # plugin drops that restriction.
+        run: ./gradlew ":${MODULE}:publishAndReleaseToMavenCentral" --no-configuration-cache
+
+      - name: Extract release notes
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          echo "JNI native libraries:"
-          find ycrdt-jni/src/main/resources/native -type f 2>/dev/null || echo "  (none found)"
-          echo ""
-          echo "Panama native libraries:"
-          find ycrdt-panama/src/main/resources/native -type f 2>/dev/null || echo "  (none found)"
+          set -euo pipefail
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          : > "$notes_file"
+          {
+            echo "**${TAG}** has been published to Maven Central."
+            echo ""
+            echo "Coordinates: \`net.carcdr:${MODULE}:${VERSION}\`"
+            echo ""
+          } > "$notes_file"
 
-      - name: Build all JARs
-        run: ./gradlew jar -Pversion=${{ needs.create-release.outputs.version }}
+          # Append the most recent dated CHANGELOG section (if any) so the
+          # GitHub Release carries the curated Keep-a-Changelog body.
+          extracted="$RUNNER_TEMP/changelog-section.md"
+          : > "$extracted"
+          if [ -f CHANGELOG.md ]; then
+            awk '
+              /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ && !started { started = 1; print; next }
+              started && /^## / { exit }
+              started { print }
+            ' CHANGELOG.md > "$extracted"
+          fi
 
-      - name: Upload ycrdt-core JAR
-        uses: actions/upload-release-asset@v1
+          if [ -s "$extracted" ]; then
+            cat "$extracted" >> "$notes_file"
+          else
+            echo "::warning::No dated CHANGELOG section found; release notes will contain only the coordinates. Was CHANGELOG.md updated for this release?"
+            echo "_No CHANGELOG entry found for this release._" >> "$notes_file"
+          fi
+
+          echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt-core/build/libs/ycrdt-core-${{ needs.create-release.outputs.version }}.jar
-          asset_name: ycrdt-core-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file "$NOTES_FILE" \
+            --verify-tag
 
-      - name: Upload ycrdt-jni JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt-jni/build/libs/ycrdt-jni-${{ needs.create-release.outputs.version }}.jar
-          asset_name: ycrdt-jni-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
-
-      - name: Upload ycrdt-panama JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ycrdt-panama/build/libs/ycrdt-panama-${{ needs.create-release.outputs.version }}.jar
-          asset_name: ycrdt-panama-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
-
-      - name: Upload yprosemirror JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: yprosemirror/build/libs/yprosemirror-${{ needs.create-release.outputs.version }}.jar
-          asset_name: yprosemirror-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
-
-      - name: Upload yhocuspocus JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: yhocuspocus/build/libs/yhocuspocus-${{ needs.create-release.outputs.version }}.jar
-          asset_name: yhocuspocus-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
-
-      - name: Upload yhocuspocus-websocket JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: yhocuspocus-websocket/build/libs/yhocuspocus-websocket-${{ needs.create-release.outputs.version }}.jar
-          asset_name: yhocuspocus-websocket-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
-
-      - name: Upload yhocuspocus-spring-websocket JAR
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: yhocuspocus-spring-websocket/build/libs/yhocuspocus-spring-websocket-${{ needs.create-release.outputs.version }}.jar
-          asset_name: yhocuspocus-spring-websocket-${{ needs.create-release.outputs.version }}.jar
-          asset_content_type: application/java-archive
+      - name: Summary
+        run: |
+          {
+            echo "### Release published"
+            echo ""
+            echo "- Coordinates: \`net.carcdr:${MODULE}:${VERSION}\`"
+            echo "- Tag: [${{ github.ref_name }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
+            echo "- Maven Central propagation can take up to ~30 minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
