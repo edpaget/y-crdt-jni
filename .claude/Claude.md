@@ -291,6 +291,12 @@ After making significant changes to the codebase, **always** update the relevant
    - Updating dependencies
    - Releasing versions
 
+   Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format going forward:
+   - Group changes under an `[Unreleased]` heading while work is in flight.
+   - Under that heading, organize by category: **Added**, **Changed**, **Deprecated**, **Removed**, **Fixed**, **Security**.
+   - When `prepare-release.yml` runs, it inserts a dated section below `[Unreleased]`; hand-edit the release section afterward to rewrite the auto-inserted tag list into Keep-a-Changelog categories.
+   - Reference semver (`MAJOR.MINOR.PATCH`) in release headings: `## [1.2.0] - 2026-05-01`.
+
 4. **README.md** - Update when:
    - Adding new features that users should know about
    - Changing installation or usage instructions

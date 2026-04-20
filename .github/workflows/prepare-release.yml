@@ -1,0 +1,304 @@
+name: Prepare Release
+
+# Dispatched from the Actions UI. Bumps version.properties for each selected
+# module (strips -SNAPSHOT, applies semver bump), patch-bumps the BOM, updates
+# the CHANGELOG, commits, and pushes module-scoped tags. Pushing tags with the
+# GitHub App token (not GITHUB_TOKEN) ensures the downstream release.yml
+# workflow is triggered.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump level"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      release_ycrdt_core:
+        description: "Release ycrdt-core"
+        type: boolean
+        default: false
+      release_ycrdt_jni:
+        description: "Release ycrdt-jni"
+        type: boolean
+        default: false
+      release_ycrdt_panama:
+        description: "Release ycrdt-panama"
+        type: boolean
+        default: false
+      release_yprosemirror:
+        description: "Release yprosemirror"
+        type: boolean
+        default: false
+      release_yhocuspocus:
+        description: "Release yhocuspocus"
+        type: boolean
+        default: false
+      release_yhocuspocus_websocket:
+        description: "Release yhocuspocus-websocket"
+        type: boolean
+        default: false
+      release_yhocuspocus_spring_websocket:
+        description: "Release yhocuspocus-spring-websocket"
+        type: boolean
+        default: false
+      release_yhocuspocus_redis:
+        description: "Release yhocuspocus-redis"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ github.ref }}
+
+      - name: Configure git identity
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          # Look up the bot user id so commits are attributed to the app
+          # in GitHub's UI. Falls back to the slug-only form if the lookup
+          # fails (e.g. transient API issue) — the commit still lands.
+          bot_user="${APP_SLUG}[bot]"
+          bot_email="${bot_user}@users.noreply.github.com"
+          if user_id=$(gh api "/users/${bot_user}" --jq .id 2>/dev/null); then
+            bot_email="${user_id}+${bot_email}"
+          fi
+          git config user.name "$bot_user"
+          git config user.email "$bot_email"
+          echo "Identity: $bot_user <$bot_email>"
+
+      - name: Collect selected modules
+        id: select
+        env:
+          RELEASE_YCRDT_CORE: ${{ inputs.release_ycrdt_core }}
+          RELEASE_YCRDT_JNI: ${{ inputs.release_ycrdt_jni }}
+          RELEASE_YCRDT_PANAMA: ${{ inputs.release_ycrdt_panama }}
+          RELEASE_YPROSEMIRROR: ${{ inputs.release_yprosemirror }}
+          RELEASE_YHOCUSPOCUS: ${{ inputs.release_yhocuspocus }}
+          RELEASE_YHOCUSPOCUS_WEBSOCKET: ${{ inputs.release_yhocuspocus_websocket }}
+          RELEASE_YHOCUSPOCUS_SPRING_WEBSOCKET: ${{ inputs.release_yhocuspocus_spring_websocket }}
+          RELEASE_YHOCUSPOCUS_REDIS: ${{ inputs.release_yhocuspocus_redis }}
+        run: |
+          set -euo pipefail
+          modules=()
+          [ "$RELEASE_YCRDT_CORE" = "true" ] && modules+=(ycrdt-core)
+          [ "$RELEASE_YCRDT_JNI" = "true" ] && modules+=(ycrdt-jni)
+          [ "$RELEASE_YCRDT_PANAMA" = "true" ] && modules+=(ycrdt-panama)
+          [ "$RELEASE_YPROSEMIRROR" = "true" ] && modules+=(yprosemirror)
+          [ "$RELEASE_YHOCUSPOCUS" = "true" ] && modules+=(yhocuspocus)
+          [ "$RELEASE_YHOCUSPOCUS_WEBSOCKET" = "true" ] && modules+=(yhocuspocus-websocket)
+          [ "$RELEASE_YHOCUSPOCUS_SPRING_WEBSOCKET" = "true" ] && modules+=(yhocuspocus-spring-websocket)
+          [ "$RELEASE_YHOCUSPOCUS_REDIS" = "true" ] && modules+=(yhocuspocus-redis)
+
+          if [ "${#modules[@]}" -eq 0 ]; then
+            echo "::error::At least one release_* input must be true."
+            exit 1
+          fi
+
+          printf '%s\n' "${modules[@]}"
+          {
+            echo "modules<<EOF"
+            printf '%s\n' "${modules[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump versions
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+          MODULES: ${{ steps.select.outputs.modules }}
+        run: |
+          set -euo pipefail
+
+          bump_version() {
+            # Strip -SNAPSHOT, apply semver bump, echo new version.
+            local current="$1" level="$2"
+            current="${current%-SNAPSHOT}"
+            if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Unsupported version format: ${current} (expected MAJOR.MINOR.PATCH)"
+              exit 1
+            fi
+            IFS='.' read -r major minor patch <<< "$current"
+            case "$level" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
+              *) echo "::error::Unknown bump level: $level"; exit 1 ;;
+            esac
+            echo "${major}.${minor}.${patch}"
+          }
+
+          bump_module() {
+            # $1 = module path; $2 = bump level; $3 = require-snapshot ("require-snapshot" or "allow-any").
+            # Writes new version.properties.
+            local module="$1" level="$2" snapshot_policy="${3:-require-snapshot}"
+            local file="${module}/version.properties"
+            local current
+            current=$(awk -F= '/^version=/{print $2}' "$file" | tr -d '[:space:]')
+            if [ -z "$current" ]; then
+              echo "::error::${file} is missing a 'version' entry"
+              exit 1
+            fi
+            if [ "$snapshot_policy" = "require-snapshot" ] && [[ "$current" != *-SNAPSHOT ]]; then
+              echo "::error::${file} is ${current}, expected a -SNAPSHOT version. The previous release may not have restored -SNAPSHOT; re-running without fixing will collide with the prior tag."
+              exit 1
+            fi
+            local new
+            new=$(bump_version "$current" "$level")
+            printf 'version=%s\n' "$new" > "$file"
+            echo "$new"
+          }
+
+          tags_file="$RUNNER_TEMP/tags.txt"
+          : > "$tags_file"
+
+          while IFS= read -r module; do
+            [ -z "$module" ] && continue
+            new=$(bump_module "$module" "$BUMP")
+            printf '%s/%s\n' "$module" "$new" >> "$tags_file"
+            echo "Bumped ${module} to ${new}"
+          done <<< "$MODULES"
+
+          # BOM always gets a patch bump so consumers can opt into a fresh
+          # aligned set of module versions.
+          bom_new=$(bump_module ycrdt-bom patch)
+          printf '%s/%s\n' "ycrdt-bom" "$bom_new" >> "$tags_file"
+          echo "Bumped ycrdt-bom to ${bom_new}"
+
+          {
+            echo "tags<<EOF"
+            cat "$tags_file"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG
+        env:
+          TAGS: ${{ steps.bump.outputs.tags }}
+        run: |
+          set -euo pipefail
+          today=$(date -u +%Y-%m-%d)
+
+          entries_file="$RUNNER_TEMP/changelog-entries.txt"
+          : > "$entries_file"
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            printf -- '- %s\n' "$tag" >> "$entries_file"
+          done <<< "$TAGS"
+
+          # Insert a dated section at the end of the [Unreleased] section so
+          # in-flight Keep-a-Changelog category entries stay grouped there.
+          awk -v today="$today" -v entries_file="$entries_file" '
+            BEGIN {
+              in_unreleased = 0
+              inserted = 0
+              entries = ""
+              while ((getline line < entries_file) > 0) {
+                entries = entries line "\n"
+              }
+              close(entries_file)
+            }
+            /^## \[Unreleased\]/ {
+              in_unreleased = 1
+              print
+              next
+            }
+            /^## / && in_unreleased && !inserted {
+              print "## " today
+              print ""
+              printf "%s", entries
+              print ""
+              inserted = 1
+              in_unreleased = 0
+            }
+            { print }
+            END {
+              if (in_unreleased && !inserted) {
+                print ""
+                print "## " today
+                print ""
+                printf "%s", entries
+              }
+            }
+          ' CHANGELOG.md > CHANGELOG.md.new
+          mv CHANGELOG.md.new CHANGELOG.md
+
+      - name: Commit
+        env:
+          TAGS: ${{ steps.bump.outputs.tags }}
+        run: |
+          set -euo pipefail
+          summary=$(echo "$TAGS" | paste -sd ', ' -)
+
+          # Stage each bumped module's version.properties (and the BOM's).
+          git add CHANGELOG.md
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            module="${tag%/*}"
+            git add "${module}/version.properties"
+          done <<< "$TAGS"
+
+          git commit -m "chore(release): ${summary}"
+
+      - name: Create and push tags
+        env:
+          TAGS: ${{ steps.bump.outputs.tags }}
+        run: |
+          set -euo pipefail
+          # Push the commit to the dispatching branch first so tag references
+          # point at a reachable commit. Using HEAD:${GITHUB_REF_NAME} makes the
+          # push explicit; dispatches against a detached ref would have failed
+          # the checkout step above anyway.
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+          # Push each tag in its own request. GitHub limits workflow-triggering
+          # tag creations to ~3 per push, so pushing one at a time ensures every
+          # release.yml run fires.
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            git tag "$tag"
+            git push origin "$tag"
+            echo "Pushed tag $tag"
+          done <<< "$TAGS"
+
+      - name: Summary
+        env:
+          TAGS: ${{ steps.bump.outputs.tags }}
+        run: |
+          {
+            echo "### Release preparation complete"
+            echo ""
+            echo "| Tag | |"
+            echo "|---|---|"
+            while IFS= read -r tag; do
+              [ -z "$tag" ] && continue
+              echo "| \`$tag\` | release.yml will publish to Maven Central |"
+            done <<< "$TAGS"
+            echo ""
+            echo "The commit was pushed by the release GitHub App, so each tag's release.yml workflow run will trigger automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
