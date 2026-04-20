@@ -1,0 +1,68 @@
+plugins {
+    id 'java-platform'
+    id 'maven-publish'
+}
+
+// Read ycrdt-panama's version from its version.properties directly so the published
+// BOM always pins every module, even when built with -PskipPanama=true (JDK 21 hosts).
+def panamaVersion = {
+    def panamaVersionFile = file("${rootDir}/ycrdt-panama/version.properties")
+    if (!panamaVersionFile.exists()) {
+        throw new GradleException("ycrdt-panama/version.properties is missing; BOM cannot pin panama")
+    }
+    def props = new Properties()
+    panamaVersionFile.withInputStream { props.load(it) }
+    def v = props.getProperty('version')?.trim()
+    if (!v) {
+        throw new GradleException("ycrdt-panama/version.properties is missing a 'version' entry")
+    }
+    return v
+}()
+
+dependencies {
+    constraints {
+        api project(':ycrdt-core')
+        api project(':ycrdt-jni')
+        api "net.carcdr:ycrdt-panama:${panamaVersion}"
+        api project(':yprosemirror')
+        api project(':yhocuspocus')
+        api project(':yhocuspocus-websocket')
+        api project(':yhocuspocus-spring-websocket')
+        api project(':yhocuspocus-redis')
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.javaPlatform
+            artifactId = 'ycrdt-bom'
+
+            pom {
+                name = 'Y-CRDT BOM'
+                description = 'Bill of Materials for Y-CRDT Java modules. Aligns versions across all published y-crdt-jni modules.'
+                url = 'https://github.com/edpaget/y-crdt-jni'
+
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'edpaget'
+                        name = 'Edward Paget'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
+                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
+                    url = 'https://github.com/edpaget/y-crdt-jni'
+                }
+            }
+        }
+    }
+}

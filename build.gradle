@@ -5,7 +5,9 @@ allprojects {
     version = findProperty('projectVersion') ?: '0.1.0-SNAPSHOT'
 }
 
-subprojects {
+// Apply the Java library stack to every subproject except the BOM
+// (ycrdt-bom uses java-platform, which cannot coexist with java-library).
+configure(subprojects - project(':ycrdt-bom')) {
     apply plugin: 'java-library'
     apply plugin: 'checkstyle'
 
@@ -24,7 +26,9 @@ subprojects {
         ignoreFailures = false
         maxWarnings = 0
     }
+}
 
+subprojects {
     // Load per-module version from version.properties for publishable modules only
     plugins.withId('maven-publish') {
         def versionFile = file('version.properties')
