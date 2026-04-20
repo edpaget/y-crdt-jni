@@ -1,15 +1,13 @@
 plugins {
     id 'java-library'
     id 'checkstyle'
-    id 'maven-publish'
+    id 'com.vanniktech.maven.publish'
 }
 
 java {
     // Panama FFM API was finalized in Java 22, compatible with 22+
     sourceCompatibility = JavaVersion.VERSION_22
     targetCompatibility = JavaVersion.VERSION_22
-    withJavadocJar()
-    withSourcesJar()
 }
 
 javadoc {
@@ -152,37 +150,5 @@ task copyNativeLibrary(type: Copy, dependsOn: buildYffi) {
 // Make processResources depend on copying the native library
 processResources.dependsOn copyNativeLibrary
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = 'ycrdt-panama'
-            from components.java
-
-            pom {
-                name = 'Y-CRDT Panama'
-                description = 'Panama FFM bindings for the y-crdt (yrs) Rust library'
-                url = 'https://github.com/edpaget/y-crdt-jni'
-
-                licenses {
-                    license {
-                        name = 'GNU General Public License v3.0'
-                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = 'edpaget'
-                        name = 'Edward Paget'
-                    }
-                }
-
-                scm {
-                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
-                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
-                    url = 'https://github.com/edpaget/y-crdt-jni'
-                }
-            }
-        }
-    }
-}
+// Publishing is configured in the root build.gradle via the vanniktech plugin.
+// POM metadata comes from gradle.properties (root: shared; module: POM_ARTIFACT_ID/NAME/DESCRIPTION).

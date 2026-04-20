@@ -1,14 +1,12 @@
 plugins {
     id 'java-library'
     id 'checkstyle'
-    id 'maven-publish'
+    id 'com.vanniktech.maven.publish'
 }
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
-    withJavadocJar()
-    withSourcesJar()
 }
 
 javadoc {
@@ -59,37 +57,5 @@ tasks.named('check') {
     dependsOn 'checkstyleMain'
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = 'ycrdt-core'
-            from components.java
-
-            pom {
-                name = 'Y-CRDT Core'
-                description = 'Core interfaces for Y-CRDT Java bindings'
-                url = 'https://github.com/edpaget/y-crdt-jni'
-
-                licenses {
-                    license {
-                        name = 'GNU General Public License v3.0'
-                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = 'edpaget'
-                        name = 'Edward Paget'
-                    }
-                }
-
-                scm {
-                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
-                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
-                    url = 'https://github.com/edpaget/y-crdt-jni'
-                }
-            }
-        }
-    }
-}
+// Publishing is configured in the root build.gradle via the vanniktech plugin.
+// POM metadata comes from gradle.properties (root: shared; module: POM_ARTIFACT_ID/NAME/DESCRIPTION).

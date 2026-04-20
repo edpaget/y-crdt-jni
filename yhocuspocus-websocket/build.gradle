@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'checkstyle'
-    id 'maven-publish'
+    id 'com.vanniktech.maven.publish'
 }
 
 // Test binding selection: -PtestBinding=jni (default) or -PtestBinding=panama
@@ -12,8 +12,6 @@ java {
     def javaVersion = testBindingType == 'panama' ? JavaVersion.VERSION_22 : JavaVersion.VERSION_21
     sourceCompatibility = javaVersion
     targetCompatibility = javaVersion
-    withJavadocJar()
-    withSourcesJar()
 }
 
 repositories {
@@ -69,38 +67,5 @@ javadoc {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
-// Publishing configuration
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = 'yhocuspocus-websocket'
-            from components.java
-
-            pom {
-                name = 'YHocuspocus WebSocket'
-                description = 'WebSocket transport for YHocuspocus using Jetty 12'
-                url = 'https://github.com/edpaget/y-crdt-jni'
-
-                licenses {
-                    license {
-                        name = 'GNU General Public License v3.0'
-                        url = 'https://www.gnu.org/licenses/gpl-3.0.html'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = 'edpaget'
-                        name = 'Edward Paget'
-                    }
-                }
-
-                scm {
-                    connection = 'scm:git:git://github.com/edpaget/y-crdt-jni.git'
-                    developerConnection = 'scm:git:ssh://github.com/edpaget/y-crdt-jni.git'
-                    url = 'https://github.com/edpaget/y-crdt-jni'
-                }
-            }
-        }
-    }
-}
+// Publishing is configured in the root build.gradle via the vanniktech plugin.
+// POM metadata comes from gradle.properties (root: shared; module: POM_ARTIFACT_ID/NAME/DESCRIPTION).

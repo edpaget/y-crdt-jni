@@ -71,6 +71,11 @@ test-results/
 *.swp
 .~*
 
+# Secrets (signing keys, exported key material)
+*.asc
+*.gpg
+*.pem
+
 # Node.js / npm (for frontend examples)
 **/node_modules/
 **/.vite/
