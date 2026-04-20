@@ -25,8 +25,15 @@ subprojects {
         maxWarnings = 0
     }
 
-    // Configure GitHub Packages repository for all modules with maven-publish
+    // Load per-module version from version.properties for publishable modules only
     plugins.withId('maven-publish') {
+        def versionFile = file('version.properties')
+        if (versionFile.exists()) {
+            def props = new Properties()
+            versionFile.withInputStream { props.load(it) }
+            version = props.getProperty('version')
+        }
+
         publishing {
             repositories {
                 maven {

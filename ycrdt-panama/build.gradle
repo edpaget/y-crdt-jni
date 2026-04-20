@@ -4,9 +4,6 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'net.carcdr'
-version = rootProject.version
-
 java {
     // Panama FFM API was finalized in Java 22, compatible with 22+
     sourceCompatibility = JavaVersion.VERSION_22

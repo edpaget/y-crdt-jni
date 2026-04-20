@@ -5,9 +5,6 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'net.carcdr'
-version = rootProject.version
-
 // Test binding selection: -PtestBinding=jni (default) or -PtestBinding=panama
 def testBindingType = project.hasProperty('testBinding') ? project.property('testBinding') : 'jni'
 
