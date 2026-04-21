@@ -5,10 +5,17 @@ Pure Java interfaces for Y-CRDT types. This module defines the API contract that
 ## Installation
 
 ```groovy
-implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
+implementation 'net.carcdr:ycrdt-core:0.1.3'
 ```
 
-You also need at least one implementation on the classpath:
+Or via the BOM for version alignment across modules:
+
+```groovy
+implementation platform('net.carcdr:ycrdt-bom:0.1.3')
+implementation 'net.carcdr:ycrdt-core'
+```
+
+You also need at least one implementation on the classpath. `ycrdt-jni` and `ycrdt-panama` are not yet published to Maven Central; consume their snapshots from GitHub Packages for now:
 
 ```groovy
 // Pick one (or both):

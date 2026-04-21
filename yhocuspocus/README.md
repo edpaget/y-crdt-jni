@@ -14,8 +14,17 @@ Transport-agnostic collaborative editing server for Y-CRDT, inspired by [Hocuspo
 ## Installation
 
 ```groovy
-implementation 'net.carcdr:yhocuspocus:0.1.0-SNAPSHOT'
+implementation 'net.carcdr:yhocuspocus:0.1.1'
 ```
+
+Or via the BOM:
+
+```groovy
+implementation platform('net.carcdr:ycrdt-bom:0.1.3')
+implementation 'net.carcdr:yhocuspocus'
+```
+
+A binding implementation (`ycrdt-jni` or `ycrdt-panama`) is required at runtime. These are not yet on Maven Central; use the GitHub Packages snapshots until their first release.
 
 Build from source: `./gradlew :yhocuspocus:build`
 

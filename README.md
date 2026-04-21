@@ -53,8 +53,10 @@ repositories {
 }
 
 dependencies {
-    implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
-    implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'
+    // See each module's `version.properties` for the current -SNAPSHOT version,
+    // or resolve via Gradle's `+` qualifier: 'net.carcdr:ycrdt-core:0.+-SNAPSHOT'
+    implementation 'net.carcdr:ycrdt-core:<snapshot-version>'
+    implementation 'net.carcdr:ycrdt-jni:<snapshot-version>'
 }
 ```
 
