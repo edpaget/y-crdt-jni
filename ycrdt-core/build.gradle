@@ -38,17 +38,5 @@ test {
     failOnNoDiscoveredTests = false
 }
 
-checkstyleMain {
-    source = 'src/main/java'
-}
-
-checkstyleTest {
-    source = 'src/test/java'
-}
-
-tasks.named('check') {
-    dependsOn 'checkstyleMain'
-}
-
 // Publishing is configured in the root build.gradle via the vanniktech plugin.
 // POM metadata comes from gradle.properties (root: shared; module: POM_ARTIFACT_ID/NAME/DESCRIPTION).

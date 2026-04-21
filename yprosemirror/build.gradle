@@ -79,19 +79,6 @@ test {
     }
 }
 
-checkstyleMain {
-    source = 'src/main/java'
-}
-
-checkstyleTest {
-    source = 'src/test/java'
-}
-
-// Make build depend on checkstyle
-tasks.named('check') {
-    dependsOn 'checkstyleMain', 'checkstyleTest'
-}
-
 sourceSets {
     main {
         java {

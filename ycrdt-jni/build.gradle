@@ -39,19 +39,6 @@ test {
     }
 }
 
-checkstyleMain {
-    source = 'src/main/java'
-}
-
-checkstyleTest {
-    source = 'src/test/java'
-}
-
-// Make build depend on checkstyle
-tasks.named('check') {
-    dependsOn 'checkstyleMain', 'checkstyleTest'
-}
-
 // Task to build the Rust library
 task buildRustLibrary(type: Exec) {
     group = 'build'

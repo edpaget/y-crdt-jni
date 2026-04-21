@@ -43,18 +43,6 @@ test {
     jvmArgs '--enable-native-access=ALL-UNNAMED'
 }
 
-checkstyleMain {
-    source = 'src/main/java'
-}
-
-checkstyleTest {
-    source = 'src/test/java'
-}
-
-tasks.named('check') {
-    dependsOn 'checkstyleMain', 'checkstyleTest'
-}
-
 // Task to build the yffi library from upstream
 task buildYffi(type: Exec) {
     group = 'build'
