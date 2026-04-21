@@ -128,45 +128,40 @@ jobs:
             **/build/reports/tests/
             **/build/test-results/
 
+      # Hand off the release native lib to build-jar for exactly one cell per
+      # OS so we don't recompile it in a separate build-native-libraries cell.
+      # Java 22 + binding=jni matches the version build-jar / release.yml use.
+      - name: Upload native library (Linux x86_64)
+        if: matrix.os == 'ubuntu-latest' && matrix.java == '22' && matrix.binding == 'jni'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-lib-ubuntu-latest-x86_64
+          path: ycrdt-jni/target/release/libycrdt_jni.so
+          retention-days: 30
+
+      - name: Upload native library (macOS aarch64)
+        if: matrix.os == 'macos-latest' && matrix.java == '22' && matrix.binding == 'jni'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-lib-macos-latest-aarch64
+          path: ycrdt-jni/target/release/libycrdt_jni.dylib
+          retention-days: 30
+
+      - name: Upload native library (Windows x86_64)
+        if: matrix.os == 'windows-latest' && matrix.java == '22' && matrix.binding == 'jni'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-lib-windows-latest-x86_64
+          path: ycrdt-jni/target/release/ycrdt_jni.dll
+          retention-days: 30
+
   build-native-libraries:
-    name: Build Native Library (${{ matrix.os }} - ${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
+    name: Build Native Library (Linux aarch64 cross-compile)
+    runs-on: ubuntu-latest
     needs: [test-rust, test-java]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux x86_64 builds
-          - os: ubuntu-latest
-            arch: x86_64
-            target: x86_64-unknown-linux-gnu
-            lib_name: libycrdt_jni.so
-            resource_path: native/linux/x86_64
-            cross: false
-
-          # Linux aarch64 builds (cross-compiled)
-          - os: ubuntu-latest
-            arch: aarch64
-            target: aarch64-unknown-linux-gnu
-            lib_name: libycrdt_jni.so
-            resource_path: native/linux/aarch64
-            cross: true
-
-          # macOS builds
-          - os: macos-latest
-            arch: aarch64
-            target: aarch64-apple-darwin
-            lib_name: libycrdt_jni.dylib
-            resource_path: native/macos/aarch64
-            cross: false
-
-          # Windows builds
-          - os: windows-latest
-            arch: x86_64
-            target: x86_64-pc-windows-msvc
-            lib_name: ycrdt_jni.dll
-            resource_path: native/windows/x86_64
-            cross: false
+    # Native-runner targets (linux/x86_64, macos/aarch64, windows/x86_64) are
+    # uploaded directly from the test-java matrix; only the cross-compiled
+    # aarch64 Linux build remains here.
 
     steps:
       - name: Checkout code
@@ -176,7 +171,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
+          target: aarch64-unknown-linux-gnu
 
       - name: Cache Cargo
         uses: actions/cache@v5
@@ -187,38 +182,21 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ycrdt-jni/target/
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-aarch64-unknown-linux-gnu-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-
+            ${{ runner.os }}-aarch64-unknown-linux-gnu-cargo-
 
-      - name: Install cross (for cross-compilation)
-        if: matrix.cross
+      - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --force
 
-      - name: Build release library (native)
-        if: ${{ !matrix.cross }}
-        run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
-
       - name: Build release library (cross-compiled)
-        if: matrix.cross
-        run: cd ycrdt-jni && cross build --release --target ${{ matrix.target }}
-
-      - name: Create resource directory
-        run: mkdir -p build/resources/${{ matrix.resource_path }}
-
-      - name: Copy native library (Unix)
-        if: runner.os != 'Windows'
-        run: cp ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
-
-      - name: Copy native library (Windows)
-        if: runner.os == 'Windows'
-        run: Copy-Item ycrdt-jni\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
+        run: cd ycrdt-jni && cross build --release --target aarch64-unknown-linux-gnu
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v7
         with:
-          name: native-lib-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
+          name: native-lib-ubuntu-latest-aarch64
+          path: ycrdt-jni/target/aarch64-unknown-linux-gnu/release/libycrdt_jni.so
           retention-days: 30
 
   build-jar:
