@@ -8,14 +8,54 @@ Java bindings for [y-crdt](https://github.com/y-crdt/y-crdt) (yrs), providing CR
 
 ## Installation
 
-Build from source (Maven Central publishing planned):
+Releases are published to [Maven Central](https://central.sonatype.com/namespace/net.carcdr) under the `net.carcdr` namespace. In-development `-SNAPSHOT` versions are published to [GitHub Packages](https://github.com/edpaget/y-crdt-jni/packages).
+
+### Released versions (Maven Central)
+
+Pull a single module:
 
 ```groovy
 // Core interfaces (required)
-implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
+implementation 'net.carcdr:ycrdt-core:<version>'
 
 // JNI implementation (recommended) - Java 21+
-implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'
+implementation 'net.carcdr:ycrdt-jni:<version>'
+```
+
+Or import the BOM and omit individual version numbers to keep all modules aligned:
+
+```groovy
+dependencies {
+    implementation platform('net.carcdr:ycrdt-bom:<version>')
+
+    implementation 'net.carcdr:ycrdt-core'
+    implementation 'net.carcdr:ycrdt-jni'
+    implementation 'net.carcdr:yhocuspocus'
+    // etc.
+}
+```
+
+### Snapshot versions (GitHub Packages)
+
+Snapshots are published to GitHub Packages on every push to `main`. To consume them, add the GitHub Packages Maven repository and credentials (a GitHub personal access token with `read:packages` scope):
+
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        name = 'GitHubPackages'
+        url = uri('https://maven.pkg.github.com/edpaget/y-crdt-jni')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR') ?: findProperty('gpr.user')
+            password = System.getenv('GITHUB_TOKEN') ?: findProperty('gpr.key')
+        }
+    }
+}
+
+dependencies {
+    implementation 'net.carcdr:ycrdt-core:0.1.0-SNAPSHOT'
+    implementation 'net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT'
+}
 ```
 
 ## Usage

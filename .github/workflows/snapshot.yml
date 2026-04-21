@@ -1,21 +1,82 @@
 name: Publish Snapshot
 
+# Publishes -SNAPSHOT versions of each publishable module to GitHub Packages on
+# every push to main. Reads per-module versions from <module>/version.properties;
+# Gradle's root build.gradle only registers the GitHub Packages repository for
+# modules whose current version ends in -SNAPSHOT, so release-version modules
+# are automatically excluded. If no module is at -SNAPSHOT (e.g. between the
+# prepare-release commit and the post-release SNAPSHOT restore), the publish
+# step is skipped.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Back-to-back pushes should publish the newer commit, not both in sequence.
+concurrency:
+  group: snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  preflight:
+    name: Check for snapshot-eligible modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      artifacts: ${{ steps.check.outputs.artifacts }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check version.properties for SNAPSHOT-tagged modules
+        id: check
+        run: |
+          set -euo pipefail
+          publishable_modules=(
+            ycrdt-core ycrdt-jni ycrdt-panama yprosemirror
+            yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis
+            ycrdt-bom
+          )
+          should_publish=false
+          artifacts=""
+          for m in "${publishable_modules[@]}"; do
+            v=$(awk -F= '/^version=/{print $2}' "${m}/version.properties" | tr -d '[:space:]')
+            if [[ "$v" == *-SNAPSHOT ]]; then
+              should_publish=true
+              artifacts="${artifacts}- \`net.carcdr:${m}:${v}\`"$'\n'
+            else
+              echo "Skipping ${m}: version ${v} is not a SNAPSHOT (release in flight, awaiting SNAPSHOT restore)"
+            fi
+          done
+
+          {
+            echo "should_publish=${should_publish}"
+            echo "artifacts<<EOF"
+            printf '%s' "$artifacts"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$should_publish" = "false" ]; then
+            echo "::notice::No module has a -SNAPSHOT version. Snapshot publish will be skipped."
+          fi
+
   e2e-tests:
     name: E2E Tests
+    needs: preflight
+    if: needs.preflight.outputs.should_publish == 'true'
     uses: ./.github/workflows/e2e.yml
 
   build-native-libraries-jni:
     name: Build JNI Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+    needs: preflight
+    if: needs.preflight.outputs.should_publish == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +145,10 @@ jobs:
 
   build-native-libraries-panama:
     name: Build Panama Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+    needs: preflight
+    if: needs.preflight.outputs.should_publish == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -142,7 +206,9 @@ jobs:
   publish-snapshot:
     name: Publish Snapshot to GitHub Packages
     runs-on: ubuntu-latest
-    needs: [e2e-tests, build-native-libraries-jni, build-native-libraries-panama]
+    timeout-minutes: 20
+    needs: [preflight, e2e-tests, build-native-libraries-jni, build-native-libraries-panama]
+    if: needs.preflight.outputs.should_publish == 'true'
     permissions:
       contents: read
       packages: write
@@ -194,18 +260,24 @@ jobs:
           find ycrdt-panama/src/main/resources/native -type f 2>/dev/null || echo "  (none found)"
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish
+        # Target only the GitHub Packages repo. Vanniktech also registers a
+        # Maven Central publish task on every module, which would reject
+        # -SNAPSHOT uploads; this command scopes the publish to our custom
+        # GHP repository (registered only for -SNAPSHOT versions via the root
+        # build.gradle afterEvaluate guard).
+        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List published artifacts
+      - name: Summary
+        env:
+          ARTIFACTS: ${{ needs.preflight.outputs.artifacts }}
         run: |
-          echo "Published modules:"
-          echo "  - net.carcdr:ycrdt-core:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:ycrdt-jni:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:ycrdt-panama:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:yprosemirror:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:yhocuspocus:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:yhocuspocus-websocket:0.1.0-SNAPSHOT"
-          echo "  - net.carcdr:yhocuspocus-spring-websocket:0.1.0-SNAPSHOT"
+          {
+            echo "### Snapshot published"
+            echo ""
+            echo "Coordinates uploaded to GitHub Packages:"
+            echo ""
+            printf '%s' "$ARTIFACTS"
+          } >> "$GITHUB_STEP_SUMMARY"
