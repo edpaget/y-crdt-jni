@@ -1,0 +1,152 @@
+name: Post Release
+
+# Triggered on successful release.yml completion. Restores -SNAPSHOT on the
+# just-released module's version.properties so the next prepare-release
+# dispatch doesn't fail the require-snapshot guard.
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+# Serialize restore commits. A multi-module prepare-release dispatch pushes
+# several tags, each fires release.yml in parallel, each fires post-release.yml;
+# without serialization the commits would race on push.
+concurrency:
+  group: post-release-snapshot
+  cancel-in-progress: false
+
+jobs:
+  restore-snapshot:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Download post-release info
+        uses: actions/download-artifact@v8
+        with:
+          name: post-release-info
+          github-token: ${{ steps.app-token.outputs.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: post-release-info
+
+      - name: Parse artifact
+        id: parse
+        run: |
+          set -euo pipefail
+          source post-release-info/info.env
+          if [[ -z "${MODULE:-}" || -z "${VERSION:-}" ]]; then
+            echo "::error::post-release-info artifact missing MODULE or VERSION"
+            exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION '${VERSION}' is not strict semver"
+            exit 1
+          fi
+          {
+            echo "module=${MODULE}"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure git identity
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          bot_user="${APP_SLUG}[bot]"
+          bot_email="${bot_user}@users.noreply.github.com"
+          if user_id=$(gh api "/users/${bot_user}" --jq .id 2>/dev/null); then
+            bot_email="${user_id}+${bot_email}"
+          fi
+          git config user.name "$bot_user"
+          git config user.email "$bot_email"
+
+      - name: Restore -SNAPSHOT
+        id: restore
+        env:
+          MODULE: ${{ steps.parse.outputs.module }}
+          VERSION: ${{ steps.parse.outputs.version }}
+        run: |
+          set -euo pipefail
+          file="${MODULE}/version.properties"
+          current=$(awk -F= '/^version=/{print $2}' "$file" | tr -d '[:space:]')
+
+          # Idempotent: if someone already restored (or otherwise advanced) the
+          # module, leave things alone.
+          if [[ "$current" != "$VERSION" ]]; then
+            echo "::notice::${file} is '${current}', expected released version '${VERSION}'. Skipping restore (already advanced)."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          next_patch=$((patch + 1))
+          new="${major}.${minor}.${next_patch}-SNAPSHOT"
+          printf 'version=%s\n' "$new" > "$file"
+          echo "Restored ${MODULE}: ${VERSION} -> ${new}"
+          {
+            echo "new=${new}"
+            echo "changed=true"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.restore.outputs.changed == 'true'
+        env:
+          MODULE: ${{ steps.parse.outputs.module }}
+          NEW: ${{ steps.restore.outputs.new }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git add "${MODULE}/version.properties"
+          git commit -m "chore(release): restore -SNAPSHOT for ${MODULE} (${NEW})"
+
+          # Concurrency group should prevent races, but rebase-retry defensively
+          # in case a push lands between fetch and push.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${BRANCH}"; then
+              exit 0
+            fi
+            echo "Push attempt ${attempt} failed; rebasing onto origin/${BRANCH}..."
+            git fetch origin "${BRANCH}"
+            git rebase "origin/${BRANCH}"
+          done
+          echo "::error::Failed to push after 3 attempts"
+          exit 1
+
+      - name: Summary
+        env:
+          MODULE: ${{ steps.parse.outputs.module }}
+          VERSION: ${{ steps.parse.outputs.version }}
+          NEW: ${{ steps.restore.outputs.new }}
+          CHANGED: ${{ steps.restore.outputs.changed }}
+        run: |
+          {
+            echo "### Post-release summary"
+            echo ""
+            if [ "$CHANGED" = "true" ]; then
+              echo "- Module: \`${MODULE}\`"
+              echo "- Released: \`${VERSION}\`"
+              echo "- Restored to: \`${NEW}\`"
+            else
+              echo "- Module: \`${MODULE}\`"
+              echo "- No change (version.properties already advanced past ${VERSION})."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

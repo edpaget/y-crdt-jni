@@ -196,6 +196,29 @@ jobs:
         # plugin drops that restriction.
         run: ./gradlew ":${MODULE}:publishAndReleaseToMavenCentral" --no-configuration-cache
 
+      # Hand the module+version off to post-release.yml via an artifact.
+      # workflow_run events do not expose the triggering tag reliably, so the
+      # downstream workflow reads this file to know what to restore.
+      - name: Record published module for post-release
+        if: steps.publish.conclusion == 'success'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/post-release"
+          cat > "$RUNNER_TEMP/post-release/info.env" <<EOF
+          MODULE=${MODULE}
+          VERSION=${VERSION}
+          TAG=${{ github.ref_name }}
+          EOF
+
+      - name: Upload post-release info artifact
+        if: steps.publish.conclusion == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: post-release-info
+          path: ${{ runner.temp }}/post-release/info.env
+          retention-days: 1
+          overwrite: true
+
       - name: Extract release notes
         id: notes
         env:

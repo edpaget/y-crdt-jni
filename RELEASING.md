@@ -122,6 +122,11 @@ Release workflows are added in later phases of the `maven-central-publishing` ro
 
 - `prepare-release.yml` (phase 4): dispatchable from the Actions UI. Bumps `<module>/version.properties` for the modules you select, updates `ycrdt-bom`'s constraint versions, commits, and pushes `<module>/<version>` tags.
 - `release.yml` (phase 5): triggered by `<module>/<version>` tags. Builds native libraries for JNI/Panama modules, signs all artifacts, and publishes to Central.
+- `post-release.yml`: triggered by successful `release.yml` completion. For each released module, bumps the patch version and reattaches `-SNAPSHOT` in `<module>/version.properties`, then commits `chore(release): restore -SNAPSHOT for <module> (<new>)` to the default branch with the release App identity. This keeps each module ready for the next prepare-release dispatch without manual intervention.
+
+### If post-release does not run
+
+`prepare-release.yml` enforces a `require-snapshot` guard: if a module's `version.properties` is at a concrete release version (no `-SNAPSHOT` suffix), the dispatch aborts with an error. If `post-release.yml` was disabled, failed, or skipped (for example, the release workflow ended in the GH-Release recovery path), manually edit the module's `version.properties` back to a `-SNAPSHOT` version before the next dispatch. The guard will otherwise fail fast and name the offending file.
 
 Until those workflows are in place, releases can be cut manually:
 
