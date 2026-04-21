@@ -275,6 +275,7 @@ jobs:
         run: ./gradlew ":${MODULE}:check"
 
       - name: Publish to Maven Central
+        id: publish
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -322,6 +323,7 @@ jobs:
           echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
+        id: create-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -333,7 +335,46 @@ jobs:
             --notes-file "$NOTES_FILE" \
             --verify-tag
 
+      # Recovery path: if the Central publish succeeded but the GitHub Release
+      # create call failed (e.g. transient API hiccup), surface the exact
+      # recovery command and preserve the notes file as an artifact so the
+      # operator can finalize the release from a local checkout.
+      - name: Upload release notes (on gh release create failure)
+        if: failure() && steps.publish.conclusion == 'success' && steps.create-release.conclusion == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          # Artifact names cannot contain '/', which tag names do — use a safe form.
+          name: release-notes-${{ needs.parse-tag.outputs.module }}-${{ needs.parse-tag.outputs.version }}
+          path: ${{ steps.notes.outputs.notes_file }}
+          retention-days: 30
+
+      - name: Recovery instructions (on gh release create failure)
+        if: failure() && steps.publish.conclusion == 'success' && steps.create-release.conclusion == 'failure'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          echo "::error::gh release create failed after the artifact was published to Maven Central. The artifact is live; finalize the GitHub Release manually using the instructions in this workflow's summary."
+          {
+            echo ""
+            echo "### Manual GitHub Release recovery required"
+            echo ""
+            echo "The artifact \`net.carcdr:${MODULE}:${VERSION}\` was successfully published to Maven Central, but creating the GitHub Release failed."
+            echo ""
+            echo "1. Download \`release-notes-${MODULE}-${VERSION}\` from this run's artifacts."
+            echo "2. From a local checkout on commit \`${{ github.sha }}\`, run:"
+            echo ""
+            echo "   \`\`\`bash"
+            echo "   gh release create \"${TAG}\" \\"
+            echo "       --title \"${TAG}\" \\"
+            echo "       --notes-file release-notes.md \\"
+            echo "       --verify-tag"
+            echo "   \`\`\`"
+            echo ""
+            echo "The tag \`${TAG}\` is already pushed, so the command above only creates the GitHub Release entry."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Summary
+        if: success()
         run: |
           {
             echo "### Release published"
