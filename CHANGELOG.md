@@ -8,6 +8,12 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 
 ## 2026-04-21
 
+- ycrdt-jni/0.1.1
+- ycrdt-panama/0.1.1
+- ycrdt-bom/0.1.5
+
+## 2026-04-21
+
 - ycrdt-core/0.1.3
 - yhocuspocus/0.1.1
 - ycrdt-bom/0.1.3
