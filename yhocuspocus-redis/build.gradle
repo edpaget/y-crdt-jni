@@ -42,7 +42,7 @@ dependencies {
     }
 
     // TestContainers for Redis integration testing
-    testImplementation 'org.testcontainers:testcontainers:2.0.4'
+    testImplementation 'org.testcontainers:testcontainers:2.0.5'
 
     // Jedis for testing both client options
     testImplementation 'redis.clients:jedis:7.4.1'

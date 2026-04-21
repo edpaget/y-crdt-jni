@@ -23,8 +23,8 @@ dependencies {
     api project(':yhocuspocus')
 
     // Spring WebSocket (provided by user's Spring Boot app)
-    compileOnly 'org.springframework:spring-websocket:7.0.6'
-    compileOnly 'org.springframework:spring-web:7.0.6'
+    compileOnly 'org.springframework:spring-websocket:7.0.7'
+    compileOnly 'org.springframework:spring-web:7.0.7'
     compileOnly 'org.springframework.boot:spring-boot-autoconfigure:4.0.5'
 
     // Servlet API (for WebSocket)
