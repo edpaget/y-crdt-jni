@@ -77,17 +77,9 @@ jobs:
             exit 1
           fi
 
-          # BOM releases must not pin any -SNAPSHOT constituent.
-          if [ "$module" = "ycrdt-bom" ]; then
-            for m in "${publishable_modules[@]}"; do
-              [ "$m" = "ycrdt-bom" ] && continue
-              v=$(awk -F= '/^version=/{print $2}' "${m}/version.properties" | tr -d '[:space:]')
-              if [[ "$v" == *-SNAPSHOT ]]; then
-                echo "::error::Cannot release ycrdt-bom while ${m} is still at ${v}; release ${m} first"
-                exit 1
-              fi
-            done
-          fi
+          # BOM pins constituents from the latest <module>/<version> tag
+          # (see ycrdt-bom/build.gradle). Modules without a release tag are
+          # skipped, so a single-module release can still publish the BOM.
 
           needs_native_jni=false
           needs_native_panama=false
@@ -143,6 +135,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # ycrdt-bom's build.gradle reads `git tag --list <module>/*` to pin
+          # constituent versions; without fetch-tags the clone has no tags.
+          fetch-tags: true
 
       - name: Setup Java
         uses: actions/setup-java@v5

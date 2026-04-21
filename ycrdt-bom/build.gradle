@@ -3,22 +3,30 @@ plugins {
     id 'com.vanniktech.maven.publish'
 }
 
-// Read each constituent module's version from its version.properties directly.
-// This makes the published BOM always pin every module — including ycrdt-panama,
-// which may not be in the Gradle project graph when -PskipPanama=true on JDK 21
-// hosts — without depending on whether the project is included in settings.gradle.
-def readModuleVersion = { module ->
-    def vf = file("${rootDir}/${module}/version.properties")
-    if (!vf.exists()) {
-        throw new GradleException("${module}/version.properties is missing; BOM cannot pin ${module}")
+// Pin each constituent module at its most recent <module>/<version> tag.
+// Reading version.properties directly doesn't work: post-release.yml restores
+// -SNAPSHOT as soon as a module publishes, so by the time release.yml runs for
+// ycrdt-bom, the constituent version.properties files no longer hold the
+// released versions. Git tags are the stable record of "what was released".
+//
+// Modules that have never been released (no matching tag) are skipped — the
+// BOM grows organically as modules get their first release.
+//
+// Requires the checkout to include tags (actions/checkout with fetch-tags: true
+// or fetch-depth: 0). Locally this is a no-op since clones have tags by default.
+def latestReleasedVersion = { module ->
+    def proc = ['git', '-C', rootDir.absolutePath,
+                'tag', '--list', "${module}/*",
+                '--sort=-version:refname'].execute()
+    proc.waitFor()
+    if (proc.exitValue() != 0) {
+        throw new GradleException("git tag --list ${module}/* failed: ${proc.err.text}")
     }
-    def props = new Properties()
-    vf.withInputStream { props.load(it) }
-    def v = props.getProperty('version')?.trim()
-    if (!v) {
-        throw new GradleException("${module}/version.properties is missing a 'version' entry")
-    }
-    return v
+    def tags = proc.in.text.split('\n').collect { it.trim() }.findAll { it }
+    def semver = tags.findAll { it.startsWith("${module}/") }
+                     .collect { it.substring(module.length() + 1) }
+                     .findAll { it =~ /^\d+\.\d+\.\d+$/ }
+    return semver.isEmpty() ? null : semver.first()
 }
 
 def publishableModulesFile = file("${rootDir}/publishable-modules.txt")
@@ -34,7 +42,13 @@ def publishableModules = publishableModulesFile
 dependencies {
     constraints {
         publishableModules.each { module ->
-            api "net.carcdr:${module}:${readModuleVersion(module)}"
+            def v = latestReleasedVersion(module)
+            if (v) {
+                api "net.carcdr:${module}:${v}"
+                logger.info("ycrdt-bom pins ${module}:${v}")
+            } else {
+                logger.info("ycrdt-bom skips ${module} (no release tag)")
+            }
         }
     }
 }
