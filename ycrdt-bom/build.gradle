@@ -3,32 +3,39 @@ plugins {
     id 'com.vanniktech.maven.publish'
 }
 
-// Read ycrdt-panama's version from its version.properties directly so the published
-// BOM always pins every module, even when built with -PskipPanama=true (JDK 21 hosts).
-def panamaVersion = {
-    def panamaVersionFile = file("${rootDir}/ycrdt-panama/version.properties")
-    if (!panamaVersionFile.exists()) {
-        throw new GradleException("ycrdt-panama/version.properties is missing; BOM cannot pin panama")
+// Read each constituent module's version from its version.properties directly.
+// This makes the published BOM always pin every module — including ycrdt-panama,
+// which may not be in the Gradle project graph when -PskipPanama=true on JDK 21
+// hosts — without depending on whether the project is included in settings.gradle.
+def readModuleVersion = { module ->
+    def vf = file("${rootDir}/${module}/version.properties")
+    if (!vf.exists()) {
+        throw new GradleException("${module}/version.properties is missing; BOM cannot pin ${module}")
     }
     def props = new Properties()
-    panamaVersionFile.withInputStream { props.load(it) }
+    vf.withInputStream { props.load(it) }
     def v = props.getProperty('version')?.trim()
     if (!v) {
-        throw new GradleException("ycrdt-panama/version.properties is missing a 'version' entry")
+        throw new GradleException("${module}/version.properties is missing a 'version' entry")
     }
     return v
-}()
+}
+
+def publishableModulesFile = file("${rootDir}/publishable-modules.txt")
+if (!publishableModulesFile.exists()) {
+    throw new GradleException("publishable-modules.txt is required at the repository root; BOM cannot enumerate constraints without it")
+}
+def publishableModules = publishableModulesFile
+    .readLines()
+    .collect { it.trim() }
+    .findAll { it && !it.startsWith('#') }
+    .findAll { it != 'ycrdt-bom' } // BOM does not constrain itself
 
 dependencies {
     constraints {
-        api project(':ycrdt-core')
-        api project(':ycrdt-jni')
-        api "net.carcdr:ycrdt-panama:${panamaVersion}"
-        api project(':yprosemirror')
-        api project(':yhocuspocus')
-        api project(':yhocuspocus-websocket')
-        api project(':yhocuspocus-spring-websocket')
-        api project(':yhocuspocus-redis')
+        publishableModules.each { module ->
+            api "net.carcdr:${module}:${readModuleVersion(module)}"
+        }
     }
 }
 

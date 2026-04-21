@@ -17,6 +17,9 @@ on:
           - patch
           - minor
           - major
+      # The release_* booleans below must match `publishable-modules.txt`
+      # (minus ycrdt-bom, which is always patch-bumped). A preflight check in
+      # this workflow verifies they stay in sync.
       release_ycrdt_core:
         description: "Release ycrdt-core"
         type: boolean
@@ -74,6 +77,44 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ github.ref }}
+
+      - name: Verify release_* inputs match publishable-modules.txt
+        run: |
+          set -euo pipefail
+          # Derive the expected release_* input names from the file (dropping
+          # ycrdt-bom, which is always patch-bumped rather than operator-chosen).
+          # Strip CR and trailing whitespace so a Windows-edited file still parses.
+          expected=$(
+            sed -e 's/\r$//' -e 's/[[:space:]]\+$//' publishable-modules.txt \
+              | grep -vE '^\s*(#|$)' \
+              | grep -v '^ycrdt-bom$' \
+              | sed 's/-/_/g; s/^/release_/' \
+              | sort
+          )
+
+          # Extract the declared inputs from this workflow file. Anchored to the
+          # 6-space indentation that YAML uses for the workflow_dispatch inputs
+          # block; keep that indentation stable or update the regex to match.
+          actual=$(
+            grep -oE '^ {6}release_[a-z_]+:' .github/workflows/prepare-release.yml \
+              | sed 's/^ *//; s/:$//' \
+              | sort -u
+          )
+
+          if [ -z "$actual" ]; then
+            echo "::error::No release_* inputs parsed from prepare-release.yml; has the YAML indentation changed?"
+            exit 1
+          fi
+
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::release_* inputs in prepare-release.yml don't match publishable-modules.txt"
+            echo "Expected:"
+            printf '  %s\n' "$expected"
+            echo "Actual:"
+            printf '  %s\n' "$actual"
+            exit 1
+          fi
+          echo "OK: ${actual//$'\n'/, }"
 
       - name: Configure git identity
         env:

@@ -1,0 +1,3 @@
+# Pin publishable-modules.txt to LF so bash readers in the workflows don't
+# see stray CR characters on a Windows-edited commit.
+publishable-modules.txt text eol=lf

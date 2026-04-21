@@ -48,10 +48,11 @@ jobs:
           module="${tag%/*}"
           version="${tag##*/}"
 
-          publishable_modules=(
-            ycrdt-core ycrdt-jni ycrdt-panama yprosemirror
-            yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis
-            ycrdt-bom
+          # Source of truth for publishable modules: publishable-modules.txt.
+          # Strip CR and trailing whitespace so a Windows-edited file still parses.
+          mapfile -t publishable_modules < <(
+            sed -e 's/\r$//' -e 's/[[:space:]]\+$//' publishable-modules.txt \
+              | grep -vE '^\s*(#|$)'
           )
           is_publishable=false
           for m in "${publishable_modules[@]}"; do
@@ -78,7 +79,8 @@ jobs:
 
           # BOM releases must not pin any -SNAPSHOT constituent.
           if [ "$module" = "ycrdt-bom" ]; then
-            for m in ycrdt-core ycrdt-jni ycrdt-panama yprosemirror yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis; do
+            for m in "${publishable_modules[@]}"; do
+              [ "$m" = "ycrdt-bom" ] && continue
               v=$(awk -F= '/^version=/{print $2}' "${m}/version.properties" | tr -d '[:space:]')
               if [[ "$v" == *-SNAPSHOT ]]; then
                 echo "::error::Cannot release ycrdt-bom while ${m} is still at ${v}; release ${m} first"

@@ -1,17 +1,28 @@
 rootProject.name = 'y-crdt-jni'
 
-include 'ycrdt-core'
-include 'ycrdt-jni'
-// Only include ycrdt-panama if not explicitly skipped (requires Java 22 toolchain)
-if (!hasProperty('skipPanama') || !skipPanama.toBoolean()) {
-    include 'ycrdt-panama'
+// Single source of truth: publishable-modules.txt lists every module that is
+// published to Maven Central and GitHub Packages. Non-publishable modules
+// (examples, benchmarks) are included explicitly below.
+def publishableModulesFile = new File(settingsDir, 'publishable-modules.txt')
+if (!publishableModulesFile.exists()) {
+    throw new GradleException("${publishableModulesFile.name} is required at the repository root.")
 }
-include 'yprosemirror'
-include 'yhocuspocus'
-include 'yhocuspocus-redis'
-include 'yhocuspocus-websocket'
-include 'yhocuspocus-spring-websocket'
-include 'ycrdt-bom'
+def publishableModules = publishableModulesFile
+    .readLines()
+    .collect { it.trim() }
+    .findAll { it && !it.startsWith('#') }
+
+// ycrdt-panama requires a Java 22 toolchain; allow opting out for Java 21 hosts.
+def skipPanamaFlag = hasProperty('skipPanama') && skipPanama.toBoolean()
+
+publishableModules.each { module ->
+    if (module == 'ycrdt-panama' && skipPanamaFlag) {
+        return
+    }
+    include module
+}
+
+// Non-publishable modules.
 include 'examples:fullstack:backend'
 include 'examples:spring-boot:backend'
 include 'ycrdt-benchmarks'

@@ -1,0 +1,18 @@
+# Source of truth for the set of modules published to Maven Central (and
+# GitHub Packages for snapshots). One module name per line. Blank lines and
+# lines starting with `#` are ignored. Order is not significant.
+#
+# Read by: settings.gradle, ycrdt-bom/build.gradle, and the three workflows
+# under .github/workflows/ (prepare-release.yml, release.yml, snapshot.yml).
+# When adding or removing a module, also update the release_* inputs in
+# prepare-release.yml — the drift check there will fail if they disagree.
+
+ycrdt-core
+ycrdt-jni
+ycrdt-panama
+yprosemirror
+yhocuspocus
+yhocuspocus-websocket
+yhocuspocus-spring-websocket
+yhocuspocus-redis
+ycrdt-bom

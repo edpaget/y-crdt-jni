@@ -37,10 +37,11 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          publishable_modules=(
-            ycrdt-core ycrdt-jni ycrdt-panama yprosemirror
-            yhocuspocus yhocuspocus-websocket yhocuspocus-spring-websocket yhocuspocus-redis
-            ycrdt-bom
+          # Source of truth for publishable modules: publishable-modules.txt.
+          # Strip CR and trailing whitespace so a Windows-edited file still parses.
+          mapfile -t publishable_modules < <(
+            sed -e 's/\r$//' -e 's/[[:space:]]\+$//' publishable-modules.txt \
+              | grep -vE '^\s*(#|$)'
           )
           should_publish=false
           artifacts=""
