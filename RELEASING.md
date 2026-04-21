@@ -116,6 +116,13 @@ ls ~/.m2/repository/net/carcdr/ycrdt-core/<version>/
 #   ...jar.asc, ...pom.asc, ...sources.jar.asc, ...javadoc.jar.asc
 ```
 
+Local dry-runs normally keep `version.properties` on `-SNAPSHOT`. If you hand-edit
+a module's `version.properties` to a concrete release version to inspect the
+released POM, the root `build.gradle` will rewrite any sibling `-SNAPSHOT` dep
+to the latest `<sibling>/<semver>` git tag. If no such tag exists (first-time
+release for the sibling), `publishToMavenLocal` fails with a message naming both
+modules — either release the sibling first, or restore `-SNAPSHOT` before re-running.
+
 ## Release flow (once the workflows are in place)
 
 Release workflows are added in later phases of the `maven-central-publishing` roadmap:
@@ -123,6 +130,27 @@ Release workflows are added in later phases of the `maven-central-publishing` ro
 - `prepare-release.yml` (phase 4): dispatchable from the Actions UI. Bumps `<module>/version.properties` for the modules you select, updates `ycrdt-bom`'s constraint versions, commits, and pushes `<module>/<version>` tags.
 - `release.yml` (phase 5): triggered by `<module>/<version>` tags. Builds native libraries for JNI/Panama modules, signs all artifacts, and publishes to Central.
 - `post-release.yml`: triggered by successful `release.yml` completion. For each released module, bumps the patch version and reattaches `-SNAPSHOT` in `<module>/version.properties`, then commits `chore(release): restore -SNAPSHOT for <module> (<new>)` to the default branch with the release App identity. This keeps each module ready for the next prepare-release dispatch without manual intervention.
+
+### Inter-module dep rewriting
+
+When a release publication is generated, the root `build.gradle` walks the POM
+and rewrites any `net.carcdr:*:*-SNAPSHOT` dep to the most recent
+`<artifact>/<semver>` git tag. This lets a downstream module (e.g. `ycrdt-jni`)
+be dispatched without also re-releasing an unchanged upstream (`ycrdt-core`): the
+published POM will pin `ycrdt-core` to its last released version rather than the
+`-SNAPSHOT` that `post-release.yml` restores after each release.
+
+If a downstream release is dispatched but its upstream has **no** `<module>/*`
+tag (the upstream has never been released), the build fails fast with an error
+naming both modules. The remedy is to include the upstream in the same
+`prepare-release.yml` dispatch — all tags pushed by a single dispatch are visible
+to every release.yml run it triggers, since each job checks out with
+`fetch-tags: true`.
+
+Gradle Module Metadata (`.module`) is disabled for release publications (kept
+for `-SNAPSHOT` publishes to GitHub Packages). Released artifacts rely on the
+POM alone for consumer resolution, which avoids GMM drifting from the rewritten
+POM dep versions.
 
 ### If post-release does not run
 

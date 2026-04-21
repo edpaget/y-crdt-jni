@@ -10,6 +10,27 @@ allprojects {
     version = findProperty('projectVersion') ?: '0.1.0-SNAPSHOT'
 }
 
+// Resolve the most recent <module>/<semver> git tag for a publishable module.
+// Returns the version string (e.g. "0.1.3") or null if no matching tag exists.
+// Used both by ycrdt-bom (to pin constituent versions) and by the release POM
+// rewriter below (to replace SNAPSHOT deps on sibling modules).
+// Requires the checkout to include tags (actions/checkout with fetch-tags: true);
+// locally this is a no-op since clones have tags by default.
+ext.latestReleasedVersion = { String module ->
+    def proc = ['git', '-C', rootProject.rootDir.absolutePath,
+                'tag', '--list', "${module}/*",
+                '--sort=-version:refname'].execute()
+    proc.waitFor()
+    if (proc.exitValue() != 0) {
+        throw new GradleException("git tag --list ${module}/* failed: ${proc.err.text}")
+    }
+    def tags = proc.in.text.split('\n').collect { it.trim() }.findAll { it }
+    def semver = tags.findAll { it.startsWith("${module}/") }
+                     .collect { it.substring(module.length() + 1) }
+                     .findAll { it =~ /^\d+\.\d+\.\d+$/ }
+    return semver.isEmpty() ? null : semver.first()
+}
+
 // Apply the Java library stack to every subproject except the BOM
 // (ycrdt-bom uses java-platform, which cannot coexist with java-library).
 configure(subprojects - project(':ycrdt-bom')) {
@@ -51,6 +72,62 @@ subprojects {
             // (passed via ORG_GRADLE_PROJECT_signingInMemoryKey* in CI).
             // It is a no-op locally for publishToMavenLocal.
             signAllPublications()
+        }
+
+        // For release publications, rewrite any net.carcdr:*:*-SNAPSHOT dep in
+        // the generated POM to the latest <module>/<semver> git tag. Fixes the
+        // case where a downstream module (e.g. ycrdt-jni) is released without
+        // its upstream (ycrdt-core) in the same dispatch: without this, the
+        // POM would pin a SNAPSHOT coord that Maven Central rejects.
+        //
+        // Snapshot publishes keep SNAPSHOT sibling deps (snapshot-to-snapshot
+        // is the correct resolution for GitHub Packages).
+        //
+        // Note: pom.withXml and the 'git tag' execute() below are not
+        // configuration-cache compatible. release.yml passes
+        // --no-configuration-cache, so this is not a regression — but a future
+        // CC-enable attempt needs to rework this block.
+        publishing.publications.withType(MavenPublication).configureEach { pub ->
+            pub.pom.withXml {
+                if (project.version.toString().endsWith('-SNAPSHOT')) {
+                    return
+                }
+                asNode().depthFirst()
+                    .findAll { it.name().localPart == 'dependency' }
+                    .each { dep ->
+                        def groupId = dep.groupId.text()
+                        def artifactId = dep.artifactId.text()
+                        def versionNode = dep.version.getAt(0)
+                        def versionStr = versionNode?.text()
+                        if (groupId == 'net.carcdr' && versionStr?.endsWith('-SNAPSHOT')) {
+                            def released = rootProject.latestReleasedVersion(artifactId)
+                            if (!released) {
+                                throw new GradleException(
+                                    "Cannot publish ${project.path}:${project.version} — its POM " +
+                                    "has a SNAPSHOT dep on ${artifactId} but no released " +
+                                    "<${artifactId}/*> tag exists. Release ${artifactId} first, " +
+                                    "or include it in the same prepare-release dispatch."
+                                )
+                            }
+                            versionNode.setValue(released)
+                            logger.lifecycle(
+                                "POM rewrite: ${project.path} dep ${artifactId}:${versionStr} -> ${released}"
+                            )
+                        }
+                    }
+            }
+        }
+    }
+
+    // Disable Gradle Module Metadata for release publications. GMM is
+    // auto-generated from the same dependency graph as the POM and would
+    // carry the same stale SNAPSHOT coords that pom.withXml fixes above; since
+    // Gradle consumers prefer GMM over the POM, leaving it enabled would
+    // defeat the rewrite. Scoped to java-library so ycrdt-bom (java-platform)
+    // keeps publishing metadata for consumers that rely on it.
+    plugins.withId('java-library') {
+        tasks.withType(GenerateModuleMetadata).configureEach {
+            enabled = project.version.toString().endsWith('-SNAPSHOT')
         }
     }
 

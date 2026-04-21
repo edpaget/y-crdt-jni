@@ -12,22 +12,8 @@ plugins {
 // Modules that have never been released (no matching tag) are skipped — the
 // BOM grows organically as modules get their first release.
 //
-// Requires the checkout to include tags (actions/checkout with fetch-tags: true
-// or fetch-depth: 0). Locally this is a no-op since clones have tags by default.
-def latestReleasedVersion = { module ->
-    def proc = ['git', '-C', rootDir.absolutePath,
-                'tag', '--list', "${module}/*",
-                '--sort=-version:refname'].execute()
-    proc.waitFor()
-    if (proc.exitValue() != 0) {
-        throw new GradleException("git tag --list ${module}/* failed: ${proc.err.text}")
-    }
-    def tags = proc.in.text.split('\n').collect { it.trim() }.findAll { it }
-    def semver = tags.findAll { it.startsWith("${module}/") }
-                     .collect { it.substring(module.length() + 1) }
-                     .findAll { it =~ /^\d+\.\d+\.\d+$/ }
-    return semver.isEmpty() ? null : semver.first()
-}
+// The latestReleasedVersion helper lives on rootProject.ext (see root build.gradle)
+// so the release-time POM rewriter can share the same tag lookup.
 
 def publishableModulesFile = file("${rootDir}/publishable-modules.txt")
 if (!publishableModulesFile.exists()) {
@@ -42,7 +28,7 @@ def publishableModules = publishableModulesFile
 dependencies {
     constraints {
         publishableModules.each { module ->
-            def v = latestReleasedVersion(module)
+            def v = rootProject.latestReleasedVersion(module)
             if (v) {
                 api "net.carcdr:${module}:${v}"
                 logger.info("ycrdt-bom pins ${module}:${v}")
