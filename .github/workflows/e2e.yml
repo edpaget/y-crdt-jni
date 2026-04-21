@@ -15,6 +15,16 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# Cancel superseded PR runs; let push-to-main and workflow_call runs finish.
+# Note: under workflow_call, ${{ github.workflow }} and ${{ github.ref }}
+# resolve to the CALLER (e.g. "Publish Snapshot" / main). The cancel-in-progress
+# guard intentionally returns false for non-PR events so snapshot.yml's
+# invocation is never cancelled mid-publish — if that guard is ever loosened,
+# scope the group to include github.event_name before doing so.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   e2e:
     name: E2E Tests (${{ matrix.backend }}/${{ matrix.binding }})
@@ -83,9 +93,26 @@ jobs:
         working-directory: examples/fullstack/e2e
         run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('examples/fullstack/e2e/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # On cache hit: only install the system apt deps (browser binary is
+      # already restored). On cache miss: install both.
+      - name: Install Playwright browsers (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: examples/fullstack/e2e
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: examples/fullstack/e2e
+        run: npx playwright install-deps chromium
 
       - name: Run E2E tests
         working-directory: examples/fullstack/e2e

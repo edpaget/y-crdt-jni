@@ -7,6 +7,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Cancel superseded PR runs; keep push-to-main runs to completion so
+# downstream publish workflows aren't truncated mid-matrix.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -29,11 +35,21 @@ jobs:
           toolchain: stable
           rust-src-dir: ycrdt-jni
 
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt-jni/target/
+          key: ${{ runner.os }}-cargo-test-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-rust-
+
       - name: Run Rust tests
         run: cd ycrdt-jni && cargo test --verbose
-
-      - name: Build Rust library (debug)
-        run: cd ycrdt-jni && cargo build --verbose
 
       - name: Build Rust library (release)
         run: cd ycrdt-jni && cargo build --release --verbose
