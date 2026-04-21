@@ -11,14 +11,6 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 - Release POMs now rewrite each `net.carcdr:*:*-SNAPSHOT` sibling dep to the latest `<module>/<semver>` git tag at publish time. A downstream module (e.g. `ycrdt-jni`) can be released without its upstream (`ycrdt-core`) in the same `prepare-release.yml` dispatch, as long as the upstream has at least one release tag. Releases fail fast with a named-module error if no upstream tag exists.
 - Gradle Module Metadata (`.module`) publication is disabled for release publications (kept for `-SNAPSHOT` publishes to GitHub Packages). Gradle consumers of released artifacts now resolve via the POM, which avoids GMM drifting from the rewritten POM dep versions.
 
-## 2026-04-21 — natives release
-
-### Added
-
-- `net.carcdr:ycrdt-jni:0.1.1` — first Maven Central release of the JNI binding. Native libraries bundled for linux/x86_64, macos/aarch64, windows/x86_64.
-- `net.carcdr:ycrdt-panama:0.1.1` — first Maven Central release of the Panama/FFM binding. Native libraries bundled for linux/x86_64, macos/aarch64.
-- `net.carcdr:ycrdt-bom:0.1.5` — BOM now also pins `ycrdt-jni:0.1.1` and `ycrdt-panama:0.1.1`.
-
 ## 2026-04-21 — multi-module release
 
 ### Added
