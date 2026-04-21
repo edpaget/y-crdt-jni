@@ -177,6 +177,40 @@ jobs:
           find downloaded-artifacts -path "*native-lib-panama*" -name "*.dylib" -exec cp {} ycrdt-panama/src/main/resources/native/macos/aarch64/ \;
           find ycrdt-panama/src/main/resources/native -type f
 
+      # Cargo cache for the check step. ycrdt-jni's buildRustLibrary and testRust
+      # normally skip when a host-staged native lib is present (see build.gradle),
+      # but the cache is kept as a safety net and to accelerate any future task
+      # that invokes cargo on the release runner. Key matches build-native.yml's
+      # Linux/x86_64 entry so the cache populated by this release's native matrix
+      # run is reusable.
+      - name: Cache Cargo (ycrdt-jni)
+        if: needs.parse-tag.outputs.needs_native_jni == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt-jni/target/
+          key: ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-
+
+      - name: Cache Cargo (ycrdt-panama)
+        if: needs.parse-tag.outputs.needs_native_panama == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            build/y-crdt/
+          key: ${{ runner.os }}-x86_64-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-x86_64-cargo-yffi-
+
       - name: Verify module builds and tests
         run: ./gradlew ":${MODULE}:check"
 

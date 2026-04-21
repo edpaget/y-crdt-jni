@@ -67,9 +67,34 @@ task buildYffi(type: Exec) {
     // Declare outputs so Gradle can skip if up-to-date
     outputs.file(nativeLibFile)
 
-    // Skip if the library already exists (e.g., built by CI before Gradle runs)
+    // release.yml stages prebuilt libs under src/main/resources/native/<os>/<arch>/
+    // from the cross-platform build-native.yml matrix. Detect either staging
+    // location to skip a redundant rebuild (cargo redownload + compile).
+    def rawArch = System.getProperty("os.arch").toLowerCase()
+    def osArch
+    if (rawArch.contains("amd64") || rawArch.contains("x86_64")) {
+        osArch = 'x86_64'
+    } else if (rawArch.contains("aarch64") || rawArch.contains("arm64")) {
+        osArch = 'aarch64'
+    } else {
+        osArch = rawArch
+    }
+    def osName
+    if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
+        osName = 'linux'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+        osName = 'macos'
+    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        osName = 'windows'
+    } else {
+        osName = 'linux'
+    }
+    def stagedLibFile = file("${project.projectDir}/src/main/resources/native/${osName}/${osArch}/${libName}")
+
+    // Skip if a lib is present at either the legacy build-dir location
+    // (build-yffi.sh's output) or the release.yml staging path.
     onlyIf {
-        !nativeLibFile.exists()
+        !nativeLibFile.exists() && !stagedLibFile.exists()
     }
 
     // On Windows, use Git Bash explicitly instead of WSL bash

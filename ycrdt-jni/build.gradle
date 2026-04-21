@@ -39,6 +39,36 @@ test {
     }
 }
 
+// Host-platform identifiers for the pre-staged native lib layout under
+// src/main/resources/native/<os>/<arch>/. release.yml copies prebuilt libraries
+// there from the cross-platform build-native.yml matrix before invoking
+// ":ycrdt-jni:check", and this closure lets downstream tasks detect that
+// layout and skip redundant Rust work.
+def hostStagedLib = { ->
+    def osName
+    def libName
+    def os = org.gradle.internal.os.OperatingSystem.current()
+    if (os.isLinux()) {
+        osName = 'linux'; libName = 'libycrdt_jni.so'
+    } else if (os.isMacOsX()) {
+        osName = 'macos'; libName = 'libycrdt_jni.dylib'
+    } else if (os.isWindows()) {
+        osName = 'windows'; libName = 'ycrdt_jni.dll'
+    } else {
+        return null
+    }
+    def rawArch = System.getProperty("os.arch").toLowerCase()
+    def osArch
+    if (rawArch.contains("amd64") || rawArch.contains("x86_64")) {
+        osArch = 'x86_64'
+    } else if (rawArch.contains("aarch64") || rawArch.contains("arm64")) {
+        osArch = 'aarch64'
+    } else {
+        return null
+    }
+    return file("${project.projectDir}/src/main/resources/native/${osName}/${osArch}/${libName}")
+}
+
 // Task to build the Rust library
 task buildRustLibrary(type: Exec) {
     group = 'build'
@@ -46,6 +76,13 @@ task buildRustLibrary(type: Exec) {
 
     workingDir project.projectDir
     commandLine 'cargo', 'build', '--release'
+
+    // Skip when CI has already staged a host-platform native lib (release.yml
+    // path). Locally, the staging dir is usually empty so cargo runs as normal.
+    onlyIf {
+        def staged = hostStagedLib()
+        staged == null || !staged.exists()
+    }
 
     doLast {
         println "Rust library built successfully"
@@ -108,6 +145,15 @@ task testRust(type: Exec) {
     description = 'Runs Rust tests'
     workingDir project.projectDir
     commandLine 'cargo', 'test'
+
+    // In release.yml the bump commit only touches version.properties + CHANGELOG;
+    // Rust sources are unchanged from the prior ci.yml run that already passed
+    // cargo test. Skipping here when a host-staged lib is present avoids a
+    // redundant re-download + recompile of crates.io deps on every release.
+    onlyIf {
+        def staged = hostStagedLib()
+        staged == null || !staged.exists()
+    }
 }
 
 test.dependsOn testRust
