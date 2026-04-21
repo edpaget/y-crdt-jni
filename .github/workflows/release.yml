@@ -106,114 +106,20 @@ jobs:
           echo "Needs Panama natives: ${needs_native_panama}"
 
   build-native-jni:
-    name: Build JNI native (${{ matrix.os }} - ${{ matrix.arch }})
+    name: Build JNI native
     needs: parse-tag
     if: needs.parse-tag.outputs.needs_native_jni == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64
-            target: x86_64-unknown-linux-gnu
-            lib_name: libycrdt_jni.so
-            resource_path: native/linux/x86_64
-          - os: macos-latest
-            arch: aarch64
-            target: aarch64-apple-darwin
-            lib_name: libycrdt_jni.dylib
-            resource_path: native/macos/aarch64
-          - os: windows-latest
-            arch: x86_64
-            target: x86_64-pc-windows-msvc
-            lib_name: ycrdt_jni.dll
-            resource_path: native/windows/x86_64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-
-      - name: Cache Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ycrdt-jni/target/
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-
-
-      - name: Build release library
-        run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
-
-      - name: Upload native library artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-lib-jni-${{ matrix.os }}-${{ matrix.arch }}
-          path: ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
-          retention-days: 1
+    uses: ./.github/workflows/build-native.yml
+    with:
+      kind: jni
 
   build-native-panama:
-    name: Build Panama native (${{ matrix.os }} - ${{ matrix.arch }})
+    name: Build Panama native
     needs: parse-tag
     if: needs.parse-tag.outputs.needs_native_panama == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64
-            lib_name: libyrs.so
-            resource_path: native/linux/x86_64
-          - os: macos-latest
-            arch: aarch64
-            lib_name: libyrs.dylib
-            resource_path: native/macos/aarch64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            build/y-crdt/
-          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-
-
-      - name: Build yffi native library
-        run: |
-          chmod +x scripts/build-yffi.sh
-          bash scripts/build-yffi.sh
-
-      - name: Upload native library artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-lib-panama-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/native/${{ matrix.lib_name }}
-          retention-days: 1
+    uses: ./.github/workflows/build-native.yml
+    with:
+      kind: panama
 
   publish:
     name: Publish to Maven Central

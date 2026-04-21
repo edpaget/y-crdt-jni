@@ -1,0 +1,156 @@
+name: Build Native Library
+
+# Reusable workflow invoked by snapshot.yml and release.yml.
+#
+# Contract:
+#   input.kind = "jni" | "panama" (required). Invalid values fail fast via the
+#   validate-kind job; valid values gate exactly one build-* job.
+#
+# JNI matrix:    ubuntu x86_64 / macos aarch64 / windows x86_64
+# Panama matrix: ubuntu x86_64 / macos aarch64
+#
+# Cache keys:
+#   JNI:    ${runner.os}-${matrix.target}-cargo-${hash('**/Cargo.lock')}
+#   Panama: ${runner.os}-${matrix.arch}-cargo-yffi-${hash('**/Cargo.lock')}
+#
+# Artifacts (retention: 1 day): one per matrix entry, named
+#   native-lib-<kind>-<os>-<arch>
+# Downstream publish jobs locate files inside via
+#   find -name "*.so|*.dylib|*.dll".
+
+on:
+  workflow_call:
+    inputs:
+      kind:
+        description: 'Native library kind: "jni" or "panama"'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate-kind:
+    name: Validate input
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check kind
+        env:
+          KIND: ${{ inputs.kind }}
+        run: |
+          case "$KIND" in
+            jni|panama) ;;
+            *)
+              echo "::error::Invalid kind '$KIND'; expected 'jni' or 'panama'"
+              exit 1
+              ;;
+          esac
+
+  build-jni:
+    needs: validate-kind
+    if: inputs.kind == 'jni'
+    name: Build JNI native (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            lib_name: libycrdt_jni.so
+          - os: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+            lib_name: libycrdt_jni.dylib
+          - os: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+            lib_name: ycrdt_jni.dll
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ycrdt-jni/target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build release library
+        run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-lib-jni-${{ matrix.os }}-${{ matrix.arch }}
+          path: ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }}
+          retention-days: 1
+
+  build-panama:
+    needs: validate-kind
+    if: inputs.kind == 'panama'
+    name: Build Panama native (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            lib_name: libyrs.so
+          - os: macos-latest
+            arch: aarch64
+            lib_name: libyrs.dylib
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            build/y-crdt/
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-
+
+      - name: Build yffi native library
+        run: |
+          chmod +x scripts/build-yffi.sh
+          bash scripts/build-yffi.sh
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-lib-panama-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/native/${{ matrix.lib_name }}
+          retention-days: 1

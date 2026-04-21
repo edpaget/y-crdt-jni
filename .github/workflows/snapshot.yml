@@ -71,143 +71,27 @@ jobs:
     if: needs.preflight.outputs.should_publish == 'true'
     uses: ./.github/workflows/e2e.yml
 
-  build-native-libraries-jni:
-    name: Build JNI Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+  build-native-jni:
+    name: Build JNI native
     needs: preflight
     if: needs.preflight.outputs.should_publish == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64
-            target: x86_64-unknown-linux-gnu
-            lib_name: libycrdt_jni.so
-            resource_path: native/linux/x86_64
+    uses: ./.github/workflows/build-native.yml
+    with:
+      kind: jni
 
-          - os: macos-latest
-            arch: aarch64
-            target: aarch64-apple-darwin
-            lib_name: libycrdt_jni.dylib
-            resource_path: native/macos/aarch64
-
-          - os: windows-latest
-            arch: x86_64
-            target: x86_64-pc-windows-msvc
-            lib_name: ycrdt_jni.dll
-            resource_path: native/windows/x86_64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-
-      - name: Cache Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ycrdt-jni/target/
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-
-
-      - name: Build release library
-        run: cd ycrdt-jni && cargo build --release --target ${{ matrix.target }}
-
-      - name: Create resource directory
-        run: mkdir -p build/resources/${{ matrix.resource_path }}
-
-      - name: Copy native library (Unix)
-        if: runner.os != 'Windows'
-        run: cp ycrdt-jni/target/${{ matrix.target }}/release/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
-
-      - name: Copy native library (Windows)
-        if: runner.os == 'Windows'
-        run: Copy-Item ycrdt-jni\target\${{ matrix.target }}\release\${{ matrix.lib_name }} build\resources\${{ matrix.resource_path }}\
-
-      - name: Upload native library artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-lib-jni-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
-          retention-days: 1
-
-  build-native-libraries-panama:
-    name: Build Panama Native Library (${{ matrix.os }} - ${{ matrix.arch }})
+  build-native-panama:
+    name: Build Panama native
     needs: preflight
     if: needs.preflight.outputs.should_publish == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64
-            lib_name: libyrs.so
-            resource_path: native/linux/x86_64
-
-          - os: macos-latest
-            arch: aarch64
-            lib_name: libyrs.dylib
-            resource_path: native/macos/aarch64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            build/y-crdt/
-          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-cargo-yffi-
-
-      - name: Build yffi native library
-        run: |
-          chmod +x scripts/build-yffi.sh
-          bash scripts/build-yffi.sh
-
-      - name: Create resource directory
-        run: mkdir -p build/resources/${{ matrix.resource_path }}
-
-      - name: Copy native library
-        run: cp build/native/${{ matrix.lib_name }} build/resources/${{ matrix.resource_path }}/
-
-      - name: Upload native library artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-lib-panama-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/resources/${{ matrix.resource_path }}/${{ matrix.lib_name }}
-          retention-days: 1
+    uses: ./.github/workflows/build-native.yml
+    with:
+      kind: panama
 
   publish-snapshot:
     name: Publish Snapshot to GitHub Packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [preflight, e2e-tests, build-native-libraries-jni, build-native-libraries-panama]
+    needs: [preflight, e2e-tests, build-native-jni, build-native-panama]
     if: needs.preflight.outputs.should_publish == 'true'
     permissions:
       contents: read
