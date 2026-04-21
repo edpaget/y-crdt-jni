@@ -33,16 +33,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Generate Javadoc for all modules (excluding Panama)
-        run: ./gradlew javadoc -PskipPanama=true
+      - name: Generate Javadoc for all modules
+        run: ./gradlew javadoc
 
       - name: Create documentation directory structure
         run: |
           mkdir -p docs-site
           mkdir -p docs-site/ycrdt-core
           mkdir -p docs-site/ycrdt-jni
+          mkdir -p docs-site/ycrdt-panama
           mkdir -p docs-site/yprosemirror
           mkdir -p docs-site/yhocuspocus
+          mkdir -p docs-site/yhocuspocus-redis
           mkdir -p docs-site/yhocuspocus-websocket
           mkdir -p docs-site/yhocuspocus-spring-websocket
 
@@ -50,8 +52,10 @@ jobs:
         run: |
           cp -r ycrdt-core/build/docs/javadoc/* docs-site/ycrdt-core/
           cp -r ycrdt-jni/build/docs/javadoc/* docs-site/ycrdt-jni/
+          cp -r ycrdt-panama/build/docs/javadoc/* docs-site/ycrdt-panama/
           cp -r yprosemirror/build/docs/javadoc/* docs-site/yprosemirror/
           cp -r yhocuspocus/build/docs/javadoc/* docs-site/yhocuspocus/
+          cp -r yhocuspocus-redis/build/docs/javadoc/* docs-site/yhocuspocus-redis/
           cp -r yhocuspocus-websocket/build/docs/javadoc/* docs-site/yhocuspocus-websocket/
           cp -r yhocuspocus-spring-websocket/build/docs/javadoc/* docs-site/yhocuspocus-spring-websocket/
 
@@ -132,6 +136,12 @@ jobs:
             </div>
 
             <div class="module">
+              <h2>ycrdt-panama</h2>
+              <p>Panama FFM-based Y-CRDT bindings (Java 22+). Alternative to ycrdt-jni using the Foreign Function &amp; Memory API.</p>
+              <a href="ycrdt-panama/index.html">View Javadoc</a>
+            </div>
+
+            <div class="module">
               <h2>yprosemirror</h2>
               <p>ProseMirror integration providing bidirectional sync between ProseMirror documents and Y-CRDT.</p>
               <a href="yprosemirror/index.html">View Javadoc</a>
@@ -141,6 +151,12 @@ jobs:
               <h2>yhocuspocus</h2>
               <p>Transport-agnostic collaborative editing server for Y-CRDT synchronization.</p>
               <a href="yhocuspocus/index.html">View Javadoc</a>
+            </div>
+
+            <div class="module">
+              <h2>yhocuspocus-redis</h2>
+              <p>Redis pub/sub extension for yhocuspocus enabling horizontal scaling across multiple server instances.</p>
+              <a href="yhocuspocus-redis/index.html">View Javadoc</a>
             </div>
 
             <div class="module">
