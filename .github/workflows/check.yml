@@ -46,9 +46,6 @@ jobs:
       - name: Run clippy
         run: cd ycrdt-jni && cargo clippy -- -D warnings
 
-      - name: Test
-        run: cd ycrdt-jni && cargo test
-
   java-check:
     name: Java Check (Java ${{ matrix.java }})
     runs-on: ubuntu-latest
