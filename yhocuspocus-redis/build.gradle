@@ -48,12 +48,6 @@ dependencies {
     testImplementation 'redis.clients:jedis:7.4.1'
 }
 
-// Checkstyle configuration
-checkstyle {
-    toolVersion = '10.12.5'
-    configFile = file('../config/checkstyle/checkstyle.xml')
-}
-
 // Test configuration
 test {
     testLogging {
