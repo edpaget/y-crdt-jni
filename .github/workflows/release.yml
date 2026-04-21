@@ -114,6 +114,7 @@ jobs:
     uses: ./.github/workflows/build-native.yml
     with:
       kind: jni
+      fail_fast: true
 
   build-native-panama:
     name: Build Panama native
@@ -122,6 +123,7 @@ jobs:
     uses: ./.github/workflows/build-native.yml
     with:
       kind: panama
+      fail_fast: true
 
   publish:
     name: Publish to Maven Central

@@ -25,6 +25,11 @@ on:
         description: 'Native library kind: "jni" or "panama"'
         type: string
         required: true
+      fail_fast:
+        description: 'Abort remaining matrix entries on first failure'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -57,7 +62,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
-      fail-fast: false
+      fail-fast: ${{ inputs.fail_fast }}
       matrix:
         include:
           - os: ubuntu-latest
@@ -112,7 +117,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
-      fail-fast: false
+      fail-fast: ${{ inputs.fail_fast }}
       matrix:
         include:
           - os: ubuntu-latest
