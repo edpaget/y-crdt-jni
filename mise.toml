@@ -2,3 +2,6 @@
 java = "temurin-22"
 rust = "1.92.0"
 node = "24.12.0"
+
+[env]
+RDM_PROJECT = "y-crdt-jni"
