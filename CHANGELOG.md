@@ -18,6 +18,18 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 
 ## 2026-04-22
 
+- ycrdt-core/0.2.0
+- ycrdt-jni/0.2.0
+- ycrdt-panama/0.2.0
+- yprosemirror/0.2.0
+- yhocuspocus/0.2.0
+- yhocuspocus-websocket/0.2.0
+- yhocuspocus-spring-websocket/0.2.0
+- yhocuspocus-redis/0.2.0
+- ycrdt-bom/0.1.15
+
+## 2026-04-22
+
 - yprosemirror/0.1.3
 - ycrdt-bom/0.1.13
 
