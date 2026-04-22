@@ -13,6 +13,11 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 
 ## 2026-04-22
 
+- yprosemirror/0.1.1
+- ycrdt-bom/0.1.11
+
+## 2026-04-22
+
 - yhocuspocus-websocket/0.1.1
 - yhocuspocus-spring-websocket/0.1.1
 - yhocuspocus-redis/0.1.1
