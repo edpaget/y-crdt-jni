@@ -60,14 +60,41 @@ jobs:
     needs: test-rust
     strategy:
       fail-fast: false
+      # Coverage intent:
+      # - All three OSes run Java 22 + JNI — these are also the phase-4
+      #   native-artifact producer cells for build-jar.
+      # - Ubuntu carries the full Java × binding sub-matrix so
+      #   Java-version-specific and Panama-specific regressions surface
+      #   on the cheapest runner.
+      # - macOS adds Panama at Java 22 to exercise FFM on Darwin.
+      # - Windows stays JNI-only to match build-native.yml (no Panama
+      #   on Windows target).
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        java: ['21', '22', '24']
-        binding: [jni, panama]
-        exclude:
-          # Panama requires Java 22+
-          - java: '21'
+        include:
+          - os: ubuntu-latest
+            java: '21'
+            binding: jni
+          - os: ubuntu-latest
+            java: '22'
+            binding: jni
+          - os: ubuntu-latest
+            java: '22'
             binding: panama
+          - os: ubuntu-latest
+            java: '24'
+            binding: jni
+          - os: ubuntu-latest
+            java: '24'
+            binding: panama
+          - os: macos-latest
+            java: '22'
+            binding: jni
+          - os: macos-latest
+            java: '22'
+            binding: panama
+          - os: windows-latest
+            java: '22'
+            binding: jni
 
     steps:
       - name: Checkout code
