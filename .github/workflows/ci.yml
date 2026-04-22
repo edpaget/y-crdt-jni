@@ -214,7 +214,9 @@ jobs:
             ${{ runner.os }}-aarch64-unknown-linux-gnu-cargo-
 
       - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross --force
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
 
       - name: Build release library (cross-compiled)
         run: cd ycrdt-jni && cross build --release --target aarch64-unknown-linux-gnu
