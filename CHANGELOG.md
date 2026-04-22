@@ -13,6 +13,11 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 
 ## 2026-04-22
 
+- yprosemirror/0.1.3
+- ycrdt-bom/0.1.13
+
+## 2026-04-22
+
 - yprosemirror/0.1.1
 - ycrdt-bom/0.1.11
 
