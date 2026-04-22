@@ -93,7 +93,7 @@ subprojects {
                     return
                 }
                 asNode().depthFirst()
-                    .findAll { it.name().localPart == 'dependency' }
+                    .findAll { it instanceof Node && it.name().localPart == 'dependency' }
                     .each { dep ->
                         def groupId = dep.groupId.text()
                         def artifactId = dep.artifactId.text()
