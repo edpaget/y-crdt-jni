@@ -11,6 +11,11 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 - Release POMs now rewrite each `net.carcdr:*:*-SNAPSHOT` sibling dep to the latest `<module>/<semver>` git tag at publish time. A downstream module (e.g. `ycrdt-jni`) can be released without its upstream (`ycrdt-core`) in the same `prepare-release.yml` dispatch, as long as the upstream has at least one release tag. Releases fail fast with a named-module error if no upstream tag exists.
 - Gradle Module Metadata (`.module`) publication is disabled for release publications (kept for `-SNAPSHOT` publishes to GitHub Packages). Gradle consumers of released artifacts now resolve via the POM, which avoids GMM drifting from the rewritten POM dep versions.
 
+### Fixed
+
+- Released POM `<license>` metadata now declares Apache License 2.0, matching the project's `LICENSE` file and every module README. Previous releases advertised GPLv3 in POM metadata due to stale `gradle.properties` defaults; already-published artifacts on Maven Central are immutable and must be superseded by new releases.
+- Root `build.gradle` POM `withXml` SNAPSHOT-rewrite filters `depthFirst()` results to `Node` instances before invoking `.name()`. Under Gradle 9.4.1 (Groovy 4) the traversal can emit bare `String` characters when a leaf element's text is stored as a raw `String`, which caused `generatePomFileForMavenPublication` to abort on POMs with multiple dependency coordinate groups (e.g. `yprosemirror/0.1.1`).
+
 ## 2026-04-22
 
 - yprosemirror/0.1.3
