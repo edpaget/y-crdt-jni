@@ -25,36 +25,50 @@ public interface YXmlElement extends YXmlNode, AutoCloseable {
     /**
      * Gets an attribute value.
      *
+     * <p>Returns the attribute value with its original type. Supported return
+     * types are {@link String}, {@link Long}, {@link Double}, {@link Boolean},
+     * or {@code null} if the attribute is not present or was stored as null.
+     *
      * @param name the attribute name
-     * @return the attribute value, or null if not present
+     * @return the attribute value, or {@code null} if not present
      */
-    String getAttribute(String name);
+    Object getAttribute(String name);
 
     /**
      * Gets an attribute value within a transaction.
      *
      * @param txn the transaction
      * @param name the attribute name
-     * @return the attribute value, or null if not present
+     * @return the attribute value, or {@code null} if not present
+     * @see #getAttribute(String)
      */
-    String getAttribute(YTransaction txn, String name);
+    Object getAttribute(YTransaction txn, String name);
 
     /**
      * Sets an attribute value.
      *
+     * <p>Supported value types are {@link String}, {@link Long},
+     * {@link Integer}, {@link Double}, {@link Float}, {@link Boolean},
+     * or {@code null}. {@code Integer} and {@code Float} are widened to
+     * {@code Long} and {@code Double} respectively when stored, so they
+     * round-trip through {@link #getAttribute(String)} as the wider type.
+     *
      * @param name the attribute name
-     * @param value the attribute value
+     * @param value the attribute value (may be {@code null})
+     * @throws IllegalArgumentException if {@code value} is not a supported type
      */
-    void setAttribute(String name, String value);
+    void setAttribute(String name, Object value);
 
     /**
      * Sets an attribute value within a transaction.
      *
      * @param txn the transaction
      * @param name the attribute name
-     * @param value the attribute value
+     * @param value the attribute value (may be {@code null})
+     * @throws IllegalArgumentException if {@code value} is not a supported type
+     * @see #setAttribute(String, Object)
      */
-    void setAttribute(YTransaction txn, String name, String value);
+    void setAttribute(YTransaction txn, String name, Object value);
 
     /**
      * Removes an attribute.

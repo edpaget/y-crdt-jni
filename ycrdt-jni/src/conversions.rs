@@ -4,7 +4,7 @@
 //! and Java objects via JNI. These are consolidated here to avoid duplication
 //! across the various type modules.
 
-use jni::objects::{JObject, JValue};
+use jni::objects::{JObject, JString, JValue};
 use jni::JNIEnv;
 use yrs::types::Attrs;
 use yrs::{Any, Out};
@@ -22,6 +22,7 @@ pub fn any_to_jobject<'local>(
     value: &Any,
 ) -> Result<JObject<'local>, jni::errors::Error> {
     match value {
+        Any::Null | Any::Undefined => Ok(JObject::null()),
         Any::String(s) => {
             let jstr = env.new_string(s.as_ref())?;
             Ok(jstr.into())
@@ -46,7 +47,7 @@ pub fn any_to_jobject<'local>(
             Ok(obj)
         }
         _ => {
-            // For other types, convert to string
+            // For other types (Buffer, Array, Map), convert to string as a fallback.
             let s = value.to_string();
             let jstr = env.new_string(&s)?;
             Ok(jstr.into())
@@ -82,6 +83,65 @@ pub fn out_to_jobject<'local>(
             Ok(jstr.into())
         }
     }
+}
+
+/// Failure modes for [`jobject_to_any`].
+#[derive(Debug)]
+pub enum AnyConversionError {
+    /// The Java value's class is not one of the supported attribute types.
+    Unsupported(String),
+    /// A JNI call failed while inspecting or unboxing the value.
+    Jni(jni::errors::Error),
+}
+
+impl From<jni::errors::Error> for AnyConversionError {
+    fn from(e: jni::errors::Error) -> Self {
+        AnyConversionError::Jni(e)
+    }
+}
+
+/// Convert a Java `JObject` to a `yrs::Any`.
+///
+/// Supported Java classes: `String`, `Long`, `Integer`, `Double`, `Float`,
+/// `Boolean`, and `null`. `Integer` widens to `Any::BigInt`; `Float` widens to
+/// `Any::Number`. Any other class returns
+/// `Err(AnyConversionError::Unsupported(class_name))`.
+pub fn jobject_to_any(env: &mut JNIEnv, value: &JObject) -> Result<Any, AnyConversionError> {
+    if value.is_null() {
+        return Ok(Any::Null);
+    }
+
+    if env.is_instance_of(value, "java/lang/String")? {
+        let jstr = JString::from(unsafe { JObject::from_raw(value.as_raw()) });
+        let rust_str: String = env.get_string(&jstr)?.into();
+        return Ok(Any::String(rust_str.into()));
+    }
+
+    if env.is_instance_of(value, "java/lang/Boolean")? {
+        let b = env.call_method(value, "booleanValue", "()Z", &[])?.z()?;
+        return Ok(Any::Bool(b));
+    }
+
+    if env.is_instance_of(value, "java/lang/Long")?
+        || env.is_instance_of(value, "java/lang/Integer")?
+    {
+        let n = env.call_method(value, "longValue", "()J", &[])?.j()?;
+        return Ok(Any::BigInt(n));
+    }
+
+    if env.is_instance_of(value, "java/lang/Double")?
+        || env.is_instance_of(value, "java/lang/Float")?
+    {
+        let n = env.call_method(value, "doubleValue", "()D", &[])?.d()?;
+        return Ok(Any::Number(n));
+    }
+
+    // Fetch the concrete class name for the error message.
+    let class = env.get_object_class(value)?;
+    let name_val = env.call_method(&class, "getName", "()Ljava/lang/String;", &[])?;
+    let name_obj = name_val.l()?;
+    let class_name: String = env.get_string(&JString::from(name_obj))?.into();
+    Err(AnyConversionError::Unsupported(class_name))
 }
 
 /// Create a Java HashMap from yrs Attrs.

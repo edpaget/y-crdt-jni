@@ -271,4 +271,41 @@ public class ConversionTest {
             text2.close();
         }
     }
+
+    /**
+     * Tests that non-string attribute values survive the typed accessor round-trip.
+     *
+     * <p>Non-string YXml attributes (numbers, booleans, null) are used by
+     * JS clients (e.g. Tiptap/y-prosemirror) as node attrs. The Java side must
+     * preserve these types end-to-end rather than silently stringifying or
+     * dropping them.
+     */
+    @Test
+    public void testTypedAttributesPreserved() {
+        try (YXmlFragment fragment = ydoc.getXmlFragment("prosemirror")) {
+            fragment.insertElement(0, "heading");
+            YXmlElement heading = fragment.getElement(0);
+
+            heading.setAttribute("level", 1L);
+            heading.setAttribute("draft", true);
+            heading.setAttribute("weight", 1.5);
+            heading.setAttribute("slug", "intro");
+
+            Object level = heading.getAttribute("level");
+            Object draft = heading.getAttribute("draft");
+            Object weight = heading.getAttribute("weight");
+            Object slug = heading.getAttribute("slug");
+
+            assertTrue("Level should be a Long", level instanceof Long);
+            assertEquals("Level value should match", 1L, level);
+            assertTrue("Draft should be a Boolean", draft instanceof Boolean);
+            assertEquals("Draft value should match", Boolean.TRUE, draft);
+            assertTrue("Weight should be a Double", weight instanceof Double);
+            assertEquals("Weight value should match", 1.5, (Double) weight, 0.0);
+            assertTrue("Slug should be a String", slug instanceof String);
+            assertEquals("Slug value should match", "intro", slug);
+
+            heading.close();
+        }
+    }
 }

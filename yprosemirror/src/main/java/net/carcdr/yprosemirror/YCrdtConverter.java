@@ -308,7 +308,7 @@ public final class YCrdtConverter {
         String[] attrNames = yElement.getAttributeNames();
         if (attrNames != null) {
             for (String name : attrNames) {
-                String value = yElement.getAttribute(name);
+                Object value = yElement.getAttribute(name);
                 if (value != null) {
                     attrs.put(name, value);
                 }

@@ -135,7 +135,7 @@ public class YXmlBenchmark {
      * Benchmark: Get attribute from element.
      */
     @Benchmark
-    public String getAttribute(ElementState state) {
+    public Object getAttribute(ElementState state) {
         return state.element.getAttribute("class");
     }
 

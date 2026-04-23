@@ -1,10 +1,10 @@
 use crate::{
-    free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw, get_string_or_throw,
-    out_to_jobject, throw_exception, to_java_ptr, to_jstring, DocPtr, DocWrapper, JniEnvExt,
-    TxnPtr, XmlElementPtr,
+    any_to_jobject, free_if_valid, from_java_ptr, get_mut_or_throw, get_ref_or_throw,
+    get_string_or_throw, jobject_to_any, out_to_jobject, throw_exception, to_java_ptr, to_jstring,
+    AnyConversionError, DocPtr, DocWrapper, JniEnvExt, TxnPtr, XmlElementPtr,
 };
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jlong, jstring};
+use jni::sys::{jlong, jobject, jstring};
 use jni::{Executor, JNIEnv};
 use std::sync::Arc;
 use yrs::types::xml::XmlEvent;
@@ -119,7 +119,8 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeGetTagWith
 /// - `name`: The attribute name
 ///
 /// # Returns
-/// The attribute value as a Java string, or null if not found
+/// The attribute value as a boxed Java object (String, Long, Double, Boolean,
+/// or null for absent or null-valued attributes).
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeGetAttributeWithTxn(
     mut env: JNIEnv,
@@ -128,7 +129,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeGetAttribu
     xml_element_ptr: jlong,
     txn_ptr: jlong,
     name: JString,
-) -> jstring {
+) -> jobject {
     let _doc = get_ref_or_throw!(
         &mut env,
         DocPtr::from_raw(doc_ptr),
@@ -150,8 +151,19 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeGetAttribu
     let name_str = get_string_or_throw!(&mut env, name, std::ptr::null_mut());
 
     match element.get_attribute(txn, &name_str) {
-        Some(yrs::Out::Any(yrs::Any::String(s))) => to_jstring(&mut env, s.as_ref()),
-        Some(_) => std::ptr::null_mut(), // Non-string attribute value
+        Some(yrs::Out::Any(any)) => match any_to_jobject(&mut env, &any) {
+            Ok(obj) => obj.into_raw(),
+            Err(_) => {
+                throw_exception(&mut env, "Failed to convert attribute value to Java object");
+                std::ptr::null_mut()
+            }
+        },
+        Some(_) => {
+            // Non-Any values (e.g. embedded shared types) are not representable as
+            // attribute values. Surface null for now; the yrs API does not produce
+            // these in practice.
+            std::ptr::null_mut()
+        }
         None => std::ptr::null_mut(),
     }
 }
@@ -163,7 +175,9 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeGetAttribu
 /// - `xml_element_ptr`: Pointer to the YXmlElement instance
 /// - `txn_ptr`: Pointer to the transaction
 /// - `name`: The attribute name
-/// - `value`: The attribute value
+/// - `value`: The attribute value as a boxed Java object (String, Long,
+///   Integer, Double, Float, Boolean, or null). Unsupported types throw
+///   `IllegalArgumentException`.
 #[no_mangle]
 pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeSetAttributeWithTxn(
     mut env: JNIEnv,
@@ -172,7 +186,7 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeSetAttribu
     xml_element_ptr: jlong,
     txn_ptr: jlong,
     name: JString,
-    value: JString,
+    value: JObject,
 ) {
     let _doc = get_ref_or_throw!(&mut env, DocPtr::from_raw(doc_ptr), "YDoc");
     let element = get_ref_or_throw!(
@@ -182,9 +196,24 @@ pub extern "system" fn Java_net_carcdr_ycrdt_jni_JniYXmlElement_nativeSetAttribu
     );
     let txn = get_mut_or_throw!(&mut env, TxnPtr::from_raw(txn_ptr), "YTransaction");
     let name_str = get_string_or_throw!(&mut env, name);
-    let value_str = get_string_or_throw!(&mut env, value);
 
-    element.insert_attribute(txn, name_str, value_str);
+    let any_value = match jobject_to_any(&mut env, &value) {
+        Ok(a) => a,
+        Err(AnyConversionError::Unsupported(class_name)) => {
+            let msg = format!(
+                "Unsupported attribute value type: {}. Expected String, Long, Integer, Double, Float, Boolean, or null.",
+                class_name
+            );
+            let _ = env.throw_new("java/lang/IllegalArgumentException", msg);
+            return;
+        }
+        Err(AnyConversionError::Jni(e)) => {
+            throw_exception(&mut env, &format!("JNI error: {:?}", e));
+            return;
+        }
+    };
+
+    element.insert_attribute(txn, name_str, any_value);
 }
 
 /// Removes an attribute using an existing transaction
@@ -1104,6 +1133,40 @@ mod tests {
         assert_eq!(
             element.get_attribute(&txn, "id"),
             Some(yrs::Out::Any(yrs::Any::String("main".into())))
+        );
+    }
+
+    #[test]
+    fn test_xml_element_typed_attributes() {
+        let doc = Doc::new();
+        let fragment = doc.get_or_insert_xml_fragment("div");
+
+        {
+            let mut txn = doc.transact_mut();
+            let element = fragment.insert(&mut txn, 0, XmlElementPrelim::empty("div"));
+            element.insert_attribute(&mut txn, "count", yrs::Any::BigInt(42));
+            element.insert_attribute(&mut txn, "ratio", yrs::Any::Number(3.14));
+            element.insert_attribute(&mut txn, "draft", yrs::Any::Bool(true));
+            element.insert_attribute(&mut txn, "empty", yrs::Any::Null);
+        }
+
+        let txn = doc.transact();
+        let element = fragment.get(&txn, 0).unwrap().into_xml_element().unwrap();
+        assert_eq!(
+            element.get_attribute(&txn, "count"),
+            Some(yrs::Out::Any(yrs::Any::BigInt(42)))
+        );
+        assert_eq!(
+            element.get_attribute(&txn, "ratio"),
+            Some(yrs::Out::Any(yrs::Any::Number(3.14)))
+        );
+        assert_eq!(
+            element.get_attribute(&txn, "draft"),
+            Some(yrs::Out::Any(yrs::Any::Bool(true)))
+        );
+        assert_eq!(
+            element.get_attribute(&txn, "empty"),
+            Some(yrs::Out::Any(yrs::Any::Null))
         );
     }
 

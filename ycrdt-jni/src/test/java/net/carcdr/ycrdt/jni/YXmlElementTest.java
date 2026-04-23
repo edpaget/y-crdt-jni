@@ -235,11 +235,16 @@ public class YXmlElementTest {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testSetAttributeNullValue() {
         try (YDoc doc = new JniYDoc();
              YXmlElement element = doc.getXmlElement("div")) {
             element.setAttribute("class", null);
+            assertNull(element.getAttribute("class"));
+            // The attribute is stored as null rather than absent.
+            String[] names = element.getAttributeNames();
+            assertEquals(1, names.length);
+            assertEquals("class", names[0]);
         }
     }
 
@@ -1096,6 +1101,75 @@ public class YXmlElementTest {
             assertEquals("value50", div.getAttribute("attr50"));
             assertEquals("value99", div.getAttribute("attr99"));
             assertEquals(100, div.getAttributeNames().length);
+        }
+    }
+
+    @Test
+    public void testTypedAttributesRoundTrip() {
+        try (YDoc doc = new JniYDoc();
+             YXmlElement element = doc.getXmlElement("div")) {
+            element.setAttribute("name", "main");
+            element.setAttribute("level", 3L);
+            element.setAttribute("width", 100);
+            element.setAttribute("ratio", 1.5);
+            element.setAttribute("factor", 2.5f);
+            element.setAttribute("draft", true);
+            element.setAttribute("nothing", null);
+
+            Object name = element.getAttribute("name");
+            Object level = element.getAttribute("level");
+            Object width = element.getAttribute("width");
+            Object ratio = element.getAttribute("ratio");
+            Object factor = element.getAttribute("factor");
+            Object draft = element.getAttribute("draft");
+            Object nothing = element.getAttribute("nothing");
+
+            assertTrue(name instanceof String);
+            assertEquals("main", name);
+            assertTrue(level instanceof Long);
+            assertEquals(3L, level);
+            // Integer widens to Long
+            assertTrue(width instanceof Long);
+            assertEquals(100L, width);
+            assertTrue(ratio instanceof Double);
+            assertEquals(1.5, (Double) ratio, 0.0);
+            // Float widens to Double
+            assertTrue(factor instanceof Double);
+            assertEquals(2.5, (Double) factor, 0.0);
+            assertTrue(draft instanceof Boolean);
+            assertEquals(Boolean.TRUE, draft);
+            assertNull(nothing);
+        }
+    }
+
+    @Test
+    public void testTypedAttributesSurviveUpdate() {
+        try (YDoc doc1 = new JniYDoc();
+             YDoc doc2 = new JniYDoc()) {
+            try (YXmlElement source = doc1.getXmlElement("div")) {
+                source.setAttribute("id", 42L);
+                source.setAttribute("enabled", true);
+                source.setAttribute("score", 9.75);
+                source.setAttribute("label", "primary");
+            }
+
+            byte[] update = doc1.encodeStateAsUpdate();
+            doc2.applyUpdate(update);
+
+            try (YXmlElement target = doc2.getXmlElement("div")) {
+                assertEquals(42L, target.getAttribute("id"));
+                assertEquals(Boolean.TRUE, target.getAttribute("enabled"));
+                assertEquals(9.75, (Double) target.getAttribute("score"), 0.0);
+                assertEquals("primary", target.getAttribute("label"));
+            }
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetAttributeRejectsUnsupportedType() {
+        try (YDoc doc = new JniYDoc();
+             YXmlElement element = doc.getXmlElement("div")) {
+            element.setAttribute("bad", new Object());
         }
     }
 }

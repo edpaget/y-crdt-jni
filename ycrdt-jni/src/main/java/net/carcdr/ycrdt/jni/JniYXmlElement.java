@@ -120,12 +120,16 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
     /**
      * Gets an attribute value by name.
      *
+     * <p>Return types are {@link String}, {@link Long}, {@link Double},
+     * {@link Boolean}, or {@code null} (when the attribute is absent or stored
+     * as null).
+     *
      * @param name The attribute name
-     * @return The attribute value, or null if not found
+     * @return The attribute value, or {@code null} if not found
      * @throws IllegalArgumentException if name is null
      * @throws IllegalStateException if the XML element has been closed
      */
-    public String getAttribute(String name) {
+    public Object getAttribute(String name) {
         checkClosed();
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
@@ -144,11 +148,12 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
      *
      * @param txn Transaction handle
      * @param name The attribute name
-     * @return The attribute value, or null if not found
+     * @return The attribute value, or {@code null} if not found
      * @throws IllegalArgumentException if txn or name is null
      * @throws IllegalStateException if the XML element has been closed
+     * @see #getAttribute(String)
      */
-    public String getAttribute(YTransaction txn, String name) {
+    public Object getAttribute(YTransaction txn, String name) {
         checkClosed();
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
@@ -162,19 +167,22 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
     /**
      * Sets an attribute value.
      *
+     * <p>Supported value types: {@link String}, {@link Long}, {@link Integer},
+     * {@link Double}, {@link Float}, {@link Boolean}, or {@code null}.
+     * {@code Integer} and {@code Float} are widened to {@code Long} and
+     * {@code Double} respectively when stored.
+     *
      * @param name The attribute name
-     * @param value The attribute value
-     * @throws IllegalArgumentException if name or value is null
+     * @param value The attribute value (may be {@code null})
+     * @throws IllegalArgumentException if name is null or value is not a supported type
      * @throws IllegalStateException if the XML element has been closed
      */
-    public void setAttribute(String name, String value) {
+    public void setAttribute(String name, Object value) {
         checkClosed();
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        if (value == null) {
-            throw new IllegalArgumentException("Value cannot be null");
-        }
+        validateAttributeValue(value);
         YTransaction txn = doc.getActiveTransaction();
         if (txn != null) {
             setAttribute(txn, name, value);
@@ -192,17 +200,18 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
      * <pre>{@code
      * try (JniYTransaction txn = doc.beginTransaction()) {
      *     element.setAttribute(txn, "class", "container");
-     *     element.setAttribute(txn, "id", "main");
+     *     element.setAttribute(txn, "level", 1L);
      * }
      * }</pre>
      *
      * @param txn Transaction handle
      * @param name The attribute name
-     * @param value The attribute value
-     * @throws IllegalArgumentException if txn, name or value is null
+     * @param value The attribute value (may be {@code null})
+     * @throws IllegalArgumentException if txn or name is null, or value is not a supported type
      * @throws IllegalStateException if the XML element has been closed
+     * @see #setAttribute(String, Object)
      */
-    public void setAttribute(YTransaction txn, String name, String value) {
+    public void setAttribute(YTransaction txn, String name, Object value) {
         checkClosed();
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
@@ -210,10 +219,23 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        if (value == null) {
-            throw new IllegalArgumentException("Value cannot be null");
-        }
+        validateAttributeValue(value);
         nativeSetAttributeWithTxn(doc.getNativePtr(), nativePtr, ((JniYTransaction) txn).getNativePtr(), name, value);
+    }
+
+    private static void validateAttributeValue(Object value) {
+        if (value == null
+                || value instanceof String
+                || value instanceof Long
+                || value instanceof Integer
+                || value instanceof Double
+                || value instanceof Float
+                || value instanceof Boolean) {
+            return;
+        }
+        throw new IllegalArgumentException(
+            "Unsupported attribute value type: " + value.getClass().getName()
+                + ". Expected String, Long, Integer, Double, Float, Boolean, or null.");
     }
 
     /**
@@ -832,9 +854,9 @@ public class JniYXmlElement implements YXmlElement, JniYObservable {
     private static native long nativeGetXmlElement(long docPtr, String name);
     private static native void nativeDestroy(long ptr);
     private static native String nativeGetTagWithTxn(long docPtr, long xmlElementPtr, long txnPtr);
-    private static native String nativeGetAttributeWithTxn(long docPtr, long xmlElementPtr, long txnPtr, String name);
+    private static native Object nativeGetAttributeWithTxn(long docPtr, long xmlElementPtr, long txnPtr, String name);
     private static native void nativeSetAttributeWithTxn(
-            long docPtr, long xmlElementPtr, long txnPtr, String name, String value);
+            long docPtr, long xmlElementPtr, long txnPtr, String name, Object value);
     private static native void nativeRemoveAttributeWithTxn(
             long docPtr, long xmlElementPtr, long txnPtr, String name);
     private static native Object nativeGetAttributeNamesWithTxn(long docPtr, long xmlElementPtr, long txnPtr);

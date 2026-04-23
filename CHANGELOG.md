@@ -8,6 +8,7 @@ While work is in flight, add entries under `[Unreleased]` in the appropriate cat
 
 ### Changed
 
+- **Breaking**: `YXmlElement.getAttribute(...)` now returns `Object` and `YXmlElement.setAttribute(...)` now accepts `Object` so non-string attribute values (`Long`, `Double`, `Boolean`, `null`) survive the JNI and Panama boundaries and `yprosemirror` conversion. Previously non-string values were silently dropped on read and stringified on write, breaking interop with JS clients (Tiptap / y-prosemirror) that write typed node attributes. Supported value types are `String`, `Long`, `Integer`, `Double`, `Float`, `Boolean`, or `null`; `Integer` widens to `Long` and `Float` to `Double`. Callers that assigned the result of `getAttribute` to a `String` variable need an explicit cast.
 - Release POMs now rewrite each `net.carcdr:*:*-SNAPSHOT` sibling dep to the latest `<module>/<semver>` git tag at publish time. A downstream module (e.g. `ycrdt-jni`) can be released without its upstream (`ycrdt-core`) in the same `prepare-release.yml` dispatch, as long as the upstream has at least one release tag. Releases fail fast with a named-module error if no upstream tag exists.
 - Gradle Module Metadata (`.module`) publication is disabled for release publications (kept for `-SNAPSHOT` publishes to GitHub Packages). Gradle consumers of released artifacts now resolve via the POM, which avoids GMM drifting from the rewritten POM dep versions.
 

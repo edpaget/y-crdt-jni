@@ -154,8 +154,8 @@ public final class ProseMirrorConverter {
             if (child instanceof YXmlElement) {
                 YXmlElement yElement = (YXmlElement) child;
                 // Set node attributes
-                Map<String, String> attrs = nodeAttrsToMap(pmNode);
-                for (Map.Entry<String, String> entry : attrs.entrySet()) {
+                Map<String, Object> attrs = nodeAttrsToMap(pmNode);
+                for (Map.Entry<String, Object> entry : attrs.entrySet()) {
                     yElement.setAttribute(entry.getKey(), entry.getValue());
                 }
 
@@ -208,8 +208,8 @@ public final class ProseMirrorConverter {
             YXmlElement childElement = yElement.insertElement(index, tag);
 
             // Set node attributes
-            Map<String, String> attrs = nodeAttrsToMap(pmNode);
-            for (Map.Entry<String, String> entry : attrs.entrySet()) {
+            Map<String, Object> attrs = nodeAttrsToMap(pmNode);
+            for (Map.Entry<String, Object> entry : attrs.entrySet()) {
                 childElement.setAttribute(entry.getKey(), entry.getValue());
             }
 
@@ -253,20 +253,24 @@ public final class ProseMirrorConverter {
     }
 
     /**
-     * Converts ProseMirror node attributes to a string map.
+     * Converts ProseMirror node attributes into the map shape consumed by
+     * {@link YXmlElement#setAttribute(String, Object)}.
+     *
+     * <p>Attribute values keep their original runtime type (String, Long,
+     * Integer, Double, Float, Boolean). Null-valued attrs are skipped.
      *
      * @param node the ProseMirror node
-     * @return a map of attribute name to string value
+     * @return a map of attribute name to typed value
      */
-    private static Map<String, String> nodeAttrsToMap(Node node) {
-        Map<String, String> result = new HashMap<>();
+    private static Map<String, Object> nodeAttrsToMap(Node node) {
+        Map<String, Object> result = new HashMap<>();
         Map<String, Object> attrs = node.getAttrs();
 
         if (attrs != null) {
             for (Map.Entry<String, Object> entry : attrs.entrySet()) {
                 Object value = entry.getValue();
                 if (value != null) {
-                    result.put(entry.getKey(), value.toString());
+                    result.put(entry.getKey(), value);
                 }
             }
         }

@@ -943,11 +943,16 @@ public final class Yrs {
     /**
      * Creates a YInput from a Java Object based on its type.
      *
+     * <p>Supported inputs: {@code null}, {@link Boolean}, {@link String},
+     * {@link Double}/{@link Float}, and any other {@link Number}. A
+     * non-primitive, non-null, non-Number object falls back to its
+     * {@link Object#toString()} representation.
+     *
      * @param arena the arena to allocate in
-     * @param value the Java value (Boolean, String, Number, or null)
+     * @param value the Java value
      * @return the YInput struct
      */
-    private static MemorySegment createYInputFromObject(Arena arena, Object value) {
+    public static MemorySegment createYInputFromObject(Arena arena, Object value) {
         if (value == null) {
             return yinputNull(arena);
         } else if (value instanceof Boolean) {
@@ -2281,6 +2286,18 @@ public final class Yrs {
 
     /** YOutput tag for string content. */
     public static final byte YOUTPUT_TAG_STRING = -5;
+
+    /** YOutput tag for 64-bit integer content. */
+    public static final byte YOUTPUT_TAG_INT = -6;
+
+    /** YOutput tag for 64-bit floating-point content. */
+    public static final byte YOUTPUT_TAG_FLOAT = -7;
+
+    /** YOutput tag for boolean content. */
+    public static final byte YOUTPUT_TAG_BOOL = -8;
+
+    /** YOutput tag for null content. */
+    public static final byte YOUTPUT_TAG_NULL = -1;
 
     /**
      * Reads the tag byte from a YOutput struct.

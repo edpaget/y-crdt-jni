@@ -2,6 +2,7 @@ package net.carcdr.ycrdt.panama;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -105,7 +106,7 @@ public class PanamaYXmlElement implements YXmlElement {
     }
 
     @Override
-    public String getAttribute(String name) {
+    public Object getAttribute(String name) {
         ensureNotClosed();
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
@@ -120,7 +121,7 @@ public class PanamaYXmlElement implements YXmlElement {
     }
 
     @Override
-    public String getAttribute(YTransaction txn, String name) {
+    public Object getAttribute(YTransaction txn, String name) {
         ensureNotClosed();
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
@@ -131,35 +132,26 @@ public class PanamaYXmlElement implements YXmlElement {
         PanamaYTransaction ptxn = (PanamaYTransaction) txn;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment namePtr = Yrs.createString(arena, name);
-            // yxmlelem_get_attr returns YOutput*, not raw string
+            // yxmlelem_get_attr returns YOutput*, or NULL if the attribute is absent.
             MemorySegment output = Yrs.yxmlelemGetAttr(branchPtr, ptxn.getTxnPtr(), namePtr);
             if (output.equals(MemorySegment.NULL)) {
                 return null;
             }
             try {
-                // Read string value from YOutput - returns internal pointer, not to be freed separately
-                MemorySegment strPtr = Yrs.youtputReadString(output);
-                if (strPtr.equals(MemorySegment.NULL)) {
-                    return null;
-                }
-                // Copy string before destroying the YOutput that owns it
-                return strPtr.reinterpret(Long.MAX_VALUE).getString(0);
+                return readYOutputAsAttribute(output);
             } finally {
-                // youtput_destroy frees both the YOutput and its internal string data
                 Yrs.youtputDestroy(output);
             }
         }
     }
 
     @Override
-    public void setAttribute(String name, String value) {
+    public void setAttribute(String name, Object value) {
         ensureNotClosed();
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        if (value == null) {
-            throw new IllegalArgumentException("Value cannot be null");
-        }
+        validateAttributeValue(value);
         PanamaYTransaction activeTxn = doc.getActiveTransaction();
         if (activeTxn != null) {
             setAttribute(activeTxn, name, value);
@@ -171,7 +163,7 @@ public class PanamaYXmlElement implements YXmlElement {
     }
 
     @Override
-    public void setAttribute(YTransaction txn, String name, String value) {
+    public void setAttribute(YTransaction txn, String name, Object value) {
         ensureNotClosed();
         if (txn == null) {
             throw new IllegalArgumentException("Transaction cannot be null");
@@ -179,17 +171,64 @@ public class PanamaYXmlElement implements YXmlElement {
         if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
-        if (value == null) {
-            throw new IllegalArgumentException("Value cannot be null");
-        }
+        validateAttributeValue(value);
         PanamaYTransaction ptxn = (PanamaYTransaction) txn;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment namePtr = Yrs.createString(arena, name);
-            MemorySegment valuePtr = Yrs.createString(arena, value);
-            // yxmlelem_insert_attr expects YInput, not raw string
-            MemorySegment yinputValue = Yrs.yinputString(arena, valuePtr);
+            MemorySegment yinputValue = Yrs.createYInputFromObject(arena, value);
             Yrs.yxmlelemInsertAttr(branchPtr, ptxn.getTxnPtr(), namePtr, yinputValue);
         }
+    }
+
+    private static Object readYOutputAsAttribute(MemorySegment output) {
+        // The pointer returned from yxmlelem_get_attr has no associated byte size,
+        // so we reinterpret it to the full YOutput struct layout before reading fields.
+        MemorySegment sizedOutput = output.reinterpret(Yrs.YOUTPUT_LAYOUT.byteSize());
+        byte tag = Yrs.youtputGetTag(sizedOutput);
+        if (tag == Yrs.YOUTPUT_TAG_STRING) {
+            MemorySegment strPtr = Yrs.youtputReadString(output);
+            if (strPtr.equals(MemorySegment.NULL)) {
+                return null;
+            }
+            return strPtr.reinterpret(Long.MAX_VALUE).getString(0);
+        } else if (tag == Yrs.YOUTPUT_TAG_INT) {
+            MemorySegment longPtr = Yrs.youtputReadLong(output);
+            if (longPtr.equals(MemorySegment.NULL)) {
+                return null;
+            }
+            return longPtr.reinterpret(Long.BYTES).get(ValueLayout.JAVA_LONG, 0);
+        } else if (tag == Yrs.YOUTPUT_TAG_FLOAT) {
+            MemorySegment doublePtr = Yrs.youtputReadFloat(output);
+            if (doublePtr.equals(MemorySegment.NULL)) {
+                return null;
+            }
+            return doublePtr.reinterpret(Double.BYTES).get(ValueLayout.JAVA_DOUBLE, 0);
+        } else if (tag == Yrs.YOUTPUT_TAG_BOOL) {
+            MemorySegment boolPtr = Yrs.youtputReadBool(output);
+            if (boolPtr.equals(MemorySegment.NULL)) {
+                return null;
+            }
+            return boolPtr.reinterpret(1).get(ValueLayout.JAVA_BYTE, 0) != 0;
+        } else if (tag == Yrs.YOUTPUT_TAG_NULL) {
+            return null;
+        }
+        // Unknown/unsupported tag: fall back to null rather than throwing.
+        return null;
+    }
+
+    private static void validateAttributeValue(Object value) {
+        if (value == null
+                || value instanceof String
+                || value instanceof Long
+                || value instanceof Integer
+                || value instanceof Double
+                || value instanceof Float
+                || value instanceof Boolean) {
+            return;
+        }
+        throw new IllegalArgumentException(
+            "Unsupported attribute value type: " + value.getClass().getName()
+                + ". Expected String, Long, Integer, Double, Float, Boolean, or null.");
     }
 
     @Override
