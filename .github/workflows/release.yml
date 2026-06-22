@@ -36,7 +36,7 @@ jobs:
       needs_native_panama: ${{ steps.parse.outputs.needs_native_panama }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Parse and validate tag
         id: parse
@@ -134,7 +134,7 @@ jobs:
       VERSION: ${{ needs.parse-tag.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # ycrdt-bom's build.gradle reads `git tag --list <module>/*` to pin
           # constituent versions; without fetch-tags the clone has no tags.
